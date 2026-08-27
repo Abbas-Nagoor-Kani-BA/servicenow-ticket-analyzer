@@ -1,0 +1,22 @@
+{
+  "name": "servicenow-ticket-analyzer",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Chrome MV3 extension: pull ServiceNow incident timelines, analyze SLAs, export MSR workbook.",
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "tsc -p tsconfig.check.json",
+    "build": "node build.mjs",
+    "watch": "node build.mjs --watch",
+    "test:dom": "node --test tools/viewer-dom-test.js",
+    "zip": "node tools/zip-dist.mjs"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.270",
+    "esbuild": "^0.23.1",
+    "eslint": "^9.10.0",
+    "happy-dom": "^15.7.4",
+    "typescript": "^5.6.2"
+  }
+}
