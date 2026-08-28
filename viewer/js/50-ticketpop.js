@@ -228,7 +228,7 @@ function buildTicketRightPane(row) {
   const TRIO = { assignment_group: "Queue", assigned_to: "Assigned to", state: "State" };
   const evs = (row.activity || [])
     .filter(e => TRIO[e.f])
-    .sort((a, b) => b.at - a.at);
+    .sort((a, b) => (b.atEpoch ?? b.at ?? 0) - (a.atEpoch ?? a.at ?? 0));
   if (!Array.isArray(row.activity)) {
     const d = el("div", "noteEmpty");
     d.textContent = "Transitions load on the next pull \u2014 this data was fetched before activity tracking was added.";
@@ -241,7 +241,10 @@ function buildTicketRightPane(row) {
   for (const e of evs) {
     const r = el("div", "trRow");
     const dt = el("span", "trDate");
-    dt.textContent = fmtInstant(new Date(e.at).toISOString(), row);
+    const eAt = Number.isFinite(e.atEpoch) ? e.atEpoch : e.at;
+    const iso = eAt !== undefined && eAt !== null && eAt !== "" && !Number.isNaN(eAt)
+      ? new Date(eAt).toISOString() : "";
+    dt.textContent = iso ? fmtInstant(iso, row) : "";
     const txt = el("div", "trText");
     txt.textContent = TRIO[e.f] + ": " + (e.o || "(empty)") + " \u2192 " + (e.n || "(empty)");
     r.append(dt, txt);

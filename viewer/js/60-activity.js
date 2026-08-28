@@ -28,14 +28,18 @@ function fieldLabel(f) {
       .map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ") || "Change";
 }
 function fieldChangeEntries(row) {
-  return (row.activity || []).map(ev => ({
-    label: "Field change",
-    cls: "fc",
-    author: "",
-    time: fmtInstant(new Date(ev.atEpoch).toISOString(), row),
-    sort: Number.isFinite(ev.atEpoch) ? new Date(ev.atEpoch).toISOString().replace("T", " ").slice(0, 19) : "",
-    text: `${fieldLabel(ev.f)}: ${ev.o || "(empty)"} → ${ev.n || "(empty)"}`
-  }));
+  return (row.activity || []).map(ev => {
+    const iso = Number.isFinite(ev.atEpoch) && ev.atEpoch !== null
+      ? new Date(ev.atEpoch).toISOString() : "";
+    return {
+      label: "Field change",
+      cls: "fc",
+      author: "",
+      time: iso ? fmtInstant(iso, row) : "",
+      sort: Number.isFinite(ev.atEpoch) ? new Date(ev.atEpoch).toISOString().replace("T", " ").slice(0, 19) : "",
+      text: `${fieldLabel(ev.f)}: ${ev.o || "(empty)"} → ${ev.n || "(empty)"}`
+    };
+  });
 }
 function activityPaneEl(row) {
   const wrap = el("div", "msrPickNotes");
