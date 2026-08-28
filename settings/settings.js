@@ -1,6 +1,11 @@
 import { clearAll } from "../lib/cache.js";
 import { MSR_DEFAULT_LISTS, mergeMsrLists } from "../lib/msrchoices.js";
+import { STORAGE, MSG } from "../lib/keys.js";
+import { broadcast } from "../lib/storage.js";
+import { createChipList } from "./chips.js";
+import { showToast } from "../lib/toast.js";
 
+/** @param {string} id @returns {any} */
 const $ = id => document.getElementById(id);
 
 const DEFAULTS = {
@@ -34,15 +39,18 @@ const MSR_RC_FIELDS = [
   ["RFS", "msrRcRfs"],
   ["P_Ticket", "msrRcPTicket"]
 ];
+function chipsFor(id) {
+  return createChipList($(id), { collapsible: true });
+}
 function fillMsrLists(lists) {
-  for (const [key, id] of MSR_LIST_FIELDS) $(id).value = (lists[key] || []).join("\n");
-  for (const [key, id] of MSR_RC_FIELDS) $(id).value = ((lists.rootCause || {})[key] || []).join("\n");
+  for (const [key, id] of MSR_LIST_FIELDS) chipsFor(id).setValues(lists[key] || []);
+  for (const [key, id] of MSR_RC_FIELDS) chipsFor(id).setValues((lists.rootCause || {})[key] || []);
 }
 function collectMsrLists() {
   const lists = {};
-  for (const [key, id] of MSR_LIST_FIELDS) lists[key] = parseNameLines($(id).value);
+  for (const [key, id] of MSR_LIST_FIELDS) lists[key] = chipsFor(id).getValues();
   const rootCause = {};
-  for (const [key, id] of MSR_RC_FIELDS) rootCause[key] = parseNameLines($(id).value);
+  for (const [key, id] of MSR_RC_FIELDS) rootCause[key] = chipsFor(id).getValues();
   lists.rootCause = rootCause;
   return { version: 2, lists };
 }
@@ -51,21 +59,14 @@ function clampInt(v, lo, hi, fallback) {
   if (!Number.isFinite(n)) return fallback;
   return Math.min(hi, Math.max(lo, n));
 }
-function parseNameLines(text) {
-  const seen = /* @__PURE__ */ new Set();
-  return String(text).split("\n").map((s) => s.replace(/\s*[|=]\s*.*$/, "").trim()).filter(Boolean).filter((n) => seen.has(n.toLowerCase()) ? false : (seen.add(n.toLowerCase()), true));
-}
-function formatNames(arr) {
-  return (arr || []).map((p) => typeof p === "string" ? p : p?.name || "").filter(Boolean).join("\n");
-}
 function collect() {
   return {
     version: 2,
     instanceUrl: $("instanceUrl").value.trim().replace(/\/+$/, ""),
     defaults: {
       ticketType: TICKET_TYPES.includes($("ticketType").value) ? $("ticketType").value : "incident",
-      queues: parseNameLines($("queues").value),
-      teamMembers: parseNameLines($("teamMembers").value)
+      queues: chipsFor("queuesChips").getValues(),
+      teamMembers: chipsFor("teamMembersChips").getValues()
     },
     params: {
       tablePageSize: clampInt($("tablePageSize").value, 100, 5e3, DEFAULTS.params.tablePageSize),
@@ -91,72 +92,64 @@ function fill(s) {
   }
   $("instanceUrl").value = merged.instanceUrl;
   $("ticketType").value = TICKET_TYPES.includes(merged.defaults.ticketType) ? merged.defaults.ticketType : "incident";
-  $("queues").value = formatNames(merged.defaults.queues);
-  $("teamMembers").value = formatNames(merged.defaults.teamMembers);
+  chipsFor("queuesChips").setValues(merged.defaults.queues);
+  chipsFor("teamMembersChips").setValues(merged.defaults.teamMembers);
   $("tablePageSize").value = merged.params.tablePageSize;
   $("debugResponses").checked = !!merged.params.debugResponses;
   $("cacheTtlMinutes").value = merged.params.cacheTtlMinutes;
   $("maxTicketsPerPull").value = merged.params.maxTicketsPerPull;
 }
-function setStatus(text, isError = false) {
-  const el = $("status");
-  el.textContent = text;
-  el.style.color = isError ? "#f38ba8" : "#a6e3a1";
-  setTimeout(() => {
-    el.textContent = "";
-  }, 3500);
-}
 async function save() {
   const settings = collect();
   const msr = collectMsrLists();
-  await chrome.storage.local.set({ pluginSettings: settings, msrLists: msr });
+  await chrome.storage.local.set({ [STORAGE.pluginSettings]: settings, [STORAGE.msrLists]: msr });
   const q = settings.defaults.queues.length;
   const m = settings.defaults.teamMembers.length;
-  setStatus(`Saved \u2014 ${q} queue${q === 1 ? "" : "s"}, ${m} member${m === 1 ? "" : "s"}, MSR lists updated`);
+  showToast(`Settings saved \u2014 ${q} queue${q === 1 ? "" : "s"}, ${m} member${m === 1 ? "" : "s"}`);
 }
-$("saveBtn").addEventListener("click", () => save().catch((e) => setStatus(e.message, true)));
+$("saveBtn").addEventListener("click", () => save().catch((e) => showToast(e.message, "error")));
 $("resetBtn").addEventListener("click", async () => {
   fill(null);
-  await chrome.storage.local.set({ pluginSettings: collect() });
-  setStatus("Reset to defaults");
+  await chrome.storage.local.set({ [STORAGE.pluginSettings]: collect() });
+  showToast("Settings reset to defaults");
 });
 $("msrResetBtn").addEventListener("click", async () => {
   fillMsrLists(MSR_DEFAULT_LISTS);
-  await chrome.storage.local.remove("msrLists");
-  setStatus("MSR lists restored to defaults");
+  await chrome.storage.local.remove(STORAGE.msrLists);
+  showToast("MSR lists restored to defaults");
 });
-chrome.storage.local.get(["msrLists"], ({ msrLists }) => {
+chrome.storage.local.get([STORAGE.msrLists], ({ msrLists }) => {
   fillMsrLists(mergeMsrLists(msrLists && msrLists.lists ? msrLists.lists : null));
 });
 $("clearCacheBtn").addEventListener("click", async () => {
   try {
     await clearAll();
-    setStatus("Pull cache cleared");
+    showToast("Pull cache cleared");
   } catch (e) {
-    setStatus(e.message, true);
+    showToast(e.message, "error");
   }
 });
-chrome.storage.local.get(["pluginSettings"], ({ pluginSettings }) => fill(pluginSettings));
+chrome.storage.local.get([STORAGE.pluginSettings], ({ pluginSettings }) => fill(pluginSettings));
 const CFG_KIND = "servicenow-ticket-analyzer-settings";
-const CFG_KEYS = ["pluginSettings", "exportColMap", "ciSplit", "viewerHiddenCols", "snXlsxTemplate", "msrLists"];
-const CFG_LOCAL_KEY = "snFilterList";
+const CFG_KEYS = [STORAGE.pluginSettings, STORAGE.exportColMap, STORAGE.ciSplit, STORAGE.viewerHiddenCols, STORAGE.snXlsxTemplate, STORAGE.msrLists];
+const CFG_LOCAL_KEY = STORAGE.snFilterList;
 function validateCfgKey(key, v) {
   const bad = () => new Error(`Invalid value for "${key}" in the settings file`);
   if (v === void 0 || v === null) return;
   switch (key) {
-    case "pluginSettings":
+    case STORAGE.pluginSettings:
       if (typeof v !== "object" || Array.isArray(v)) throw bad();
       break;
-    case "viewerHiddenCols":
+    case STORAGE.viewerHiddenCols:
       if (!Array.isArray(v)) throw bad();
       break;
-    case "exportColMap":
+    case STORAGE.exportColMap:
       if (typeof v !== "object" || Array.isArray(v) || Object.entries(v).some(([a, b]) => typeof a !== "string" || typeof b !== "string")) throw bad();
       break;
-    case "ciSplit":
+    case STORAGE.ciSplit:
       if (typeof v !== "object" || Array.isArray(v) || typeof v.enabled !== "boolean" || !Array.isArray(v.groups)) throw bad();
       break;
-    case "msrLists": {
+    case STORAGE.msrLists: {
       const isArr = (x) => Array.isArray(x) && x.every((y) => typeof y === "string");
       if (typeof v !== "object" || Array.isArray(v)) throw bad();
       if (v.lists && typeof v.lists === "object" && !Array.isArray(v.lists)) {
@@ -172,10 +165,10 @@ function validateCfgKey(key, v) {
       }
       break;
     }
-    case "snXlsxTemplate":
+    case STORAGE.snXlsxTemplate:
       if (typeof v !== "object" || Array.isArray(v) || typeof v.name !== "string" || typeof v.dataB64 !== "string") throw bad();
       break;
-    case "snFilterList":
+    case STORAGE.snFilterList:
       if (!Array.isArray(v) || v.some((f) => typeof f !== "object" || f === null)) throw bad();
       break;
   }
@@ -221,9 +214,9 @@ $("exportCfgBtn").addEventListener("click", async () => {
     a.click();
     a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 4e3);
-    setStatus(`Exported ${a.download}`);
+    showToast("Backup exported");
   } catch (err) {
-    setStatus(err.message, true);
+    showToast(err.message, "error");
   }
 });
 $("importCfgBtn").addEventListener("click", () => $("cfgFile").click());
@@ -262,11 +255,10 @@ Current queues, filters, mapping and split groups will be overwritten.`
     if (!ok) return;
     if (Object.keys(updates).length) await chrome.storage.local.set(updates);
     if (localVal != null) importFilterList(localVal);
-    chrome.runtime.sendMessage({ type: "DATA_UPDATED" }).catch(() => {
-    });
+    broadcast({ type: MSG.dataUpdated });
     fill(updates.pluginSettings ?? null);
-    setStatus("Settings imported");
+    showToast("Settings imported");
   } catch (err) {
-    setStatus(err.message, true);
+    showToast(err.message, "error");
   }
 });

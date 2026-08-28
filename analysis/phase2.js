@@ -1,3 +1,14 @@
+/**
+ * Per-ticket timeline extraction context. `queueName` and `snapshotGroupName`
+ * are compared in name-space (lowercased/trimmed) via {@link nameKey}.
+ * @typedef {Object} ExtractCtx
+ * @property {Record<string,string>} stateMap OOB state value->label map
+ * @property {string} queueName name-keyed target queue
+ * @property {string[]} memberNames plain team-member names for ackn detection
+ * @property {string} snapshotGroupName the ticket's current group display name
+ * @property {string} openedAt raw opened_at ISO string
+ */
+
 function parseUtc(s) {
   if (!s) return NaN;
   const str = String(s).trim().replace(" ", "T");
@@ -110,6 +121,7 @@ function clampAssignTime(result, ctx) {
   }
 }
 
+/** @param {unknown[]} auditRows @param {ExtractCtx} ctx */
 function extractTimelines(auditRows, ctx) {
   const events = normalizeEvents(auditRows);
   const result = createResult();
@@ -145,6 +157,12 @@ function rawValue(v) {
   return v.value || "";
 }
 
+/**
+ * @param {any[]} records pulled ticket records
+ * @param {object} auditByTicket sys_id -> audit rows
+ * @param {Record<string,string>} stateMap value->label map
+ * @param {{membersByQueue?: Record<string,string[]>, fallbackMembers?: string[], tableName?: string}} queueCtx
+ */
 function analyzeAll(records, auditByTicket, stateMap, queueCtx) {
   const membersByQueue = (queueCtx && queueCtx.membersByQueue) || {};
   const fallbackMembers = (queueCtx && queueCtx.fallbackMembers) || [];
@@ -277,6 +295,7 @@ function cleanCapture(s) {
     .trim();
 }
 
+/** @param {any[]} entries raw `/api/now/v1/activity/stream` entries */
 function extractEventsFromActivity(entries) {
   const out = [];
   const seen = new Set();
@@ -341,6 +360,7 @@ function extractEventsFromActivity(entries) {
   return out;
 }
 
+/** @param {any} payload raw `list_history.do` JSON response */
 function extractEventsFromListHistory(payload) {
   const byTicket = {};
   for (const entry of payload?.entries || []) {

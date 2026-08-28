@@ -1,6 +1,11 @@
 import { buildEncodedQuery } from "../lib/querybuilder.js";
 import { snStateChoices, SN_PRIORITY_CHOICES, SN_TABLE_LABELS } from "../lib/statechoices.js";
+import { STORAGE, MSG } from "../lib/keys.js";
+import { createLogger } from "./log.js";
+import { broadcast } from "../lib/storage.js";
+import { showToast } from "../lib/toast.js";
 
+/** @param {string} id @returns {any} */
 const $ = id => document.getElementById(id);
 
 const els = {
@@ -33,6 +38,7 @@ const els = {
   logClose: $("logClose"),
   logCopy: $("logCopy")
 };
+const logger = createLogger(els);
 let busy = false;
 function choiceList(key) {
   if (key === "states") return snStateChoices(els.ticketType.value);
@@ -73,7 +79,7 @@ function legacySnGroupQueues() {
   }
 }
 async function applyPluginSettings() {
-  const { pluginSettings: s } = await chrome.storage.local.get("pluginSettings");
+  const { pluginSettings: s } = await chrome.storage.local.get(STORAGE.pluginSettings);
   if (s) {
     if (!els.instance.value && s.instanceUrl) els.instance.value = s.instanceUrl;
     if (s.defaults?.ticketType && [...els.ticketType.options].some((o) => o.value === s.defaults.ticketType)) {
@@ -99,7 +105,7 @@ chrome.storage.local.get(["snInstance", "lastRun"], async (cfg) => {
     const detected = await detectInstanceFromTabs();
     if (detected) {
       els.instance.value = detected;
-      log(`Detected instance from open tab: ${detected}`);
+      logger.log(`Detected instance from open tab: ${detected}`);
       connect();
     }
   }
@@ -125,7 +131,7 @@ function instanceUrl() {
 }
 let filterList = [];
 try {
-  filterList = JSON.parse(localStorage.getItem("snFilterList") || "[]");
+  filterList = JSON.parse(localStorage.getItem(STORAGE.snFilterList) || "[]");
 } catch {
 }
 const COND_OP_LABELS = {
@@ -192,7 +198,7 @@ function renderFilterList() {
   });
 }
 function saveFilterList() {
-  localStorage.setItem("snFilterList", JSON.stringify(filterList));
+  localStorage.setItem(STORAGE.snFilterList, JSON.stringify(filterList));
   renderFilterList();
 }
 $("addFilterBtn").addEventListener("click", () => {
@@ -202,7 +208,7 @@ $("addFilterBtn").addEventListener("click", () => {
     delete f.rawQuery;
     const key = filterKey(f);
     if (filterList.some((x) => filterKey(x) === key)) {
-      log("This exact filter set is already in the list");
+      logger.log("This exact filter set is already in the list");
       return;
     }
     filterList.push(f);
@@ -214,9 +220,11 @@ $("addFilterBtn").addEventListener("click", () => {
     void els.filterListCard.offsetWidth;
     els.filterListCard.classList.add("flash");
     setTimeout(() => els.filterListCard.classList.remove("flash"), 1e3);
-    log(`Added filter ${filterList.length}: ${describeFilterSet(f)}`, "success");
+    logger.log(`Added filter ${filterList.length}: ${describeFilterSet(f)}`, "success");
+    showToast(`Filter ${filterList.length} added`);
   } catch (err) {
-    log(err.message, "error");
+    logger.log(err.message, "error");
+    showToast(err.message, "error");
   }
 });
 $("clearFilterListBtn").addEventListener("click", () => {
@@ -427,60 +435,6 @@ function configuredGroups() {
 function savePrefs() {
   chrome.storage.local.set({ snInstance: instanceUrl() });
 }
-const logLines = [];
-let errCount = 0;
-let logModalOpen = false;
-function renderLogLine(container, { time, text, cls }) {
-  const line = document.createElement("div");
-  if (cls) line.className = cls;
-  line.textContent = `[${time}] ${text}`;
-  line.style.color = cls === "error" ? "#f38ba8" : cls === "success" ? "#a6e3a1" : "";
-  container.appendChild(line);
-}
-function log(text, cls = "") {
-  els.logCard.classList.remove("hidden");
-  if (cls === "error") {
-    errCount++;
-    els.logErrBadge.textContent = String(errCount);
-    els.logErrBadge.classList.remove("hidden");
-  }
-  const entry = { time: (/* @__PURE__ */ new Date()).toLocaleTimeString(), text, cls };
-  logLines.push(entry);
-  renderLogLine(els.log, entry);
-  els.log.scrollTop = els.log.scrollHeight;
-  if (logModalOpen) {
-    renderLogLine(els.logMirror, entry);
-    els.logMirror.scrollTop = els.logMirror.scrollHeight;
-  }
-}
-function openLogModal() {
-  logModalOpen = true;
-  els.logMirror.innerHTML = "";
-  for (const entry of logLines) renderLogLine(els.logMirror, entry);
-  els.logMirror.scrollTop = els.logMirror.scrollHeight;
-  els.logModal.classList.remove("hidden");
-}
-function closeLogModal() {
-  logModalOpen = false;
-  els.logModal.classList.add("hidden");
-}
-els.logHead.addEventListener("click", openLogModal);
-els.logClose.addEventListener("click", closeLogModal);
-els.logModal.addEventListener("click", (e) => {
-  if (e.target === els.logModal) closeLogModal();
-});
-document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape" && logModalOpen) closeLogModal();
-});
-els.logCopy.addEventListener("click", () => {
-  navigator.clipboard.writeText(logLines.map((l) => `[${l.time}] ${l.text}`).join("\n")).then(() => {
-    els.logCopy.textContent = "Copied";
-    setTimeout(() => {
-      els.logCopy.textContent = "Copy all";
-    }, 1500);
-  }).catch(() => {
-  });
-});
 function send(msg) {
   return new Promise((resolve, reject) => {
     chrome.runtime.sendMessage(msg, (res) => {
@@ -489,7 +443,7 @@ function send(msg) {
     });
   });
 }
-async function connect() {
+async function connect(manual = false) {
   try {
     requireInstance();
     els.connect.disabled = true;
@@ -498,16 +452,18 @@ async function connect() {
     const groups = configuredGroups();
     els.connState.textContent = `Ready \xB7 ${groups.length} queue${groups.length > 1 ? "s" : ""}`;
     els.connState.classList.add("on");
-    log(
+    logger.log(
       `Ready (no setup server calls): ${groups.length} queue(s), ${cfgMembers.length} team member(s) from settings`,
       "success"
     );
+    if (manual) showToast(`Ready \u2014 ${groups.length} queue${groups.length > 1 ? "s" : ""}, ${cfgMembers.length} member${cfgMembers.length > 1 ? "s" : ""}`);
     savePrefs();
     refreshGenerated();
   } catch (err) {
     els.connState.textContent = "Not ready";
     els.connState.classList.remove("on");
-    log(err.message, "error");
+    logger.log(err.message, "error");
+    if (manual) showToast(err.message, "error");
   } finally {
     els.connect.disabled = false;
   }
@@ -532,7 +488,7 @@ els.ticketType.addEventListener("change", () => {
   renderCondRows();
   refreshGenerated();
 });
-els.connect.addEventListener("click", connect);
+els.connect.addEventListener("click", () => connect(true));
 els.instance.addEventListener("change", () => {
   els.connState.textContent = "Not ready";
   els.connState.classList.remove("on");
@@ -561,7 +517,7 @@ els.preview.addEventListener("click", async () => {
     let lastQuery = "";
     for (let i = 0; i < sets.length; i++) {
       const res = await send({
-        type: "COUNT",
+        type: MSG.count,
         instanceUrl: instanceUrl2,
         groups,
         filters: sets[i]
@@ -569,19 +525,21 @@ els.preview.addEventListener("click", async () => {
       if (!res.ok) throw new Error(res.error);
       lastQuery = res.encodedQuery || lastQuery;
       const label = sets.length > 1 ? `Preview set ${i + 1}/${sets.length}` : "Preview";
-      log(`${label}: ${res.total} tickets match`);
+      logger.log(`${label}: ${res.total} tickets match`);
       if (res.limit > 0 && res.total > res.limit) {
         overLimit++;
-        log(`${label}: ${res.total} tickets EXCEEDS the max-tickets limit (${res.limit}) \u2014 this set will be SKIPPED on run. Narrow it or raise the limit in Settings`, "error");
+        logger.log(`${label}: ${res.total} tickets EXCEEDS the max-tickets limit (${res.limit}) \u2014 this set will be SKIPPED on run. Narrow it or raise the limit in Settings`, "error");
       } else {
         pullable += res.total;
       }
     }
     els.stageLabel.textContent = overLimit ? `${pullable} pullable \xB7 ${overLimit} set(s) skipped by limit` : `${pullable} matching ticket${pullable === 1 ? "" : "s"}`;
-    if (lastQuery) log(`Query: ${lastQuery}`);
+    showToast(`Preview \u2014 ${pullable} matching ticket${pullable === 1 ? "" : "s"}`);
+    if (lastQuery) logger.log(`Query: ${lastQuery}`);
   } catch (err) {
     els.stageLabel.textContent = err.message;
-    log(err.message, "error");
+    logger.log(err.message, "error");
+    showToast(err.message, "error");
   } finally {
     setBusy(false);
   }
@@ -593,17 +551,18 @@ els.runBtn.addEventListener("click", async () => {
     const live = currentFilters();
     const sets = filterList.length ? filterList.map((f) => ({ ...f, rawQuery: live.rawQuery })) : [live];
     await send({
-      type: "RUN",
+      type: MSG.run,
       instanceUrl: requireInstance(),
       groups: configuredGroups(),
       filters: sets[0],
       filterSets: sets
     });
-    log(`Run started with ${sets.length} filter set${sets.length > 1 ? "s" : ""}\u2026`);
+    logger.log(`Run started with ${sets.length} filter set${sets.length > 1 ? "s" : ""}\u2026`);
   } catch (err) {
     setBusy(false);
     els.stageLabel.textContent = err.message;
-    log(err.message, "error");
+    logger.log(err.message, "error");
+    showToast(err.message, "error");
   }
 });
 $("viewBtn").addEventListener("click", () => {
@@ -621,8 +580,7 @@ async function openViewer() {
       const tab2 = await chrome.tabs.get(viewerTabId);
       await chrome.tabs.update(tab2.id, { active: true });
       await chrome.windows.update(tab2.windowId, { focused: true });
-      chrome.runtime.sendMessage({ type: "DATA_UPDATED" }).catch(() => {
-      });
+      broadcast({ type: MSG.dataUpdated });
       return;
     } catch {
       viewerTabId = null;
@@ -644,18 +602,19 @@ function updatePullCounter(pulled, planned) {
   return true;
 }
 chrome.runtime.onMessage.addListener((msg) => {
-  if (msg.type !== "PROGRESS") return;
+  if (msg.type !== MSG.progress) return;
   const { stage, detail } = msg;
   if (stage === "diag") {
     const isProblem = /401|403|429|MISSING|RATE LIMITED/.test(detail);
-    log(detail, isProblem ? "error" : "");
+    logger.log(detail, isProblem ? "error" : "");
     return;
   }
   if (stage === "limit") {
     els.fill.style.width = "100%";
     els.fill.style.background = "var(--bad)";
     els.stageLabel.textContent = detail;
-    log(detail, "error");
+    logger.log(detail, "error");
+    showToast(detail, "error");
     setBusy(false);
     return;
   }
@@ -663,12 +622,13 @@ chrome.runtime.onMessage.addListener((msg) => {
     els.fill.style.width = "100%";
     els.fill.style.background = "var(--bad)";
     els.stageLabel.textContent = detail;
-    log(detail, "error");
+    logger.log(detail, "error");
+    showToast(detail, "error");
     setBusy(false);
     return;
   }
   els.stageLabel.textContent = detail;
-  if (stage !== "done") log(detail);
+  if (stage !== "done") logger.log(detail);
   const hasCounts = updatePullCounter(msg.pulled, msg.planned);
   let pct = STAGE_PCT[stage];
   if (hasCounts && stage === "phase1") {
@@ -685,7 +645,8 @@ chrome.runtime.onMessage.addListener((msg) => {
     els.fill.style.width = "100%";
     els.fill.style.background = "var(--good)";
     els.stageLabel.textContent = detail;
-    log(detail, "success");
+    logger.log(detail, "success");
+    showToast(`Run complete \u2014 ${msg.pulled ?? 0} ticket${msg.pulled === 1 ? "" : "s"} pulled`);
     setBusy(false);
     els.viewBtn.classList.add("attention");
     chrome.storage.local.get(["lastRun"], (cfg) => {

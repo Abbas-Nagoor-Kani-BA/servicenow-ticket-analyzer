@@ -1,9 +1,15 @@
 import * as MsrChoices from "../../lib/msrchoices.js";
-import { buildHead, hasDataRows, load, render, selfPush } from "./30-grid.js.back";
+import { saveValue, removeValue } from "../../lib/storage.js";
+import { STORAGE } from "../../lib/keys.js";
+import { showToast } from "../../lib/toast.js";
+import { uiStore, setHiddenCols, setMsrLists, getMsrLists } from "./00-store.js";
+import { buildHead, load, render } from "./30-grid.js";
 
 
+/** @param {string} id @returns {any} */
 const $ = id => document.getElementById(id);
 
+/** @type {Array<[string, string, string, number]>} key, label, cell-class, width */
 const COLUMNS = [
   ["number", "Number", "num", 120],
   ["shortDescription", "Short description", "", 150],
@@ -37,24 +43,14 @@ const COLUMNS = [
   ["rep:analysedDate", "Analysed date", "rep", 105]
 ];
 
-let hiddenCols = new Set();
-chrome.storage.local.get(["viewerHiddenCols"], ({ viewerHiddenCols }) => {
-  if (Array.isArray(viewerHiddenCols)) {
-    hiddenCols = new Set(viewerHiddenCols.filter(k => COLUMNS.some(c => c[0] === k)));
-    updateColsBtn();
-    if (hasDataRows() && !document.querySelector("td.edit-input input")) {
-      buildHead();
-      render();
-    }
-  }
-});
+function hideStore() { return uiStore.getState().hiddenCols; }
 
 function visibleCols() {
-  return COLUMNS.filter(([key]) => !hiddenCols.has(key));
+  return COLUMNS.filter(([key]) => !hideStore().has(key));
 }
 
 function updateColsBtn() {
-  $("colsBtn").textContent = hiddenCols.size ? `Columns (${hiddenCols.size} hidden)` : "Columns";
+  $("colsBtn").textContent = hideStore().size ? `Columns (${hideStore().size} hidden)` : "Columns";
 }
 
 // Max characters shown in a cell before truncating (full text in tooltip).
@@ -63,25 +59,15 @@ function cellShort(text) {
   return text.length > CELL_MAX ? text.slice(0, CELL_MAX).trimEnd() + "…" : text;
 }
 
-chrome.storage.local.get(["lastData"], ({ lastData }) => load(lastData));
-
-let msrLists = MsrChoices.mergeMsrLists(null);
-chrome.storage.local.get(["msrLists"], ({ msrLists: stored }) => {
-  msrLists = MsrChoices.mergeMsrLists(stored && stored.lists ? stored.lists : null);
-  if (hasDataRows()) {
-    buildHead();
-    render();
-  }
-});
-
 function columnOptionList(key, row) {
   if (!row) return null;
+  const lists = getMsrLists();
   switch (key) {
-    case "solutionType": return msrLists.resolution;
-    case "rootCause": return MsrChoices.rootCauseFor(msrLists.rootCause, MsrChoices.msrType(row.number));
-    case "subCategory": return msrLists.subCategory;
-    case "duplicateIncident": return msrLists.duplicate;
-    case "assignmentGroup": return msrLists.queue;
+    case "solutionType": return lists.resolution;
+    case "rootCause": return MsrChoices.rootCauseFor(lists.rootCause, MsrChoices.msrType(row.number));
+    case "subCategory": return lists.subCategory;
+    case "duplicateIncident": return lists.duplicate;
+    case "assignmentGroup": return lists.queue;
     default: return null;
   }
 }
@@ -97,18 +83,6 @@ function migrateLegacyResolutions(rows) {
   }
   return changed;
 }
-
-chrome.runtime.onMessage.addListener(msg => {
-  if (msg?.type === "DATA_UPDATED") {
-    if (selfPush || document.querySelector("td.edit-input input, .msrPick")) return false;
-    chrome.storage.local.get(["lastData", "msrLists"], ({ lastData, msrLists: stored }) => {
-      msrLists = MsrChoices.mergeMsrLists(stored && stored.lists ? stored.lists : null);
-      load(lastData);
-      setStatus("Updated from latest run");
-    });
-  }
-  return false;
-});
 
 function setStatus(text, isError = false) {
   const el = $("status");
@@ -128,9 +102,9 @@ function placePopupNear(pop, rect, minW, gap = 4) {
 }
 
 $("clearBtn").addEventListener("click", async () => {
-  await chrome.storage.local.remove("lastData");
+  await removeValue(STORAGE.lastData);
   load(null);
-  setStatus("Cleared");
+  showToast("Pull data cleared");
 });
 
 $("colsBtn").addEventListener("click", e => {
@@ -158,7 +132,7 @@ function buildColMenu() {
     const lab = document.createElement("label");
     const cb = document.createElement("input");
     cb.type = "checkbox";
-    cb.checked = !hiddenCols.has(key);
+    cb.checked = !hideStore().has(key);
     cb.addEventListener("change", () => toggleCol(key, cb.checked));
     const span = document.createElement("span");
     span.textContent = label;
@@ -168,15 +142,17 @@ function buildColMenu() {
 }
 
 async function toggleCol(key, show) {
-  if (!show && COLUMNS.length - hiddenCols.size <= 1) {
+  const hc = hideStore();
+  if (!show && COLUMNS.length - hc.size <= 1) {
     setStatus("At least one column must stay visible", true);
     buildColMenu();
     return;
   }
-  if (show) hiddenCols.delete(key);
-  else hiddenCols.add(key);
+  if (show) hc.delete(key);
+  else hc.add(key);
+  setHiddenCols(new Set(hc));
   try {
-    await chrome.storage.local.set({ viewerHiddenCols: [...hiddenCols] });
+    await saveValue(STORAGE.viewerHiddenCols, [...hc]);
   } catch (err) {
     setStatus(`Save failed: ${err.message}`, true);
   }
@@ -186,9 +162,9 @@ async function toggleCol(key, show) {
 }
 
 $("showAllCols").addEventListener("click", async () => {
-  hiddenCols.clear();
+  setHiddenCols(new Set());
   try {
-    await chrome.storage.local.set({ viewerHiddenCols: [] });
+    await saveValue(STORAGE.viewerHiddenCols, []);
   } catch {}
   $("colMenu").classList.add("hidden");
   buildHead();
@@ -203,6 +179,10 @@ function el(tag, cls) {
   return d;
 }
 
+function syncMsrLists(lists) {
+  setMsrLists(lists);
+}
+
 export {
   visibleCols,
   updateColsBtn,
@@ -214,9 +194,8 @@ export {
   buildColMenu,
   toggleCol,
   el,
+  syncMsrLists,
   $,
   COLUMNS,
-  hiddenCols,
-  CELL_MAX,
-  msrLists
+  CELL_MAX
 };

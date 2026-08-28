@@ -1,7 +1,8 @@
 import * as Markup from "../../lib/markup.js";
+import { STORAGE } from "../../lib/keys.js";
 import { $, el, setStatus } from "./00-core.js";
 import { DEFAULT_EXPORT_MAP, EXPORT_FIELD_BY_ID, EXPORT_GROUPS, MAP_MAX_COL } from "./10-exporter.js";
-import { ciSplit, getCiSplit, setCiSplit, setSavedMapPresent, updateCiBtn, updateExportDots } from "./20-toolbar.js";
+import { ciSplit, getCiSplit, setCiSplit, setSavedMapPresent, syncSplitRadio, updateCiBtn, updateExportDots } from "./20-toolbar.js";
 import { clearSelection, hasSelection } from "./40-selection.js";
 
 
@@ -11,7 +12,7 @@ const mapSelects = new Map();
 async function openMapDialog() {
   let stored = null;
   try {
-    ({ exportColMap: stored } = await chrome.storage.local.get("exportColMap"));
+    ({ exportColMap: stored } = await chrome.storage.local.get(STORAGE.exportColMap));
   } catch {}
   setSavedMapPresent(!!(stored && Object.keys(stored).length));
   updateExportDots();
@@ -206,7 +207,7 @@ $("mapSave").addEventListener("click", async () => {
     return;
   }
   try {
-    await chrome.storage.local.set({ exportColMap: Object.fromEntries(entries) });
+    await chrome.storage.local.set({ [STORAGE.exportColMap]: Object.fromEntries(entries) });
   } catch (err) {
     setStatus(`Save failed: ${err.message}`, true);
     return;
@@ -242,6 +243,7 @@ document.addEventListener("keydown", e => {
   if (!$("ciModal").classList.contains("hidden")) {
     e.preventDefault();
     $("ciModal").classList.add("hidden");
+    syncSplitRadio();
     return;
   }
   if (!$("mapModal").classList.contains("hidden") &&
@@ -257,7 +259,7 @@ document.addEventListener("keydown", e => {
 
 $("mapReset").addEventListener("click", async () => {
   try {
-    await chrome.storage.local.remove("exportColMap");
+    await chrome.storage.local.remove(STORAGE.exportColMap);
   } catch {}
   mapWorking = { ...DEFAULT_EXPORT_MAP };
   buildMapList();
@@ -440,12 +442,13 @@ $("ciSave").addEventListener("click", async () => {
   }
   setCiSplit({ enabled, groups });
   try {
-    await chrome.storage.local.set({ ciSplit });
+    await chrome.storage.local.set({ [STORAGE.ciSplit]: ciSplit });
   } catch (err) {
     setStatus(`Save failed: ${err.message}`, true);
     return;
   }
   $("ciModal").classList.add("hidden");
+  syncSplitRadio();
   updateCiBtn();
   setStatus(enabled
     ? `Split enabled — one file per group (${groups.length} groups)`
@@ -453,18 +456,28 @@ $("ciSave").addEventListener("click", async () => {
 });
 
 $("ciDisable").addEventListener("click", async () => {
-  setCiSplit({ enabled: false, items: [] });
+  setCiSplit({ enabled: false, groups: [] });
   try {
-    await chrome.storage.local.remove("ciSplit");
+    await chrome.storage.local.remove(STORAGE.ciSplit);
   } catch {}
   $("ciModal").classList.add("hidden");
+  syncSplitRadio();
   updateCiBtn();
   setStatus("Split disabled — exports stay a single file");
 });
-$("ciCancel").addEventListener("click", () => $("ciModal").classList.add("hidden"));
-$("ciClose").addEventListener("click", () => $("ciModal").classList.add("hidden"));
+$("ciCancel").addEventListener("click", () => {
+  $("ciModal").classList.add("hidden");
+  syncSplitRadio();
+});
+$("ciClose").addEventListener("click", () => {
+  $("ciModal").classList.add("hidden");
+  syncSplitRadio();
+});
 $("ciModal").addEventListener("click", e => {
-  if (e.target === $("ciModal")) $("ciModal").classList.add("hidden");
+  if (e.target === $("ciModal")) {
+    $("ciModal").classList.add("hidden");
+    syncSplitRadio();
+  }
 });
 
 export {

@@ -117,6 +117,11 @@ const SKELETON = `
     <button id="exportBtn" class="primary">Export</button>
     <button id="exportMenuBtn">▼</button>
     <div id="exportMenu" class="hidden">
+      <div class="radioRow">
+        <label><input type="radio" name="splitMode" id="radSingle" checked> Single file</label>
+        <label><input type="radio" name="splitMode" id="radSplit"> Separate files per CI group</label>
+      </div>
+      <div class="menuSep"></div>
       <button class="exportMenuItem" id="menuMapBtn"><span class="dot" id="mapDot"></span><span class="lbl">Column mapping…</span></button>
       <button class="exportMenuItem" id="menuCiBtn"><span class="dot" id="ciDot"></span><span class="lbl">Split by CI groups…</span></button>
       <div class="menuSep"></div>
@@ -136,8 +141,27 @@ const SKELETON = `
 </div>
 <div id="meta"></div>
 <div id="slaBar" class="hidden"></div>
+<div id="tabs">
+  <button id="tabTickets" class="tab on">Tickets</button>
+  <button id="tabSummary" class="tab">Summary SLA</button>
+</div>
 <div id="wrap">
   <table id="tbl"><thead></thead><tbody></tbody></table>
+</div>
+<div id="summaryWrap" class="hidden">
+  <div id="sumMeta"></div>
+  <div class="table-wrapper">
+    <table id="sumIncTbl" class="sum-table incident-table">
+      <colgroup><col><col><col><col><col><col><col><col><col></colgroup>
+      <thead></thead><tbody></tbody>
+    </table>
+  </div>
+  <div class="table-wrapper">
+    <table id="sumProbTbl" class="sum-table problem-table">
+      <colgroup><col><col><col><col><col><col><col><col><col></colgroup>
+      <thead></thead><tbody></tbody>
+    </table>
+  </div>
 </div>
 <div id="empty" class="hidden">No pulled data yet.</div>
 <div id="mapModal" class="hidden">
@@ -157,6 +181,7 @@ const SKELETON = `
   <div id="ciCard">
     <div class="mapHead"><span>Split</span><button id="ciClose">✕</button></div>
     <label class="ciToggle"><input type="checkbox" id="ciEnabled"></label>
+    <p class="mapHint">An item matches every configuration item that starts with it — e.g. "Payment Gateway" also matches "Payment Gateway PRD / PreLive / DEV / TEST". Longest match wins; the rest go to Others.</p>
     <div id="groupBoard"></div>
     <button id="addGroupBtn">+ Add group</button>
     <div class="mapFoot"><button id="ciSave" class="primary">Save</button>

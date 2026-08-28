@@ -2,19 +2,23 @@ import { detectSnOffsetMs, rowOffsetMs } from "../../lib/sntime.js";
 import { extractHeuristic } from "../../analysis/aiextract.js";
 import { buildReport } from "../../analysis/report.js";
 import { SN_TABLE_LABELS } from "../../lib/statechoices.js";
+import { STORAGE } from "../../lib/keys.js";
+import { pad2 } from "../../lib/format.js";
+import { showToast } from "../../lib/toast.js";
 import { $, COLUMNS, cellShort, columnOptionList, migrateLegacyResolutions, setStatus, visibleCols } from "./00-core.js";
 import { cellValue, tsvCell } from "./15-clipboard.js";
 import { applySelHighlight, ensureDefaultSelection, restorePendingSel } from "./40-selection.js";
 import { copyText } from "./85-shared.js";
+import { dataStore, setSelfPush } from "./00-store.js";
+import { attachSummaryToData, renderSummary, setRowsProvider } from "./16-summary.js";
 
-let data = null;
-let sortKey = null;
-let sortDir = 1;
+function st() { return dataStore.getState(); }
 
+setRowsProvider(() => currentRows());
 
 function load(d) {
-  data = d && Array.isArray(d.rows) ? d : null;
-  snOffsetMs = data ? detectSnOffsetMs(data.rows) : 0;
+  const data = d && Array.isArray(d.rows) ? d : null;
+  dataStore.setState({ data, sortKey: null, sortDir: 1, snOffsetMs: data ? detectSnOffsetMs(data.rows) : 0 });
   let migrated = 0;
   if (data) {
     autoParse();
@@ -24,9 +28,12 @@ function load(d) {
   if (!data || !data.rows.length) {
     $("wrap").classList.add("hidden");
     document.querySelector(".toolbar").classList.add("hidden");
+    $("tabs").classList.add("hidden");
+    $("summaryWrap").classList.add("hidden");
     $("empty").classList.remove("hidden");
     return;
   }
+  $("tabs").classList.remove("hidden");
   const missing = data.missingAudit ? ` · ${data.missingAudit} without timeline events` : "";
   const runs = data.runs || [];
   const lastRun = runs[runs.length - 1];
@@ -57,9 +64,12 @@ function load(d) {
   render();
   restorePendingSel();
   ensureDefaultSelection();
+  if (attachSummaryToData(data)) scheduleSave();
+  renderSummary();
 }
 
 function buildHead() {
+  const { sortKey, sortDir } = st();
   const table = $("tbl");
   let colgroup = table.querySelector("colgroup");
   if (!colgroup) {
@@ -88,14 +98,14 @@ function buildHead() {
       if (!rows.length) return;
       const vals = rows.map(r => tsvCell(cellValue(r, key, cls)));
       copyText(vals.join("\n"))
-        .then(() => setStatus(`Copied column "${label}" — ${rows.length} row(s), blanks kept in place`))
-        .catch(err => setStatus(`Copy failed: ${err.message}`, true));
+        .then(() => showToast(`Column "${label}" copied`))
+        .catch(() => showToast("Copy failed", "error"));
     });
     th.appendChild(cc);
     if (key === sortKey) th.classList.add("sorted", ...(sortDir === -1 ? ["desc"] : []));
     th.addEventListener("click", () => {
-      if (sortKey === key) sortDir = -sortDir;
-      else { sortKey = key; sortDir = 1; }
+      if (sortKey === key) dataStore.setState({ sortDir: -sortDir });
+      else dataStore.setState({ sortKey: key, sortDir: 1 });
       buildHead();
       render();
     });
@@ -105,6 +115,7 @@ function buildHead() {
 }
 
 function currentRows() {
+  const { data, sortKey, sortDir } = st();
   let rows = [...data.rows];
   const q = $("search").value.trim().toLowerCase();
   if (q) {
@@ -125,43 +136,32 @@ function currentRows() {
   return rows;
 }
 
-let snOffsetMs = 0;
-
 function fmtInstant(v, row) {
-  console.log("fmtInstant called with value:", v, "row:", row);
   if (!v) return "";
   const d = new Date(v);
-  if (isNaN(d)) return String(v);
-  const p = n => String(n).padStart(2, "0");
-  const off = rowOffsetMs(row, snOffsetMs);
+  if (isNaN(d.getTime())) return String(v);
+  const off = rowOffsetMs(row, st().snOffsetMs);
   const s = new Date(d.getTime() + off);
-  return `${s.getUTCFullYear()}-${p(s.getUTCMonth() + 1)}-${p(s.getUTCDate())} ` +
-    `${p(s.getUTCHours())}:${p(s.getUTCMinutes())}:${p(s.getUTCSeconds())}`;
+  return `${s.getUTCFullYear()}-${pad2(s.getUTCMonth() + 1)}-${pad2(s.getUTCDate())} ` +
+    `${pad2(s.getUTCHours())}:${pad2(s.getUTCMinutes())}:${pad2(s.getUTCSeconds())}`;
 }
 
-function render() {
-  if (document.querySelector("td.edit-input")) return;
-  const rows = currentRows();
-  const tbody = $("tbl").tBodies[0];
-  tbody.innerHTML = "";
+function buildTableRows(rows, cols, fmtInstant) {
   const frag = document.createDocumentFragment();
-  const cols = visibleCols();
   const breachCounts = { r: 0, m: 0, rm: 0 };
   const typeCounts = {};
   for (const row of rows) {
     const tr = document.createElement("tr");
     tr.dataset.sysId = String(row.sysId ?? "");
+    const rep = buildReport(row, fmtInstant);
     const num = String(row.number ?? "");
-    if (num) {
-      const tp = buildReport(row, fmtInstant).type || "Other";
-      typeCounts[tp] = (typeCounts[tp] || 0) + 1;
-    }
+    if (num) typeCounts[rep.type || "Other"] = (typeCounts[rep.type || "Other"] || 0) + 1;
     for (const [key, cls] of cols) {
       const td = document.createElement("td");
       if (cls) td.className = cls;
       let v;
       if (key.startsWith("rep:")) {
-        v = buildReport(row, fmtInstant)[key.slice(4)] ?? "";
+        v = rep[key.slice(4)] ?? "";
       } else {
         if (key !== "number") td.classList.add("editable");
         else td.classList.add("numLink");
@@ -173,9 +173,9 @@ function render() {
       td.textContent = cls ? text : cellShort(text);
       td.title = text ? `${text}${td.classList.contains("editable") ? "\n— double-click to edit" : ""}` : "";
       if (key === "number" && text.startsWith("INC")) {
-        const st = String(row.state ?? "").toLowerCase();
-        if (st.startsWith("close") || st.startsWith("resolv")) {
-          const breach = buildReport(row, fmtInstant).slaBreach;
+        const stt = String(row.state ?? "").toLowerCase();
+        if (stt.startsWith("close") || stt.startsWith("resolv")) {
+          const breach = rep.slaBreach;
           if (breach) {
             td.classList.add("sla-breach-" + breach.toLowerCase());
             for (const ch of breach) { const k = ch.toLowerCase(); if (k in breachCounts) breachCounts[k]++; }
@@ -195,7 +195,10 @@ function render() {
     }
     frag.appendChild(tr);
   }
-  tbody.appendChild(frag);
+  return { frag, breachCounts, typeCounts };
+}
+
+function updateFooter(data, rows, typeCounts, breachCounts) {
   $("count").textContent = `${rows.length} / ${data.rows.length} tickets`;
   const legend = $("slaBar");
   const parts = [];
@@ -208,26 +211,50 @@ function render() {
   if (breachParts.length) parts.push("SLA breached: " + breachParts.join(" · "));
   if (parts.length) { legend.innerHTML = parts.join(" · "); legend.classList.remove("hidden"); }
   else legend.classList.add("hidden");
-  applySelHighlight();
 }
 
-let saveTimer = null;
-let selfPush = false;
+function render() {
+  const { data } = st();
+  if (document.querySelector("td.edit-input")) return;
+  const rows = currentRows();
+  const tbody = $("tbl").tBodies[0];
+  tbody.innerHTML = "";
+  const cols = visibleCols();
+  const { frag, breachCounts, typeCounts } = buildTableRows(rows, cols, fmtInstant);
+  tbody.appendChild(frag);
+  updateFooter(data, rows, typeCounts, breachCounts);
+  applySelHighlight();
+  renderSummary();
+}
 
 function scheduleSave() {
-  clearTimeout(saveTimer);
-  saveTimer = setTimeout(persistEdits, 350);
+  clearTimeout(st().saveTimer);
+  dataStore.setState({ saveTimer: setTimeout(saveData, 350) });
+}
+
+async function saveData() {
+  const { data, saveTimer } = st();
+  if (saveTimer) { clearTimeout(saveTimer); dataStore.setState({ saveTimer: null }); }
+  if (!data) return;
+  attachSummaryToData(data);
+  setSelfPush(true);
+  await chrome.storage.local.set({ [STORAGE.lastData]: data });
+  setTimeout(() => setSelfPush(false), 300);
+  renderSummary();
 }
 
 async function persistEdits() {
+  const { data } = st();
+  if (!data) return;
+  attachSummaryToData(data);
+  setSelfPush(true);
   try {
-    await chrome.storage.local.set({ lastData: data });
-    selfPush = true;
-    chrome.runtime.sendMessage({ type: "DATA_UPDATED" }).catch(() => {});
-    setTimeout(() => { selfPush = false; }, 300);
+    await chrome.storage.local.set({ [STORAGE.lastData]: data });
   } catch (err) {
     setStatus(`Save failed: ${err.message}`, true);
   }
+  setTimeout(() => setSelfPush(false), 300);
+  renderSummary();
 }
 
 function parseLocalInput(text) {
@@ -242,22 +269,25 @@ function parseLocalInput(text) {
     return new Date(+dmy[3], +dmy[2] - 1, +dmy[1], +(dmy[4] || 0), +(dmy[5] || 0), +(dmy[6] || 0));
   }
   const d = new Date(t);
-  return isNaN(d) ? null : d;
+  return isNaN(d.getTime()) ? null : d;
 }
 
 function getData() {
-  return data;
+  return st().data;
 }
 
 function getTotalRows() {
+  const data = st().data;
   return data ? data.rows.length : 0;
 }
 
 function hasDataRows() {
+  const data = st().data;
   return !!(data && data.rows.length);
 }
 
 function findRowBySysId(sysId) {
+  const data = st().data;
   return data.rows.find(r => String(r.sysId ?? "") === String(sysId ?? ""));
 }
 
@@ -267,8 +297,8 @@ function displayedValue(row, key, cls) {
   return v === null || v === undefined ? "" : String(v);
 }
 
-
 function autoParse() {
+  const data = st().data;
   if (!data || !Array.isArray(data.rows)) return 0;
   let filled = 0, withNotes = 0;
   for (const row of data.rows) {
@@ -279,8 +309,8 @@ function autoParse() {
     if (h.solutionType || h.rootCause) {
       row.solutionType = row.solutionType || h.solutionType;
       row.rootCause = row.rootCause || h.rootCause;
-      const c = h.confidence || {};
-      if ((h.solutionType && c.solutionType !== "high") || (h.rootCause && c.rootCause !== "high")) {
+      const conf = h.confidence;
+      if ((h.solutionType && conf?.solutionType !== "high") || (h.rootCause && conf?.rootCause !== "high")) {
         row.parseReview = true;
       }
       filled++;
@@ -289,7 +319,7 @@ function autoParse() {
   if (data.rows.length && !withNotes) {
     setStatus("No close notes / work notes / comments found on these tickets", true);
   } else if (filled) {
-    setStatus(`Parsed ${filled} ticket(s) from resolution notes`);
+    showToast(`Extracted resolution details from ${filled} ticket${filled === 1 ? "" : "s"}`);
   }
   return filled;
 }
@@ -302,15 +332,12 @@ export {
   render,
   scheduleSave,
   persistEdits,
+  saveData,
   parseLocalInput,
   getData,
   getTotalRows,
   hasDataRows,
   findRowBySysId,
   displayedValue,
-  autoParse,
-  data,
-  snOffsetMs,
-  saveTimer,
-  selfPush
+  autoParse
 };

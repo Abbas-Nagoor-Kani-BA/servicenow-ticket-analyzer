@@ -26,3 +26,34 @@
 button { padding: 8px 14px; border: none; border-radius: 6px; background: #45475a; color: var(--text); cursor: pointer; font-weight: 600; }
 button:hover { filter: brightness(1.15); }
 button.primary { background: var(--accent); color: #11111b; }
+
+.toastStack {
+  position: fixed;
+  top: 14px;
+  right: 14px;
+  z-index: 99999;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: min(320px, calc(100vw - 28px));
+}
+.toast {
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--good);
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.35;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+  opacity: 0;
+  transform: translateY(-8px);
+  transition: opacity 0.18s ease, transform 0.18s ease;
+  cursor: pointer;
+  user-select: none;
+}
+.toast.in { opacity: 1; transform: none; }
+.toast.out { opacity: 0; transform: translateY(-8px); }
+.toast.error { border-left-color: var(--bad); color: #f38ba8; }
+.toast.info { border-left-color: var(--accent); }

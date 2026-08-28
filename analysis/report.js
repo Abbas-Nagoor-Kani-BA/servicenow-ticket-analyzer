@@ -67,7 +67,7 @@ function parseDate(str) {
   const [dd, mm, yyyy] = datePart.split("-");
   if (!yyyy || !mm || !dd) return null;
   const d = new Date(`${yyyy}-${mm}-${dd}T${timePart || "00:00:00"}`);
-  return isNaN(d) ? null : d;
+  return isNaN(d.getTime()) ? null : d;
 }
 
 function businessHoursBetween(startStr, endStr) {
@@ -88,9 +88,9 @@ function businessHoursBetween(startStr, endStr) {
     if (!isWorkday(d)) continue;
     const ws = new Date(d); ws.setHours(WORK_START_H, 0, 0, 0);
     const we = new Date(d); we.setHours(WORK_END_H, 0, 0, 0);
-    const segStart = d.getTime() === startDay.getTime() ? new Date(Math.min(Math.max(start, ws), we)) : ws;
-    const segEnd = d.getTime() === endDay.getTime() ? new Date(Math.min(Math.max(end, ws), we)) : we;
-    if (segEnd > segStart) hours += (segEnd - segStart) / 3600000;
+    const segStart = d.getTime() === startDay.getTime() ? new Date(Math.min(Math.max(start.getTime(), ws.getTime()), we.getTime())) : ws;
+    const segEnd = d.getTime() === endDay.getTime() ? new Date(Math.min(Math.max(end.getTime(), ws.getTime()), we.getTime())) : we;
+    if (segEnd > segStart) hours += (segEnd.getTime() - segStart.getTime()) / 3600000;
   }
   return hours;
 }
@@ -104,7 +104,7 @@ function calcBusinessHours(createdStr, resolvedStr, suspendedStr, resumedStr, pr
   if (!end) return "";
 
   if (p === 1 || p === 2) {
-    return Math.max(0, (end - start) / 3600000).toFixed(2);
+    return Math.max(0, (end.getTime() - start.getTime()) / 3600000).toFixed(2);
   }
 
   let hours = businessHoursBetween(start, end);
@@ -129,7 +129,7 @@ function calcIncCurrentHours(assignedStr, resolvedStr, suspendedStr, resumedStr,
   if (p === 1 || p === 2) {
     const end = resolvedStr ? parseDate(resolvedStr) : new Date();
     if (!end) return "0";
-    return Math.max(0, (end - start) / 3600000).toFixed(2);
+    return Math.max(0, (end.getTime() - start.getTime()) / 3600000).toFixed(2);
   }
 
   let end;
@@ -166,7 +166,7 @@ function calcResponseSLA(assignedStr, acknowledgedStr, suspendedStr, resumedStr,
   if (!end) return "";
 
   if (p === 1 || p === 2) {
-    return hoursToHMS(Math.max(0, (end - start) / 3600000));
+    return hoursToHMS(Math.max(0, (end.getTime() - start.getTime()) / 3600000));
   }
 
   let hours = businessHoursBetween(start, end);

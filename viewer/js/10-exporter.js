@@ -1,5 +1,5 @@
 import { buildReport } from "../../analysis/report.js";
-import { fmtInstant } from "./30-grid.js.back";
+import { fmtInstant } from "./30-grid.js";
 
 
 const TPL_SHEET_NAME = "all_ticket_details";
@@ -51,6 +51,11 @@ function expStr(v) { return v === null || v === undefined ? "" : String(v); }
 function expRaw(key) { return r => expStr(r[key]); }
 function expRep(key) { return r => buildReport(r, fmtInstant)[key] ?? ""; }
 
+/**
+ * @typedef {Array<{ name: string, items: Array<[string, string, (r: any, i: number) => any]> }>} ExportGroups
+ */
+
+/** @type {ExportGroups} */
 const EXPORT_GROUPS = [
   {
     name: "General",

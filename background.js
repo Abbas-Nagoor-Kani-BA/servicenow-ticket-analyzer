@@ -1,6 +1,9 @@
 import { ServiceNowClient } from "./lib/servicenow.js";
 import { buildEncodedQuery } from "./lib/querybuilder.js";
 import { snStateMap, SN_TABLE_LABELS } from "./lib/statechoices.js";
+import { STORAGE, MSG } from "./lib/keys.js";
+import { broadcast } from "./lib/storage.js";
+import { normalizeNames } from "./lib/names.js";
 import * as Analysis from "./analysis/phase2.js";
 import { analyzeAll } from "./analysis/phase2.js";
 import { setQueryTtlMinutes, isFreshQuery, timelineNeedsFetch, getQuery, putQuery, getTimelines, putTimelines } from "./lib/cache.js";
@@ -96,7 +99,7 @@ async function smartFetch(url, opts = {}) {
   }
   const { value: token, source } = await resolveToken(origin, tab, attempt > 0);
   try {
-    const resp = await chrome.tabs.sendMessage(tab.id, { type: "SN_FETCH", url, token });
+    const resp = await chrome.tabs.sendMessage(tab.id, { type: MSG.snFetch, url, token });
     if (resp && resp.ok) {
       if (resp.status === 401 && attempt < 2) {
         tokenCache = null;
@@ -168,7 +171,7 @@ function makeClient(instanceUrl) {
       progress("diag", `${d.path} \u2192 ${d.status}${ms} \xB7 via=${d.via}${token}${rows} \xB7 q=${d.query || ""}${preview}`);
     }
   });
-  return chrome.storage.local.get("pluginSettings").then(({ pluginSettings: s }) => {
+  return chrome.storage.local.get(STORAGE.pluginSettings).then(({ pluginSettings: s }) => {
     if (s?.params) {
       client.pageSize = clampNum(s.params.tablePageSize, 100, 5e3) || client.pageSize;
       client.debugResponses = !!s.params.debugResponses;
@@ -178,18 +181,18 @@ function makeClient(instanceUrl) {
   });
 }
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-  if (msg.type === "PING") {
+  if (msg.type === MSG.ping) {
     sendResponse({ ok: true, running });
     return false;
   }
-  if (msg.type === "COUNT") {
+  if (msg.type === MSG.count) {
     handleCount(msg).then(sendResponse).catch((err) => {
-      diagError("COUNT", err);
+      diagError(MSG.count, err);
       sendResponse({ ok: false, error: err.message });
     });
     return true;
   }
-  if (msg.type === "RUN") {
+  if (msg.type === MSG.run) {
     runPull(msg);
     sendResponse({ ok: true, started: true });
     return true;
@@ -215,6 +218,7 @@ function scopeGroups(msg) {
 function groupScopeOf(groupNames) {
   return { groupNames };
 }
+/** @param {import("./types/global.d.ts").MsgCount} msg */
 async function handleCount(msg) {
   const table = msg.filters?.table || "incident";
   const client = await makeClient(msg.instanceUrl);
@@ -222,13 +226,12 @@ async function handleCount(msg) {
   const { memberSysIds: _drop, ...filters } = msg.filters || {};
   const encodedQuery = buildEncodedQuery({ ...filters, ...groupScopeOf(groups) });
   const total = await client.count(table, encodedQuery);
-  const s = (await chrome.storage.local.get("pluginSettings")).pluginSettings;
+  const s = (await chrome.storage.local.get(STORAGE.pluginSettings)).pluginSettings;
   const limit = clampNum(s?.params?.maxTicketsPerPull, 0, 1e5) ?? 0;
   return { ok: true, total, encodedQuery, limit };
 }
 function progress(stage, detail, extra = {}) {
-  chrome.runtime.sendMessage({ type: "PROGRESS", stage, detail, ...extra }).catch(() => {
-  });
+  broadcast({ type: MSG.progress, stage, detail, ...extra });
 }
 
 async function processFilterSet(client, set, index, totalSets, groupScope, fields, maxTickets, abortSignal) {
@@ -303,7 +306,7 @@ async function fetchTimelines(client, records, table, abortSignal, membersByQueu
 }
 
 async function persistResults(rows, runEntries, missingAudit, auditCounts, sampleAuditRows, sampleRecord, msg, groups, plannedSum) {
-  const prev = (await chrome.storage.local.get(["lastData"])).lastData;
+  const prev = (await chrome.storage.local.get([STORAGE.lastData])).lastData;
   const merged = mergeRows(prev?.rows || [], rows);
   const at = (/* @__PURE__ */ new Date()).toISOString();
   const group = groups.join(", ");
@@ -340,7 +343,7 @@ async function persistResults(rows, runEntries, missingAudit, auditCounts, sampl
       tickets: rows.length
     }
   });
-  chrome.runtime.sendMessage({ type: "DATA_UPDATED" }).catch(() => {});
+  broadcast({ type: MSG.dataUpdated });
   const skippedSets = runEntries.filter((e) => e.skippedLimit);
   progress(
     "done",
@@ -349,70 +352,82 @@ async function persistResults(rows, runEntries, missingAudit, auditCounts, sampl
   );
 }
 
+async function resolveRunSettings(msg) {
+  const settings = (await chrome.storage.local.get([STORAGE.pluginSettings])).pluginSettings;
+  const groups = scopeGroups(msg);
+  progress("resolve", `Queues (from settings): ${groups.join(", ")}`);
+  const groupScope = groupScopeOf(groups);
+  const teamNames = normalizeNames(settings?.defaults?.teamMembers || []);
+  if (!teamNames.length) {
+    progress("resolve", "No team members configured \u2014 acknowledgement dates will stay empty");
+  } else {
+    progress("resolve", `${teamNames.length} team member(s) configured for acknowledgement detection`);
+  }
+  const membersByQueue = Object.fromEntries(groups.map((g) => [g, teamNames]));
+  const maxTickets = clampNum(settings?.params?.maxTicketsPerPull, 0, 1e5) ?? 0;
+  if (maxTickets > 0) progress("resolve", `Max tickets per filter set: ${maxTickets}`);
+  return { groups, groupScope, teamNames, membersByQueue, maxTickets };
+}
+
+async function pullFilterSets(client, sets, groupScope, fields, maxTickets, signal) {
+  const byTable = /* @__PURE__ */ new Map();
+  const runEntries = [];
+  let plannedSum = 0;
+  let pulledDone = 0;
+  for (let i = 0; i < sets.length; i++) {
+    const result = await processFilterSet(client, sets[i], i, sets.length, groupScope, fields, maxTickets, signal);
+    plannedSum += result.planned;
+    if (!result.records) {
+      runEntries.push({ table: result.table, query: result.query, pulled: result.pulled, skippedLimit: result.skippedLimit || false, matched: result.matched });
+      continue;
+    }
+    pulledDone += result.pulledDelta;
+    progress("phase1", `Filter ${i + 1}/${sets.length}: ${result.records.length} tickets`, { pulled: pulledDone, planned: plannedSum });
+    if (!byTable.has(result.table)) byTable.set(result.table, /* @__PURE__ */ new Map());
+    const bucket = byTable.get(result.table);
+    let fresh = 0;
+    for (const r of result.records) {
+      const id = r.sys_id?.value || r.sys_id;
+      if (id && !bucket.has(id)) {
+        bucket.set(id, r);
+        fresh++;
+      }
+    }
+    runEntries.push({ table: result.table, query: result.query, pulled: result.pulled, new: fresh, cached: !!result.cached, cacheAt: result.cacheAt || null });
+  }
+  return { byTable, runEntries, plannedSum };
+}
+
+async function fetchAllTimelines(client, byTable, signal, membersByQueue, teamNames) {
+  const allRows = [];
+  let missingAuditTotal = 0;
+  const auditCounts = {};
+  const sampleAuditRows = [];
+  let sampleRecord = null;
+  for (const [table, bucket] of byTable) {
+    const records = [...bucket.values()];
+    if (!records.length) continue;
+    const tl = await fetchTimelines(client, records, table, signal, membersByQueue, teamNames);
+    auditCounts[table] = tl.auditCount;
+    if (!sampleRecord) sampleRecord = tl.sampleRecord;
+    if (!sampleAuditRows.length) sampleAuditRows.push(...tl.sampleAuditRows);
+    allRows.push(...tl.rows);
+    missingAuditTotal += tl.missingAudit;
+  }
+  return { rows: allRows, missingAudit: missingAuditTotal, auditCounts, sampleAuditRows, sampleRecord };
+}
+
+/** @param {import("./types/global.d.ts").MsgRun} msg */
 async function runPull(msg) {
   if (running) return;
   running = true;
   const abort = new AbortController();
   try {
-    const sets = Array.isArray(msg.filterSets) && msg.filterSets.length ? msg.filterSets : [msg.filters || {}];
     const client = await makeClient(msg.instanceUrl);
-    const groups = scopeGroups(msg);
-    progress("resolve", `Queues (from settings): ${groups.join(", ")}`);
-    const groupScope = groupScopeOf(groups);
-    const settings = (await chrome.storage.local.get(["pluginSettings"])).pluginSettings;
-    const teamNames = [...new Set(
-      (settings?.defaults?.teamMembers || []).map((m) => m && typeof m === "object" ? m.name : m).map((n) => String(n || "").trim()).filter(Boolean)
-    )];
-    if (!teamNames.length) {
-      progress("resolve", "No team members configured \u2014 acknowledgement dates will stay empty");
-    } else {
-      progress("resolve", `${teamNames.length} team member(s) configured for acknowledgement detection`);
-    }
-    const membersByQueue = Object.fromEntries(groups.map((g) => [g, teamNames]));
-    const maxTickets = clampNum(settings?.params?.maxTicketsPerPull, 0, 1e5) ?? 0;
-    if (maxTickets > 0) progress("resolve", `Max tickets per filter set: ${maxTickets}`);
-    const byTable = /* @__PURE__ */ new Map();
-    const runEntries = [];
-    let plannedSum = 0;
-    let pulledDone = 0;
-    for (let i = 0; i < sets.length; i++) {
-      const result = await processFilterSet(client, sets[i], i, sets.length, groupScope, msg.fields || DEFAULT_FIELDS, maxTickets, abort.signal);
-      plannedSum += result.planned;
-      if (!result.records) {
-        runEntries.push({ table: result.table, query: result.query, pulled: result.pulled, skippedLimit: result.skippedLimit || false, matched: result.matched });
-        continue;
-      }
-      pulledDone += result.pulledDelta;
-      progress("phase1", `Filter ${i + 1}/${sets.length}: ${result.records.length} tickets`, { pulled: pulledDone, planned: plannedSum });
-      if (!byTable.has(result.table)) byTable.set(result.table, /* @__PURE__ */ new Map());
-      const bucket = byTable.get(result.table);
-      let fresh = 0;
-      for (const r of result.records) {
-        const id = r.sys_id?.value || r.sys_id;
-        if (id && !bucket.has(id)) {
-          bucket.set(id, r);
-          fresh++;
-        }
-      }
-      runEntries.push({ table: result.table, query: result.query, pulled: result.pulled, new: fresh, cached: !!result.cached, cacheAt: result.cacheAt || null });
-    }
-    const allRows = [];
-    let missingAuditTotal = 0;
-    const auditCounts = {};
-    const sampleAuditRows = [];
-    let sampleRecord = null;
-    for (const [table, bucket] of byTable) {
-      const records = [...bucket.values()];
-      if (!records.length) continue;
-      const tl = await fetchTimelines(client, records, table, abort.signal, membersByQueue, teamNames);
-      auditCounts[table] = tl.auditCount;
-      if (!sampleRecord) sampleRecord = tl.sampleRecord;
-      if (!sampleAuditRows.length) sampleAuditRows.push(...tl.sampleAuditRows);
-      allRows.push(...tl.rows);
-      missingAuditTotal += tl.missingAudit;
-    }
-    const rows = allRows;
-    const missingAudit = missingAuditTotal;
+    const { groups, groupScope, membersByQueue, teamNames, maxTickets } = await resolveRunSettings(msg);
+    const sets = Array.isArray(msg.filterSets) && msg.filterSets.length ? msg.filterSets : [msg.filters || {}];
+    const { byTable, runEntries, plannedSum } = await pullFilterSets(client, sets, groupScope, msg.fields || DEFAULT_FIELDS, maxTickets, abort.signal);
+    const { rows, missingAudit, auditCounts, sampleAuditRows, sampleRecord } = await fetchAllTimelines(client, byTable, abort.signal, membersByQueue, teamNames);
     if (!rows.length) throw new Error("No tickets match this filter list");
     await persistResults(rows, runEntries, missingAudit, auditCounts, sampleAuditRows, sampleRecord, msg, groups, plannedSum);
   } catch (err) {

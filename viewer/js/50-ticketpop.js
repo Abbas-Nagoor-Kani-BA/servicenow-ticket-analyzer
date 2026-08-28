@@ -1,5 +1,7 @@
 import * as MsrChoices from "../../lib/msrchoices.js";
-import { el, msrLists, placePopupNear, setStatus } from "./00-core.js";
+import { el, placePopupNear, setStatus } from "./00-core.js";
+import { getMsrLists } from "./00-store.js";
+import { applyPickFilter, paintPickItems, pickCurNotInOptions, pickLabelOf } from "./15-picker.js";
 import { displayedValue, fmtInstant, parseLocalInput, render, scheduleSave } from "./30-grid.js";
 
 
@@ -34,12 +36,7 @@ function attachSearchPick(anchorInput, options, currentValue, onPick) {
   const cur = String(currentValue ?? "");
   const entries = ["", ...options];
   if (cur && !options.some(x => x.toLowerCase() === cur.toLowerCase())) entries.push(cur);
-  const labelOf = v =>
-    v === "" ? "— clear —"
-      : v + (cur && v === cur && !options.some(x => x.toLowerCase() === cur.toLowerCase()) ? " · current" : "");
-  const baseLabel = v => (v === "" ? "— clear —" : v);
-  const acronymOf = s =>
-    s.split(/[\s\-\/_,]+/).filter(Boolean).map(w => w[0]).join("").toLowerCase();
+  const curNotInOptions = pickCurNotInOptions(options, cur);
 
   const pop = el("div", "msrPick pickNested");
   const sIn = document.createElement("input");
@@ -54,48 +51,22 @@ function attachSearchPick(anchorInput, options, currentValue, onPick) {
   let items = [];
   let activeIdx = 0;
 
-  const paint = () => {
-    listEl.innerHTML = "";
-    foot.textContent = `${items.length} option${items.length === 1 ? "" : "s"} \xB7 \u2191\u2193 \xB7 Enter \xB7 Esc`;
-    if (!items.length) {
-      const d = el("div", "msrPickItem none");
-      d.textContent = "No matching option";
-      listEl.appendChild(d);
-      return;
-    }
-    items.forEach((v, i) => {
-      const d = document.createElement("div");
-      d.className = "msrPickItem" + (i === activeIdx ? " active" : "");
-      d.textContent = labelOf(v);
-      d.addEventListener("pointerdown", ev => {
-        ev.preventDefault();
-        closeNestedPick();
-        onPick(v);
-      });
-      listEl.appendChild(d);
+  const renderItem = v => {
+    const d = document.createElement("div");
+    d.textContent = pickLabelOf(v, cur, curNotInOptions);
+    d.addEventListener("pointerdown", ev => {
+      ev.preventDefault();
+      closeNestedPick();
+      onPick(v);
     });
-    const act = listEl.children[activeIdx];
-    if (act) {
-      const top = act.offsetTop, view = listEl.clientHeight;
-      if (top < listEl.scrollTop || top + act.offsetHeight > listEl.scrollTop + view) {
-        listEl.scrollTop = Math.max(0, top - view / 2);
-      }
-    }
+    return d;
   };
+  const paint = () => paintPickItems(listEl, foot, items, activeIdx, renderItem);
   const applyFilter = () => {
     const q = firstOpen ? "" : sIn.value.trim().toLowerCase();
-    if (!q) items = entries.slice();
-    else {
-      const acros = [], subs = [];
-      for (const v of entries) {
-        const hay = labelOf(v).toLowerCase();
-        if (q.length >= 2 && acronymOf(baseLabel(v)).startsWith(q)) acros.push(v);
-        else if (hay.includes(q)) subs.push(v);
-      }
-      items = [...acros, ...subs];
-    }
-    const exact = items.findIndex(v => v.toLowerCase() === (firstOpen ? cur : sIn.value).trim().toLowerCase());
-    activeIdx = exact >= 0 ? exact : 0;
+    const res = applyPickFilter(entries, q, firstOpen ? cur : sIn.value, cur);
+    items = res.items;
+    activeIdx = res.activeIdx;
   };
   let firstOpen = true;
   const renderList = () => {
@@ -173,8 +144,8 @@ function buildTicketLeftPane(row, placePop) {
     input.autocomplete = "off";
     input.placeholder = "Click to choose\u2026";
     const options = k === "solutionType"
-      ? msrLists.resolution
-      : MsrChoices.rootCauseFor(msrLists.rootCause, MsrChoices.msrType(row.number));
+      ? getMsrLists().resolution
+      : MsrChoices.rootCauseFor(getMsrLists().rootCause, MsrChoices.msrType(row.number));
     input.addEventListener("focus", () => {
       attachSearchPick(input, options, row[k], v => {
         input.value = v;

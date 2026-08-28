@@ -1,10 +1,14 @@
 import * as Markup from "../../lib/markup.js";
 import * as TemplateXml from "../../lib/templatexml.js";
+import { STORAGE } from "../../lib/keys.js";
+import { pad2 } from "../../lib/format.js";
 import { $, setStatus } from "./00-core.js";
+import { showToast } from "../../lib/toast.js";
 import { EXPORT_FIELD_BY_ID, MAP_MAX_COL, TPL_COLUMNS } from "./10-exporter.js";
-import { MSR_COLUMNS, buildMsrTsv } from "./15-clipboard.js";
+import { buildMsrTsv } from "./15-clipboard.js";
 import { hideLetterPop, openCiDialog, openMapDialog } from "./25-dialogs.js";
-import { currentRows, getTotalRows, hasDataRows } from "./30-grid.js";
+import { currentRows, getTotalRows, hasDataRows, fmtInstant } from "./30-grid.js";
+import { buildSlaSummaryRows } from "../../analysis/slasummary.js";
 import { copyText } from "./85-shared.js";
 
 
@@ -12,8 +16,20 @@ let tplInfo = null;
 
 let ciSplit = { enabled: false, groups: [] };
 function getCiSplit() { return ciSplit; }
-function setCiSplit(v) { ciSplit = v; }
-chrome.storage.local.get(["ciSplit"], ({ ciSplit: cs }) => {
+function setCiSplit(v) {
+  ciSplit = {
+    enabled: !!(v && v.enabled),
+    groups: Array.isArray(v && v.groups)
+      ? v.groups
+          .filter(g => g && typeof g === "object")
+          .map(g => ({
+            name: String(g.name ?? ""),
+            items: Array.isArray(g.items) ? g.items.filter(x => typeof x === "string" && x.trim()) : []
+          }))
+      : []
+  };
+}
+chrome.storage.local.get([STORAGE.ciSplit], ({ ciSplit: cs }) => {
   if (cs && typeof cs === "object") {
     if (Array.isArray(cs.groups)) {
       ciSplit = {
@@ -33,7 +49,7 @@ chrome.storage.local.get(["ciSplit"], ({ ciSplit: cs }) => {
           .map(ci => ({ name: ci, items: [ci] }))
       };
     }
-    updateCiBtn();
+    syncSplitRadio();
   }
 });
 
@@ -41,29 +57,68 @@ function updateCiBtn() {
   updateExportDots();
 }
 
+function syncSplitRadio() {
+  const active = ciSplit.enabled && ciSplit.groups.length;
+  $("radSingle").checked = !active;
+  $("radSplit").checked = !!active;
+  updateExportDots();
+}
+
+$("radSingle").addEventListener("change", async () => {
+  if (!$("radSingle").checked || !ciSplit.enabled) return;
+  ciSplit = { ...ciSplit, enabled: false };
+  await chrome.storage.local.set({ [STORAGE.ciSplit]: ciSplit });
+  updateExportDots();
+  showToast("Split export disabled — one file per export");
+});
+
+$("radSplit").addEventListener("change", () => {
+  if (!$("radSplit").checked) return;
+  if (!ciSplit.groups.length) {
+    syncSplitRadio();
+    openCiDialog();
+    return;
+  }
+  if (ciSplit.enabled) return;
+  ciSplit = { ...ciSplit, enabled: true };
+  chrome.storage.local.set({ [STORAGE.ciSplit]: ciSplit }).then(() => {
+    updateExportDots();
+    showToast("Split export enabled — one file per CI group");
+  });
+});
+
 function sanitizeFilePart(s) {
   return String(s).replace(/[^\w.-]+/g, "-").replace(/^-+|-+$/g, "") || "group";
 }
 
 function buildCiGroups(rows) {
   const norm = s => String(s ?? "").trim().toLowerCase();
-  const owner = new Map();
-  for (const g of ciSplit.groups) {
+  const bounds = [];
+  for (let gi = 0; gi < ciSplit.groups.length; gi++) {
+    const g = ciSplit.groups[gi];
     for (const it of g.items) {
-      const k = norm(it);
-      if (k && !owner.has(k)) owner.set(k, g.name);
+      const key = norm(it);
+      if (key) bounds.push({ key, name: g.name, gi });
     }
   }
   const byGroup = new Map();
   const others = [];
   for (const r of rows) {
     const k = norm(r.configItem);
-    const name = k ? owner.get(k) : null;
-    if (!name) {
+    let best = null;
+    if (k) {
+      for (const b of bounds) {
+        if (k.startsWith(b.key) &&
+          (!best || b.key.length > best.key.length || (b.key.length === best.key.length && b.gi < best.gi))) {
+          best = b;
+        }
+      }
+    }
+    if (!best) {
       others.push(r);
     } else {
-      if (!byGroup.has(name)) byGroup.set(name, []);
-      byGroup.get(name).push(r);
+      if (!byGroup.has(best.name)) byGroup.set(best.name, []);
+      byGroup.get(best.name).push(r);
     }
   }
   const out = ciSplit.groups
@@ -90,7 +145,7 @@ function bufferFromB64(b64) {
 }
 
 async function loadTplInfo() {
-  const { snXlsxTemplate: t } = await chrome.storage.local.get("snXlsxTemplate");
+  const { snXlsxTemplate: t } = await chrome.storage.local.get(STORAGE.snXlsxTemplate);
   tplInfo = t && t.dataB64 ? t : null;
   updateTplState();
 }
@@ -112,17 +167,17 @@ $("menuTplBtn").addEventListener("click", async () => {
   const f = await pickTemplateFile();
   if (!f) return;
   tplInfo = { name: f.name, dataB64: b64FromBuffer(await f.arrayBuffer()), savedAt: Date.now() };
-  await chrome.storage.local.set({ snXlsxTemplate: tplInfo });
+  await chrome.storage.local.set({ [STORAGE.snXlsxTemplate]: tplInfo });
   updateTplState();
-  setStatus(`Template set: ${f.name}`);
+  showToast("Template set");
 });
 
 $("menuTplClear").addEventListener("click", async () => {
   $("exportMenu").classList.add("hidden");
-  await chrome.storage.local.remove("snXlsxTemplate");
+  await chrome.storage.local.remove(STORAGE.snXlsxTemplate);
   tplInfo = null;
   updateTplState();
-  setStatus("Template cleared");
+  showToast("Template cleared");
 });
 
 let savedMapPresent = false;
@@ -134,7 +189,7 @@ function updateExportDots() {
   $("ciDot").classList.toggle("on", ciSplit.enabled);
 }
 
-chrome.storage.local.get(["exportColMap"], ({ exportColMap }) => {
+chrome.storage.local.get([STORAGE.exportColMap], ({ exportColMap }) => {
   savedMapPresent = !!(exportColMap && Object.keys(exportColMap).length);
   updateExportDots();
 });
@@ -201,8 +256,7 @@ function tplColumnsFromMap(map) {
 
 function filledFilename(templateName, groupLabel) {
   const d = new Date();
-  const p = n => String(n).padStart(2, "0");
-  const stamp = `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`;
+  const stamp = `${d.getFullYear()}${pad2(d.getMonth() + 1)}${pad2(d.getDate())}-${pad2(d.getHours())}${pad2(d.getMinutes())}`;
   const base = templateName.replace(/\.xlsx$/i, "");
   const mid = groupLabel ? `_${sanitizeFilePart(groupLabel)}` : "";
   return `${base}${mid}_filled_${stamp}.xlsx`;
@@ -228,12 +282,12 @@ $("exportBtn").addEventListener("click", async () => {
         return;
       }
       tplInfo = { name: f.name, dataB64: b64FromBuffer(await f.arrayBuffer()), savedAt: Date.now() };
-      await chrome.storage.local.set({ snXlsxTemplate: tplInfo });
+      await chrome.storage.local.set({ [STORAGE.snXlsxTemplate]: tplInfo });
       updateTplState();
     }
     let savedMap = null;
     try {
-      ({ exportColMap: savedMap } = await chrome.storage.local.get("exportColMap"));
+      ({ exportColMap: savedMap } = await chrome.storage.local.get(STORAGE.exportColMap));
     } catch {}
     const mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
     const downloadOut = (out, filename) => {
@@ -248,23 +302,22 @@ $("exportBtn").addEventListener("click", async () => {
     if (ciSplit.enabled && ciSplit.groups.length) {
       const groups = buildCiGroups(rows);
       let total = 0;
-      const parts = [];
       for (const g of groups) {
-        const out = TemplateXml.fillTemplateBuffer(bufferFromB64(tplInfo.dataB64), g.rows, tplCols);
+        const out = TemplateXml.fillTemplateBuffer(bufferFromB64(tplInfo.dataB64), g.rows, tplCols, undefined,
+          buildSlaSummaryRows(g.rows, fmtInstant));
         downloadOut(out, filledFilename(tplInfo.name, g.name));
-        parts.push(`${g.name}: ${g.rows.length}`);
         total += g.rows.length;
       }
-      setStatus(`Split into ${groups.length} file(s), ${total} row(s) — ${parts.join(", ")}`);
+      showToast(`Export complete \u2014 ${groups.length} file(s), ${total} row(s)`);
       return;
     }
-    const out = TemplateXml.fillTemplateBuffer(bufferFromB64(tplInfo.dataB64), rows, tplCols);
+    const out = TemplateXml.fillTemplateBuffer(bufferFromB64(tplInfo.dataB64), rows, tplCols, undefined,
+      buildSlaSummaryRows(rows, fmtInstant));
     downloadOut(out, filledFilename(tplInfo.name));
-    const filtered = rows.length !== getTotalRows() ? ` (filtered from ${getTotalRows()})` : "";
-    const custom = savedMap && Object.keys(savedMap).length ? " · custom mapping" : "";
-    setStatus(`Filled ${rows.length} row(s)${filtered}${custom} — matches current view order`);
+    const filtered = rows.length !== getTotalRows() ? " (filtered)" : "";
+    showToast(`Export complete \u2014 ${rows.length} row${rows.length === 1 ? "" : "s"}${filtered}`);
   } catch (err) {
-    setStatus(`Export failed: ${err.message}`, true);
+    showToast(`Export failed: ${err.message}`, "error");
   }
 });
 
@@ -279,10 +332,8 @@ $("copyMsrBtn").addEventListener("click", () => {
     return;
   }
   copyText(buildMsrTsv(rows))
-    .then(() => setStatus(
-      `Copied ${rows.length} row(s) × ${MSR_COLUMNS.length} MSR columns (A–U inputs; V–AJ are MSR formulas and stay untouched)`
-    ))
-    .catch(err => setStatus(`Copy failed: ${err.message}`, true));
+    .then(() => showToast(`Copied ${rows.length} row${rows.length === 1 ? "" : "s"} to clipboard`))
+    .catch(() => showToast("Copy failed", "error"));
 });
 
 document.addEventListener("click", e => {
@@ -305,6 +356,7 @@ export {
   getCiSplit,
   setCiSplit,
   updateCiBtn,
+  syncSplitRadio,
   sanitizeFilePart,
   buildCiGroups,
   b64FromBuffer,

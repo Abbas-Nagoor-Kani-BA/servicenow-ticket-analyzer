@@ -141,6 +141,10 @@ function classifySolution(raw) {
 /* Main entry point                                                    */
 /* ------------------------------------------------------------------ */
 
+/**
+ * @param {string} notes
+ * @returns {{ solutionType: string, rootCause: string, confidence: { solutionType: string, rootCause: string }, parseReview?: boolean }}
+ */
 function extractHeuristic(notes) {
   const text = String(notes ?? "");
   const out = { solutionType: "", rootCause: "", confidence: { solutionType: "", rootCause: "" } };

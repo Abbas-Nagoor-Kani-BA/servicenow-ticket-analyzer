@@ -149,6 +149,67 @@ test("ticket popup edits timeline date in place", { timeout: 8000 }, async () =>
   assert.equal(document.querySelector(".ticketPop"), null, "Escape closed popup");
 });
 
+test("summary SLA tab renders counts and persists summarySla", { timeout: 8000 }, async () => {
+  const tabSummary = document.getElementById("tabSummary");
+  const tabTickets = document.getElementById("tabTickets");
+  const stored = peek("lastData");
+  assert.ok(stored.summarySla, "summarySla persisted to lastData on load");
+  assert.equal(stored.summarySla.items.length, 17, "17 summary items persisted");
+  const liveTotals = { 1: 0, 2: 0, 3: 0, 4: 0 };
+  for (const r of grid.currentRows()) {
+    if (/^INC/.test(r.number)) liveTotals[parseInt(r.priority)]++;
+  }
+  assert.deepEqual(stored.summarySla.incidentTotals, liveTotals, "incident totals by severity");
+
+  tabSummary.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+  await flush();
+  assert.ok(!document.getElementById("summaryWrap").classList.contains("hidden"), "summary panel visible");
+  assert.ok(document.getElementById("wrap").classList.contains("hidden"), "ticket table hidden");
+  const incRows = document.querySelectorAll("#sumIncTbl tbody tr");
+  const probRows = document.querySelectorAll("#sumProbTbl tbody tr");
+  assert.equal(incRows.length, 14, "14 incident rows in summary table");
+  assert.equal(probRows.length, 3, "3 problem rows in summary table");
+  assert.match(document.getElementById("sumMeta").textContent,
+    new RegExp(`P1 ${liveTotals[1]}, P2 ${liveTotals[2]}, P3 ${liveTotals[3]}, P4 ${liveTotals[4]}`));
+  assert.equal(incRows[0].children[0].rowSpan, 10, "Time to Resolve spans severity rows");
+  assert.equal(incRows[0].children[3].className, "sla", "sla label rendered");
+  assert.match(incRows[0].children[8].textContent, /GREEN|AMBER|RED/);
+  assert.ok(probRows[0].children[7].textContent.length > 0, "problem total rendered");
+
+  tabTickets.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+  await flush();
+  assert.ok(document.getElementById("wrap").classList.contains("hidden") === false, "tickets view restored");
+  assert.ok(document.getElementById("summaryWrap").classList.contains("hidden"), "summary panel hidden again");
+});
+
+test("summary SLA tab reflects the active search filter", { timeout: 8000 }, async () => {
+  const tabSummary = document.getElementById("tabSummary");
+  const tabTickets = document.getElementById("tabTickets");
+  const search = document.getElementById("search");
+  search.value = "Second";
+  search.dispatchEvent(new window.Event("input", { bubbles: true }));
+  await flush();
+  tabSummary.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+  await flush();
+  const incRows = document.querySelectorAll("#sumIncTbl tbody tr");
+  assert.equal(incRows.length, 14, "14 incident rows still rendered");
+  const totalFor = label => {
+    const tr = [...incRows].find(r => r.dataset.sla === label);
+    return tr ? (tr.querySelector("td.total")?.textContent ?? null) : null;
+  };
+  assert.equal(totalFor("Within 10 working days"), "1", "P4 resolve total counts the filtered ticket");
+  assert.equal(totalFor("Within 1 hour"), "0", "P1 resolve total empty");
+  assert.equal(totalFor("Within 3 business hours"), "1", "P4 respond total counts the filtered ticket");
+  assert.match(document.getElementById("sumMeta").textContent,
+    /P1 0, P2 0, P3 0, P4 1/);
+  assert.match(document.getElementById("sumMeta").textContent,
+    /showing 1 of 2 tickets/);
+  tabTickets.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+  search.value = "";
+  search.dispatchEvent(new window.Event("input", { bubbles: true }));
+  await flush();
+});
+
 test("buildMsrTsv emits exactly 21 MSR columns with blanks preserved", () => {
   const rows = grid.currentRows();
   for (const line of clipboard.buildMsrTsv(rows).split("\n")) {
@@ -165,5 +226,57 @@ test("copy-for-msr button copies current view", { timeout: 8000 }, async () => {
   await flush();
   assert.ok(getLastCopied(), "clipboard received TSV");
   assert.equal(getLastCopied().split("\n").length, before.length);
-  assert.match(document.getElementById("status").textContent, /Copied \d+ row/);
+  const toastTxt = [...document.querySelectorAll(".toast")].map(t => t.textContent).join(" | ");
+  assert.match(toastTxt, new RegExp(`Copied ${before.length} row`), "toast confirms the copy");
+});
+
+test("split radios default to single file when split is off", async () => {
+  const radSingle = document.getElementById("radSingle");
+  const radSplit = document.getElementById("radSplit");
+  assert.equal(radSingle.checked, true);
+  assert.equal(radSplit.checked, false);
+});
+
+test("selecting 'Separate files' with groups persists enabled and flips radios", async () => {
+  const toolbar = await import("../viewer/js/20-toolbar.js");
+  toolbar.setCiSplit({ enabled: false, groups: [{ name: "Appsupp", items: ["App"] }] });
+  toolbar.syncSplitRadio();
+  const radSingle = document.getElementById("radSingle");
+  const radSplit = document.getElementById("radSplit");
+  radSplit.checked = true;
+  radSplit.dispatchEvent(new window.Event("change", { bubbles: true }));
+  await flush();
+  assert.equal(peek("ciSplit").enabled, true, "split enabled persisted");
+  assert.equal(radSplit.checked, true);
+  assert.equal(radSingle.checked, false, "single file unchecked");
+});
+
+test("selecting 'Single file' while split is active disables and persists", async () => {
+  const toolbar = await import("../viewer/js/20-toolbar.js");
+  toolbar.setCiSplit({ enabled: true, groups: [{ name: "Appsupp", items: ["App"] }] });
+  toolbar.syncSplitRadio();
+  const radSingle = document.getElementById("radSingle");
+  radSingle.checked = true;
+  radSingle.dispatchEvent(new window.Event("change", { bubbles: true }));
+  await flush();
+  assert.equal(peek("ciSplit").enabled, false, "split disabled persisted");
+  assert.equal(document.getElementById("radSplit").checked, false);
+});
+
+test("selecting 'Separate files' with no groups opens the CI dialog and reverts", async () => {
+  const toolbar = await import("../viewer/js/20-toolbar.js");
+  toolbar.setCiSplit({ enabled: false, groups: [] });
+  toolbar.syncSplitRadio();
+  const radSplit = document.getElementById("radSplit");
+  radSplit.checked = true;
+  radSplit.dispatchEvent(new window.Event("change", { bubbles: true }));
+  await flush();
+  assert.equal(radSplit.checked, false, "radio reverted to single");
+  assert.equal(document.getElementById("radSingle").checked, true);
+  assert.ok(!document.getElementById("ciModal").classList.contains("hidden"),
+    "CI dialog opened to configure groups");
+  document.getElementById("ciClose").dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+  await flush();
+  assert.ok(document.getElementById("ciModal").classList.contains("hidden"));
+  assert.equal(document.getElementById("radSingle").checked, true, "cancel keeps single file");
 });

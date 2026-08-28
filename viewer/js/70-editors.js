@@ -1,6 +1,7 @@
 import { $, columnOptionList, el, placePopupNear, visibleCols } from "./00-core.js";
 import { displayedValue, findRowBySysId, parseLocalInput, render, scheduleSave } from "./30-grid.js";
 import { applySelHighlight, moveSel } from "./40-selection.js";
+import { applyPickFilter, paintPickItems, pickCurNotInOptions, pickLabelOf } from "./15-picker.js";
 
 let activeFinish = null;
 
@@ -12,12 +13,7 @@ function createOptionPicker(td, row, key) {
   const cur = String(row[key] ?? "");
   const entries = ["", ...options];
   if (cur && !options.some(x => x.toLowerCase() === cur.toLowerCase())) entries.push(cur);
-  const labelOf = v =>
-    v === "" ? "— clear —"
-      : v + (cur && v === cur && !options.some(x => x.toLowerCase() === cur.toLowerCase()) ? " · current" : "");
-  const baseLabel = v => (v === "" ? "— clear —" : v);
-  const acronymOf = s =>
-    s.split(/[\s\-\/_,]+/).filter(Boolean).map(w => w[0]).join("").toLowerCase();
+  const curNotInOptions = pickCurNotInOptions(options, cur);
 
   let picked;
   let listItems = [];
@@ -47,49 +43,21 @@ function createOptionPicker(td, row, key) {
   const applyFilter = () => {
     const refVal = firstOpen ? cur : searchIn.value;
     const q = firstOpen ? "" : searchIn.value.trim().toLowerCase();
-    if (!q) {
-      listItems = entries.slice();
-    } else {
-      const acros = [];
-      const subs = [];
-      for (const v of entries) {
-        const hay = labelOf(v).toLowerCase();
-        if (q.length >= 2 && acronymOf(baseLabel(v)).startsWith(q)) acros.push(v);
-        else if (hay.includes(q)) subs.push(v);
-      }
-      listItems = [...acros, ...subs];
-    }
-    const exact = listItems.findIndex(v => v.toLowerCase() === refVal.trim().toLowerCase());
-    activeIdx = exact >= 0 ? exact : 0;
+    const res = applyPickFilter(entries, q, refVal, cur);
+    listItems = res.items;
+    activeIdx = res.activeIdx;
   };
-  const paint = () => {
-    listEl.innerHTML = "";
-    foot.textContent = `${listItems.length} option${listItems.length === 1 ? "" : "s"} \xB7 \u2191\u2193 \xB7 Enter \xB7 Esc`;
-    if (!listItems.length) {
-      const d = el("div", "msrPickItem none");
-      d.textContent = "No matching option";
-      listEl.appendChild(d);
-      return;
-    }
-    listItems.forEach((v, i) => {
-      const d = document.createElement("div");
-      d.className = "msrPickItem" + (i === activeIdx ? " active" : "");
-      d.textContent = labelOf(v);
-      d.addEventListener("pointerdown", ev => {
-        ev.preventDefault();
-        picked = v;
-        finish(true, { r: 1, c: 0 });
-      });
-      listEl.appendChild(d);
+  const renderItem = v => {
+    const d = document.createElement("div");
+    d.textContent = pickLabelOf(v, cur, curNotInOptions);
+    d.addEventListener("pointerdown", ev => {
+      ev.preventDefault();
+      picked = v;
+      finish(true, { r: 1, c: 0 });
     });
-    const act = listEl.children[activeIdx];
-    if (act) {
-      const top = act.offsetTop, view = listEl.clientHeight;
-      if (top < listEl.scrollTop || top + act.offsetHeight > listEl.scrollTop + view) {
-        listEl.scrollTop = Math.max(0, top - view / 2);
-      }
-    }
+    return d;
   };
+  const paint = () => paintPickItems(listEl, foot, listItems, activeIdx, renderItem);
   const renderList = () => {
     applyFilter();
     paint();
@@ -113,6 +81,7 @@ function createOptionPicker(td, row, key) {
     return true;
   };
 
+  /** @type {((commit: boolean, move: object | undefined) => boolean) & { done?: boolean }} */
   const finish = (commit, move) => {
     if (finish.done) return true;
     finish.done = true;
@@ -186,6 +155,7 @@ function createTextInput(td, row, key, cls) {
   editor.focus();
   editor.select();
 
+  /** @type {((commit: boolean, move: object | undefined) => boolean) & { done?: boolean, reparsed?: string }} */
   const finish = (commit, move) => {
     if (finish.done) return true;
     let parsed = editor.value;
