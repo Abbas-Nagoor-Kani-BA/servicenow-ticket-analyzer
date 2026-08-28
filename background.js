@@ -328,7 +328,7 @@ async function persistResults(rows, runEntries, missingAudit, auditCounts, sampl
         ticketsWithAudit: Object.values(auditCounts).reduce((a, b) => a + b, 0),
         auditCountsByTable: auditCounts,
         sampleAuditRowCounts: sampleAuditRows,
-        sampleTimelines: rows.filter((r) => r.assignTime || r.acknTime || r.suspendTime || r.resumeTime).slice(0, 3).map((r) => ({ number: r.number, assign: r.assignTime, ackn: r.acknTime, suspend: r.suspendTime, resume: r.resumeTime }))
+        sampleTimelines: rows.filter((r) => r.assignTimeUtcIso || r.acknTimeUtcIso || r.suspendTimeUtcIso || r.resumeTimeUtcIso).slice(0, 3).map((r) => ({ number: r.number, assign: r.assignTimeUtcIso, ackn: r.acknTimeUtcIso, suspend: r.suspendTimeUtcIso, resume: r.resumeTimeUtcIso }))
       },
       runs,
       rows: merged

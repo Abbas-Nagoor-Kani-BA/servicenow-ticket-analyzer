@@ -136,14 +136,18 @@ function currentRows() {
   return rows;
 }
 
-function fmtInstant(v, row) {
-  if (!v) return "";
-  const d = new Date(v);
-  if (isNaN(d.getTime())) return String(v);
-  const off = rowOffsetMs(row, st().snOffsetMs);
-  const s = new Date(d.getTime() + off);
-  return `${s.getUTCFullYear()}-${pad2(s.getUTCMonth() + 1)}-${pad2(s.getUTCDate())} ` +
-    `${pad2(s.getUTCHours())}:${pad2(s.getUTCMinutes())}:${pad2(s.getUTCSeconds())}`;
+function formatWallClock(d) {
+  return `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())} ` +
+    `${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}:${pad2(d.getUTCSeconds())}`;
+}
+
+function fmtInstant(utcIso, row) {
+  if (!utcIso) return "";
+  const d = new Date(utcIso);
+  if (isNaN(d.getTime())) return String(utcIso);
+  const offsetMs = rowOffsetMs(row, st().snOffsetMs);
+  const local = new Date(d.getTime() + offsetMs);
+  return formatWallClock(local);
 }
 
 function buildTableRows(rows, cols, fmtInstant) {

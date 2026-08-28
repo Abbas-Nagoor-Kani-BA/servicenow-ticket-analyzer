@@ -164,8 +164,8 @@ function buildTicketLeftPane(row, placePop) {
   }
 
   const TL = [
-    ["assignTime", "Assigned"], ["acknTime", "Acknowledged"],
-    ["suspendTime", "Suspended"], ["resumeTime", "Resumed"]
+    ["assignTimeUtcIso", "Assigned"], ["acknTimeUtcIso", "Acknowledged"],
+    ["suspendTimeUtcIso", "Suspended"], ["resumeTimeUtcIso", "Resumed"]
   ];
   for (const [k, lab] of TL) {
     const line = el("div", "fieldLine");

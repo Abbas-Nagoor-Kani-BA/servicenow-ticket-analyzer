@@ -11,14 +11,14 @@ function check(name, got, want) {
 const fmt = v => v;
 
 const rows = [
-  { number: "INC-P1-A", priority: "1 - Critical", state: "Resolved", createdOn: "10-08-2026 00:00:00", assignTime: "2026-08-10T00:00:00.000Z", acknTime: "2026-08-10T00:10:00.000Z", resolvedAt: "10-08-2026 00:30:00" },
-  { number: "INC-P1-B", priority: "1 - Critical", state: "Resolved", createdOn: "10-08-2026 00:00:00", assignTime: "2026-08-10T00:00:00.000Z", acknTime: "2026-08-10T00:25:00.000Z", resolvedAt: "10-08-2026 03:00:00" },
-  { number: "INC-P1-C", priority: "1 - Critical", state: "Resolved", createdOn: "10-08-2026 00:00:00", assignTime: "2026-08-10T00:00:00.000Z", acknTime: "2026-08-10T00:05:00.000Z", resolvedAt: "10-08-2026 05:00:00" },
-  { number: "INC-P2-A", priority: "2 - High", state: "Resolved", createdOn: "10-08-2026 00:00:00", assignTime: "2026-08-10T00:00:00.000Z", acknTime: "2026-08-10T00:10:00.000Z", resolvedAt: "10-08-2026 05:00:00" },
-  { number: "INC-P3-A", priority: "3 - Moderate", state: "Resolved", createdOn: "10-08-2026 08:00:00", assignTime: "2026-08-10T08:00:00.000Z", acknTime: "2026-08-10T09:30:00.000Z", resolvedAt: "10-08-2026 17:00:00" },
-  { number: "REQ-P2-X", priority: "2 - High", state: "Closed", createdOn: "10-08-2026 00:00:00", assignTime: "2026-08-10T00:00:00.000Z", resolvedAt: "12-08-2026 00:00:00" },
-  { number: "PTASK-P1-X", priority: "1 - Critical", state: "Resolved", createdOn: "10-08-2026 00:00:00", assignTime: "2026-08-10T00:00:00.000Z", acknTime: "2026-08-10T00:05:00.000Z", resolvedAt: "10-08-2026 00:30:00" },
-  { number: "PTASK-P4-X", priority: "4 - Low", state: "Resolved", createdOn: "10-08-2026 00:00:00", assignTime: "2026-08-10T00:00:00.000Z", acknTime: "2026-08-10T00:10:00.000Z", resolvedAt: "10-08-2026 05:00:00" }
+  { number: "INC-P1-A", priority: "1 - Critical", state: "Resolved", createdOn: "10-08-2026 00:00:00", assignTimeUtcIso: "2026-08-10T00:00:00.000Z", acknTimeUtcIso: "2026-08-10T00:10:00.000Z", resolvedAt: "10-08-2026 00:30:00" },
+  { number: "INC-P1-B", priority: "1 - Critical", state: "Resolved", createdOn: "10-08-2026 00:00:00", assignTimeUtcIso: "2026-08-10T00:00:00.000Z", acknTimeUtcIso: "2026-08-10T00:25:00.000Z", resolvedAt: "10-08-2026 03:00:00" },
+  { number: "INC-P1-C", priority: "1 - Critical", state: "Resolved", createdOn: "10-08-2026 00:00:00", assignTimeUtcIso: "2026-08-10T00:00:00.000Z", acknTimeUtcIso: "2026-08-10T00:05:00.000Z", resolvedAt: "10-08-2026 05:00:00" },
+  { number: "INC-P2-A", priority: "2 - High", state: "Resolved", createdOn: "10-08-2026 00:00:00", assignTimeUtcIso: "2026-08-10T00:00:00.000Z", acknTimeUtcIso: "2026-08-10T00:10:00.000Z", resolvedAt: "10-08-2026 05:00:00" },
+  { number: "INC-P3-A", priority: "3 - Moderate", state: "Resolved", createdOn: "10-08-2026 08:00:00", assignTimeUtcIso: "2026-08-10T08:00:00.000Z", acknTimeUtcIso: "2026-08-10T09:30:00.000Z", resolvedAt: "10-08-2026 17:00:00" },
+  { number: "REQ-P2-X", priority: "2 - High", state: "Closed", createdOn: "10-08-2026 00:00:00", assignTimeUtcIso: "2026-08-10T00:00:00.000Z", resolvedAt: "12-08-2026 00:00:00" },
+  { number: "PTASK-P1-X", priority: "1 - Critical", state: "Resolved", createdOn: "10-08-2026 00:00:00", assignTimeUtcIso: "2026-08-10T00:00:00.000Z", acknTimeUtcIso: "2026-08-10T00:05:00.000Z", resolvedAt: "10-08-2026 00:30:00" },
+  { number: "PTASK-P4-X", priority: "4 - Low", state: "Resolved", createdOn: "10-08-2026 00:00:00", assignTimeUtcIso: "2026-08-10T00:00:00.000Z", acknTimeUtcIso: "2026-08-10T00:10:00.000Z", resolvedAt: "10-08-2026 05:00:00" }
 ];
 
 const s = buildSlaSummary(rows, fmt);

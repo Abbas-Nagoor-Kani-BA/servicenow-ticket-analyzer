@@ -32,8 +32,8 @@ function fieldChangeEntries(row) {
     label: "Field change",
     cls: "fc",
     author: "",
-    time: fmtInstant(new Date(ev.at).toISOString(), row),
-    sort: Number.isFinite(ev.at) ? new Date(ev.at).toISOString().replace("T", " ").slice(0, 19) : "",
+    time: fmtInstant(new Date(ev.atEpoch).toISOString(), row),
+    sort: Number.isFinite(ev.atEpoch) ? new Date(ev.atEpoch).toISOString().replace("T", " ").slice(0, 19) : "",
     text: `${fieldLabel(ev.f)}: ${ev.o || "(empty)"} → ${ev.n || "(empty)"}`
   }));
 }

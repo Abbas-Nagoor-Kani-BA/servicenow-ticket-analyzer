@@ -5,14 +5,14 @@ import { dataStore } from "./00-store.js";
 
 const $ = id => document.getElementById(id);
 
-function panelFmt(v, row) {
-  if (!v) return "";
-  const d = new Date(v);
-  if (isNaN(d.getTime())) return String(v);
-  const off = rowOffsetMs(row, dataStore.getState().snOffsetMs);
-  const s = new Date(d.getTime() + off);
-  return `${s.getUTCFullYear()}-${pad2(s.getUTCMonth() + 1)}-${pad2(s.getUTCDate())} ` +
-    `${pad2(s.getUTCHours())}:${pad2(s.getUTCMinutes())}:${pad2(s.getUTCSeconds())}`;
+function panelFmt(utcIso, row) {
+  if (!utcIso) return "";
+  const d = new Date(utcIso);
+  if (isNaN(d.getTime())) return String(utcIso);
+  const offsetMs = rowOffsetMs(row, dataStore.getState().snOffsetMs);
+  const local = new Date(d.getTime() + offsetMs);
+  return `${local.getUTCFullYear()}-${pad2(local.getUTCMonth() + 1)}-${pad2(local.getUTCDate())} ` +
+    `${pad2(local.getUTCHours())}:${pad2(local.getUTCMinutes())}:${pad2(local.getUTCSeconds())}`;
 }
 
 function attachSummaryToData(data) {

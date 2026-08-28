@@ -15,10 +15,10 @@ check("PTASK", R.deriveType("PTASK0010001"), "Problem");
 check("empty", R.deriveType(""), "");
 check("unknown", R.deriveType("CHG0030001"), "");
 
-console.log("== normDate ==");
-check("iso to day-first", R.normDate("2026-08-10 05:36:40"), "10-08-2026 05:36:40");
-check("T separator", R.normDate("2026-08-10T05:36"), "10-08-2026 05:36");
-check("already day-first", R.normDate("10-08-2026 05:36:40"), "10-08-2026 05:36:40");
+console.log("== normDisplay ==");
+check("iso to day-first", R.normDisplay("2026-08-10 05:36:40"), "10-08-2026 05:36:40");
+check("T separator", R.normDisplay("2026-08-10T05:36"), "10-08-2026 05:36");
+check("already day-first", R.normDisplay("10-08-2026 05:36:40"), "10-08-2026 05:36:40");
 
 console.log("== SLA priority ==");
 check("P1", R.slaPriority("1 - Critical"), 1);
@@ -52,7 +52,7 @@ const row = {
   number: "INC0010001", priority: "2 - High", state: "Resolved",
   assignmentGroup: "QA Queue Alpha", configItem: "App A",
   createdOn: "2026-08-10 09:00:00",
-  assignTime: "2026-08-10T01:00:00.000Z", acknTime: "2026-08-10T02:00:00.000Z",
+  assignTimeUtcIso: "2026-08-10T01:00:00.000Z", acknTimeUtcIso: "2026-08-10T02:00:00.000Z",
   resolvedAt: "2026-08-10 15:00:00", solutionType: "Permanent fix", rootCause: "Bad config"
 };
 const fmt = v => v;
@@ -72,12 +72,12 @@ check("analysed date shape", /^\d{2}\/\d{2}\/\d{4}$/.test(rep.analysedDate), tru
 
 console.log("== slaBreach scenarios ==");
 (() => {
-  const make = (num, pri, acknTime, resH) => ({
+  const make = (num, pri, acknTimeUtcIso, resH) => ({
     number: num, priority: pri, state: "Resolved",
     assignmentGroup: "Q", configItem: "",
     createdOn: "2026-08-10 08:00:00",
-    assignTime: "2026-08-10T00:00:00.000Z",
-    acknTime: acknTime || "",
+    assignTimeUtcIso: "2026-08-10T00:00:00.000Z",
+    acknTimeUtcIso: acknTimeUtcIso || "",
     resolvedAt: resH ? `2026-08-10 ${String(resH).padStart(2,"0")}:00:00` : ""
   });
   check("both breached: resp=1h>0.25h + max=9h>8h -> RM",
@@ -112,10 +112,10 @@ console.log("== resolved display string not re-parsed (regression) ==");
     assignmentGroup: "Q", configItem: "",
     createdOn: "11-08-2026 19:40:58",
     resolvedAt: "12-08-2026 16:06:33",
-    assignTime: "2026-08-11T14:10:58.000Z",
-    acknTime: "2026-08-12T04:34:54.000Z",
-    suspendTime: "2026-08-12T05:41:40.000Z",
-    resumeTime: "2026-08-12T10:36:33.000Z",
+    assignTimeUtcIso: "2026-08-11T14:10:58.000Z",
+    acknTimeUtcIso: "2026-08-12T04:34:54.000Z",
+    suspendTimeUtcIso: "2026-08-12T05:41:40.000Z",
+    resumeTimeUtcIso: "2026-08-12T10:36:33.000Z",
     solutionType: "", rootCause: ""
   };
   const rep = R.buildReport(row, fmtParse);

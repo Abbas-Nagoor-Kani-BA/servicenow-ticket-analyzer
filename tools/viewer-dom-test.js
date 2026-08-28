@@ -140,9 +140,9 @@ test("ticket popup edits timeline date in place", { timeout: 8000 }, async () =>
   tlInputs[0].value = "05-08-2026 09:30:00";
   tlInputs[0].dispatchEvent(new window.Event("blur"));
   await new Promise(r => setTimeout(r, 500));
-  assert.equal(row.assignTime, iso, "assignTime written as ISO");
+  assert.equal(row.assignTimeUtcIso, iso, "assignTime written as ISO");
   const stored = peek("lastData").rows.find(r => r.sysId === tr.dataset.sysId);
-  assert.equal(stored.assignTime, iso, "persisted");
+  assert.equal(stored.assignTimeUtcIso, iso, "persisted");
   const esc = new window.KeyboardEvent("keydown", { key: "Escape", bubbles: true });
   document.dispatchEvent(esc);
   await flush();

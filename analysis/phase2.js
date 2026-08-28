@@ -6,7 +6,7 @@
  * @property {string} queueName name-keyed target queue
  * @property {string[]} memberNames plain team-member names for ackn detection
  * @property {string} snapshotGroupName the ticket's current group display name
- * @property {string} openedAt raw opened_at ISO string
+ * @property {string} openedAtUtcRaw raw opened_at string in UTC (no suffix)
  */
 
 function parseUtc(s) {
@@ -23,6 +23,14 @@ function toIso(epoch) {
   return new Date(epoch).toISOString();
 }
 
+function utcRawToEpochMs(s) {
+  return parseUtc(s);
+}
+
+function epochMsToUtcIso(n) {
+  return toIso(n);
+}
+
 function resolveLabel(stateMap, v) {
   const raw = String(v ?? "").trim();
   return stateMap[raw] || raw;
@@ -34,21 +42,21 @@ function normalizeEvents(auditRows) {
       field: r.field,
       oldValue: r.oldValue || "",
       newValue: r.newValue || "",
-      at: parseUtc(r.at)
+      atEpoch: utcRawToEpochMs(r.at)
     }))
-    .filter(e => Number.isFinite(e.at))
-    .sort((a, b) => a.at - b.at);
+    .filter(e => Number.isFinite(e.atEpoch))
+    .sort((a, b) => a.atEpoch - b.atEpoch);
 }
 
 function createResult() {
   return {
-    assignTime: null,
-    acknTime: null,
-    suspendTime: null,
-    resumeTime: null,
+    assignTimeUtcIso: null,
+    acknTimeUtcIso: null,
+    suspendTimeUtcIso: null,
+    resumeTimeUtcIso: null,
     resumeSource: null,
     onHoldCount: 0,
-    lastQueueEntryAt: null
+    lastQueueEntryEpoch: null
   };
 }
 
@@ -56,25 +64,25 @@ function applyBornInQueueFallback(events, result, ctx) {
   const inQueue = g => g != null && nameKey(g) === nameKey(ctx.queueName);
   const hasGroupEvent = events.some(e => e.field === "assignment_group");
   if (hasGroupEvent || !inQueue(ctx.snapshotGroupName)) return null;
-  const bornAt = parseUtc(ctx.openedAt);
-  if (!Number.isFinite(bornAt)) return null;
-  result.assignTime = toIso(bornAt);
-  result.lastQueueEntryAt = bornAt;
+  const bornEpoch = utcRawToEpochMs(ctx.openedAtUtcRaw);
+  if (!Number.isFinite(bornEpoch)) return null;
+  result.assignTimeUtcIso = epochMsToUtcIso(bornEpoch);
+  result.lastQueueEntryEpoch = bornEpoch;
   return ctx.snapshotGroupName;
 }
 
 function handleGroupEvent(e, result, ctx, loopState) {
   const inQueue = g => g != null && nameKey(g) === nameKey(ctx.queueName);
   if (inQueue(e.newValue)) {
-    result.assignTime = toIso(e.at);
-    result.lastQueueEntryAt = e.at;
+    result.assignTimeUtcIso = epochMsToUtcIso(e.atEpoch);
+    result.lastQueueEntryEpoch = e.atEpoch;
   }
   loopState.currentGroup = e.newValue;
 }
 
 function handleAssignmentEvent(e, result, ctx, loopState) {
   if (loopState.memberSet.has(nameKey(e.newValue))) {
-    loopState.memberAssignments.push(e.at);
+    loopState.memberAssignments.push(e.atEpoch);
   }
 }
 
@@ -87,37 +95,37 @@ function handleStateEvent(e, result, ctx, loopState) {
 
   if (toLabel === "on hold" && fromLabel !== "on hold") {
     result.onHoldCount++;
-    if (!result.suspendTime) {
-      result.suspendTime = toIso(e.at);
-      loopState.suspendEpoch = e.at;
+    if (!result.suspendTimeUtcIso) {
+      result.suspendTimeUtcIso = epochMsToUtcIso(e.atEpoch);
+      loopState.suspendEpoch = e.atEpoch;
     }
   }
 
-  if (loopState.suspendEpoch && e.at >= loopState.suspendEpoch) {
+  if (loopState.suspendEpoch && e.atEpoch >= loopState.suspendEpoch) {
     if (toLabel === "in progress") {
-      result.resumeTime = toIso(e.at);
+      result.resumeTimeUtcIso = epochMsToUtcIso(e.atEpoch);
       result.resumeSource = "In Progress";
     } else if (toLabel === "resolved") {
-      result.resumeTime = toIso(e.at);
+      result.resumeTimeUtcIso = epochMsToUtcIso(e.atEpoch);
       result.resumeSource = "Resolved";
     }
   }
 }
 
 function resolveAcknTime(result, memberAssignments) {
-  if (result.lastQueueEntryAt === null) return;
-  const valid = memberAssignments.filter(at => at >= result.lastQueueEntryAt);
+  if (result.lastQueueEntryEpoch === null) return;
+  const valid = memberAssignments.filter(atEpoch => atEpoch >= result.lastQueueEntryEpoch);
   if (valid.length) {
-    result.acknTime = toIso(Math.min(...valid));
+    result.acknTimeUtcIso = epochMsToUtcIso(Math.min(...valid));
   }
 }
 
 function clampAssignTime(result, ctx) {
-  const bornAt = parseUtc(ctx.openedAt);
-  if (!Number.isFinite(bornAt)) return;
-  const a = parseUtc(result.assignTime);
-  if (Number.isFinite(a) && a < bornAt) {
-    result.assignTime = toIso(bornAt);
+  const bornEpoch = utcRawToEpochMs(ctx.openedAtUtcRaw);
+  if (!Number.isFinite(bornEpoch)) return;
+  const a = utcRawToEpochMs(result.assignTimeUtcIso);
+  if (Number.isFinite(a) && a < bornEpoch) {
+    result.assignTimeUtcIso = epochMsToUtcIso(bornEpoch);
   }
 }
 
@@ -182,17 +190,17 @@ function analyzeAll(records, auditByTicket, stateMap, queueCtx) {
       queueName: nameKey(snapshotGroupName),
       memberNames: membersByQueue[nameKey(snapshotGroupName)] || fallbackMembers,
       snapshotGroupName,
-      openedAt: rawValue(rec.opened_at)
+      openedAtUtcRaw: rawValue(rec.opened_at)
     });
     if (!isIncident) {
-      t.suspendTime = null;
-      t.resumeTime = null;
+      t.suspendTimeUtcIso = null;
+      t.resumeTimeUtcIso = null;
       t.resumeSource = null;
     } else {
       const stateLabel = fieldValue(rec.state).toLowerCase();
       if (!stateLabel.startsWith("close") && !stateLabel.startsWith("resolv")) {
-        t.suspendTime = null;
-        t.resumeTime = null;
+        t.suspendTimeUtcIso = null;
+        t.resumeTimeUtcIso = null;
         t.resumeSource = null;
       }
     }
@@ -203,11 +211,11 @@ function analyzeAll(records, auditByTicket, stateMap, queueCtx) {
           f: r.field,
           o: String(r.oldValue ?? ""),
           n: String(r.newValue ?? ""),
-          at: Number.isFinite(ms) ? ms : null
+          atEpoch: Number.isFinite(ms) ? ms : null
         };
       })
-      .filter(e => e.at !== null)
-      .sort((a, b) => b.at - a.at)
+      .filter(e => e.atEpoch !== null)
+      .sort((a, b) => b.atEpoch - a.atEpoch)
       .slice(0, 500);
     out.push({
       sysId,
@@ -237,10 +245,10 @@ function analyzeAll(records, auditByTicket, stateMap, queueCtx) {
       closeNotes: fieldValue(rec.close_notes),
       workNotes: fieldValue(rec.work_notes),
       comments: fieldValue(rec.comments),
-      assignTime: t.assignTime || "",
-      acknTime: t.acknTime || "",
-      suspendTime: t.suspendTime || "",
-      resumeTime: t.resumeTime || "",
+      assignTimeUtcIso: t.assignTimeUtcIso || "",
+      acknTimeUtcIso: t.acknTimeUtcIso || "",
+      suspendTimeUtcIso: t.suspendTimeUtcIso || "",
+      resumeTimeUtcIso: t.resumeTimeUtcIso || "",
       resumeSource: t.resumeSource || "",
       onHoldCount: t.onHoldCount,
       activity
@@ -309,16 +317,16 @@ function extractEventsFromActivity(entries) {
         const label = String(ch.label ?? ch.field_label ?? "").toLowerCase();
         const anchor = ACTIVITY_ANCHORS.find(a => a.labels.some(l => label === l));
         if (!anchor) continue;
-        const at = scanSnDateTime(JSON.stringify(ch)) ||
+        const atIso = scanSnDateTime(JSON.stringify(ch)) ||
           scanSnDateTime(JSON.stringify(entry));
         const ev = {
           field: anchor.field,
           oldValue: cleanCapture(ch.old_value ?? ch.old ?? ch.from ?? ""),
           newValue: cleanCapture(ch.new_value ?? ch.new ?? ch.to ?? ""),
-          at
+          atIso
         };
-        const key = `${ev.field}|${ev.oldValue}|${ev.newValue}|${ev.at}`;
-        if (ev.at && !seen.has(key)) {
+        const key = `${ev.field}|${ev.oldValue}|${ev.newValue}|${ev.atIso}`;
+        if (ev.atIso && !seen.has(key)) {
           seen.add(key);
           out.push(ev);
         }
@@ -340,15 +348,15 @@ function extractEventsFromActivity(entries) {
           "i"
         ));
         if (!m) continue;
-        const at = scanSnDateTime(window);
-        if (!at) break;
+        const atIso = scanSnDateTime(window);
+        if (!atIso) break;
         const ev = {
           field: anchor.field,
           oldValue: cleanCapture(m[1]),
           newValue: cleanCapture(m[2]),
-          at
+          atIso
         };
-        const key = `${ev.field}|${ev.oldValue}|${ev.newValue}|${ev.at}`;
+        const key = `${ev.field}|${ev.oldValue}|${ev.newValue}|${ev.atIso}`;
         if (!seen.has(key)) {
           seen.add(key);
           out.push(ev);

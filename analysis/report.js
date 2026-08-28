@@ -51,7 +51,7 @@ function hoursToHMS(decimalHours) {
   return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
-function normDate(v) {
+function normDisplay(v) {
   if (!v) return "";
   const s = String(v).trim().replace("T", " ").replace(/\.\d+Z?$/, "").replace(/Z$/, "");
   let m = s.match(/^(\d{4})-(\d{2})-(\d{2})[ ](\d{2}:\d{2}(?::\d{2})?)$/);
@@ -61,7 +61,14 @@ function normDate(v) {
   return s;
 }
 
-function parseDate(str) {
+/**
+ * Parse an instance-display wall-clock string ("dd-MM-yyyy HH:mm:ss") to a
+ * Date. WARNING: `new Date("...")` with no suffix is parsed in the BROWSER's
+ * local timezone, not the instance's. Business-hours arithmetic downstream is
+ * therefore zone-dependent (see issues/003-report-tz-bug.md).
+ * @param {string} str
+ */
+function parseDisplayWallClock(str) {
   if (!str) return null;
   const [datePart, timePart] = String(str).trim().split(/\s+/);
   const [dd, mm, yyyy] = datePart.split("-");
@@ -71,8 +78,8 @@ function parseDate(str) {
 }
 
 function businessHoursBetween(startStr, endStr) {
-  const start = typeof startStr === "string" ? parseDate(startStr) : startStr;
-  const end = typeof endStr === "string" ? parseDate(endStr) : endStr;
+  const start = typeof startStr === "string" ? parseDisplayWallClock(startStr) : startStr;
+  const end = typeof endStr === "string" ? parseDisplayWallClock(endStr) : endStr;
   if (!start || !end || isNaN(start) || isNaN(end)) return 0;
 
   const WORK_START_H = 8;
@@ -97,10 +104,10 @@ function businessHoursBetween(startStr, endStr) {
 
 function calcBusinessHours(createdStr, resolvedStr, suspendedStr, resumedStr, priority) {
   const p = slaPriority(priority);
-  const start = parseDate(createdStr);
+  const start = parseDisplayWallClock(createdStr);
   if (!start) return "";
 
-  const end = resolvedStr ? parseDate(resolvedStr) : new Date();
+  const end = resolvedStr ? parseDisplayWallClock(resolvedStr) : new Date();
   if (!end) return "";
 
   if (p === 1 || p === 2) {
@@ -110,8 +117,8 @@ function calcBusinessHours(createdStr, resolvedStr, suspendedStr, resumedStr, pr
   let hours = businessHoursBetween(start, end);
 
   if (suspendedStr && resumedStr) {
-    const suspended = parseDate(suspendedStr);
-    const resumed = parseDate(resumedStr);
+    const suspended = parseDisplayWallClock(suspendedStr);
+    const resumed = parseDisplayWallClock(resumedStr);
     if (suspended && resumed) {
       hours -= businessHoursBetween(suspended, resumed);
     }
@@ -123,22 +130,22 @@ function calcBusinessHours(createdStr, resolvedStr, suspendedStr, resumedStr, pr
 function calcIncCurrentHours(assignedStr, resolvedStr, suspendedStr, resumedStr, priority) {
   if (!assignedStr) return "0";
   const p = slaPriority(priority);
-  const start = parseDate(assignedStr);
+  const start = parseDisplayWallClock(assignedStr);
   if (!start) return "0";
 
   if (p === 1 || p === 2) {
-    const end = resolvedStr ? parseDate(resolvedStr) : new Date();
+    const end = resolvedStr ? parseDisplayWallClock(resolvedStr) : new Date();
     if (!end) return "0";
     return Math.max(0, (end.getTime() - start.getTime()) / 3600000).toFixed(2);
   }
 
   let end;
   if (resolvedStr) {
-    end = parseDate(resolvedStr);
+    end = parseDisplayWallClock(resolvedStr);
   } else if (!suspendedStr) {
     end = new Date();
   } else if (!resumedStr) {
-    end = parseDate(suspendedStr);
+    end = parseDisplayWallClock(suspendedStr);
   } else {
     end = new Date();
   }
@@ -147,8 +154,8 @@ function calcIncCurrentHours(assignedStr, resolvedStr, suspendedStr, resumedStr,
   let hours = businessHoursBetween(start, end);
 
   if (suspendedStr && resumedStr) {
-    const suspended = parseDate(suspendedStr);
-    const resumed = parseDate(resumedStr);
+    const suspended = parseDisplayWallClock(suspendedStr);
+    const resumed = parseDisplayWallClock(resumedStr);
     if (suspended && resumed) {
       hours -= businessHoursBetween(suspended, resumed);
     }
@@ -160,9 +167,9 @@ function calcIncCurrentHours(assignedStr, resolvedStr, suspendedStr, resumedStr,
 function calcResponseSLA(assignedStr, acknowledgedStr, suspendedStr, resumedStr, priority) {
   if (!assignedStr) return "";
   const p = slaPriority(priority);
-  const start = parseDate(assignedStr);
+  const start = parseDisplayWallClock(assignedStr);
   if (!start) return "";
-  const end = acknowledgedStr ? parseDate(acknowledgedStr) : new Date();
+  const end = acknowledgedStr ? parseDisplayWallClock(acknowledgedStr) : new Date();
   if (!end) return "";
 
   if (p === 1 || p === 2) {
@@ -171,8 +178,8 @@ function calcResponseSLA(assignedStr, acknowledgedStr, suspendedStr, resumedStr,
 
   let hours = businessHoursBetween(start, end);
   if (suspendedStr && resumedStr) {
-    const suspended = parseDate(suspendedStr);
-    const resumed = parseDate(resumedStr);
+    const suspended = parseDisplayWallClock(suspendedStr);
+    const resumed = parseDisplayWallClock(resumedStr);
     if (suspended && resumed) {
       const resumedCapped = new Date(Math.min(resumed.getTime(), end.getTime()));
       hours -= businessHoursBetween(suspended, resumedCapped);
@@ -195,18 +202,18 @@ function analysedDateString(now = new Date()) {
 function buildReport(row, fmt, now = new Date()) {
   const keyInputs = [
     row.number, row.priority, row.state, row.assignmentGroup,
-    row.createdOn, row.assignTime, row.acknTime, row.resolvedAt,
-    row.suspendTime, row.resumeTime
+    row.createdOn, row.assignTimeUtcIso, row.acknTimeUtcIso, row.resolvedAt,
+    row.suspendTimeUtcIso, row.resumeTimeUtcIso
   ].join("|");
   if (row.__reportKey === keyInputs && row.__report) return row.__report;
 
   const type = deriveType(row.number);
-  const created = normDate(row.createdOn);
-  const assigned = normDate(fmt ? fmt(row.assignTime) : row.assignTime);
-  const ackn = normDate(fmt ? fmt(row.acknTime) : row.acknTime);
-  const resolved = normDate(row.resolvedAt);
-  const susp = normDate(fmt ? fmt(row.suspendTime) : row.suspendTime);
-  const resumed = normDate(fmt ? fmt(row.resumeTime) : row.resumeTime);
+  const created = normDisplay(row.createdOn);
+  const assigned = normDisplay(fmt ? fmt(row.assignTimeUtcIso) : row.assignTimeUtcIso);
+  const ackn = normDisplay(fmt ? fmt(row.acknTimeUtcIso) : row.acknTimeUtcIso);
+  const resolved = normDisplay(row.resolvedAt);
+  const susp = normDisplay(fmt ? fmt(row.suspendTimeUtcIso) : row.suspendTimeUtcIso);
+  const resumed = normDisplay(fmt ? fmt(row.resumeTimeUtcIso) : row.resumeTimeUtcIso);
 
   const incidentHoursRaw =   calcBusinessHours(created, resolved, susp, resumed, row.priority);
   const incidentHours = hoursToHMS(incidentHoursRaw);
@@ -254,6 +261,6 @@ function buildReport(row, fmt, now = new Date()) {
 }
 
 export {
-  deriveType, slaPriority, metSLA, hmsToHours, normDate, businessHoursBetween,
+  deriveType, slaPriority, metSLA, hmsToHours, normDisplay, businessHoursBetween,
   calcBusinessHours, calcIncCurrentHours, calcResponseSLA, buildReport
 };
