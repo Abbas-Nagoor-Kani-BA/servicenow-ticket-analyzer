@@ -1,6 +1,7 @@
 # report.js business-hours timezone bug
 
-Status: **open (unfixed)** — documented so it does not get lost.
+Status: **fixed** (commit on branch `fix/timezone-format-clarity`; verified by running
+`tools/report-test.js` under multiple `TZ` values with identical results).
 
 ---
 
@@ -41,22 +42,26 @@ rendered as display strings or kept as UTC ISO.
 
 ---
 
-## Suggested fix (not yet implemented)
+## Fix implemented
 
-Options:
+`parseDisplayWallClock` now builds the `Date` via a zone-independent `Date.UTC`
+projection (`new Date(Date.UTC(+yyyy, +mm-1, +dd, h, mi, s))`) and all
+business-hours math (`businessHoursBetween`, `calcBusinessHours`,
+`calcIncCurrentHours`, `calcResponseSLA`) reads those fields with `getUTC*` /
+`Date.UTC` day boundaries — so the work-day (08:00–17:00 Mon–Fri) boundaries are
+evaluated against the **instance display wall-clock**, independent of the
+browser's timezone.
 
-1. **Parse as instance-local with the row offset** — convert the display string
-   using the instance offset rather than the browser zone:
-   ```js
-   function displayToEpoch(displayStr, offsetMs) {
-     const epoch = parseSnDisplayMs(displayStr);   // display parsed as-if UTC
-     return epoch - offsetMs;                       // subtract offset → real UTC epoch
-   }
-   ```
-   Then do business-hours math in epoch space with the instance offset applied,
-   matching how `fmtInstant` renders.
+The three calc functions now accept `offsetMs = 0` and use
+`new Date(Date.now() + offsetMs)` for their open-ticket "now" fallbacks, so an
+open ticket's elapsed/current business hours are also computed in instance
+wall-clock space. `buildReport` derives `instanceOffsetMs` per row via
+`pairOffsetMs(row.openedAt, row.openedAtRaw)`.
 
-2. **Operate on UTC-ISO milestones directly** (bypass `parseDate` entirely) so
-   there is no wall-clock parsing at all.
-
-The fix should be verified against an instance/browser with differing zones.
+Verified by running `node tools/report-test.js` under
+`UTC / America/New_York / America/Los_Angeles / Asia/Kolkata / Pacific/Kiritimati`
+— identical results in every zone. Related: during the earlier format-clarity
+rename, `extractEventsFromActivity` had also renamed the emitted event field
+from `at` to `atIso`, which silently broke the stream→`analyzeAll` contract
+(`normalizeEvents`/`analyzeAll` read `r.at`); the field was restored to `at`
+(the local parse variable stays `atIso` for readability).

@@ -323,10 +323,10 @@ function extractEventsFromActivity(entries) {
           field: anchor.field,
           oldValue: cleanCapture(ch.old_value ?? ch.old ?? ch.from ?? ""),
           newValue: cleanCapture(ch.new_value ?? ch.new ?? ch.to ?? ""),
-          atIso
+          at: atIso
         };
-        const key = `${ev.field}|${ev.oldValue}|${ev.newValue}|${ev.atIso}`;
-        if (ev.atIso && !seen.has(key)) {
+        const key = `${ev.field}|${ev.oldValue}|${ev.newValue}|${ev.at}`;
+        if (ev.at && !seen.has(key)) {
           seen.add(key);
           out.push(ev);
         }
@@ -354,9 +354,9 @@ function extractEventsFromActivity(entries) {
           field: anchor.field,
           oldValue: cleanCapture(m[1]),
           newValue: cleanCapture(m[2]),
-          atIso
+          at: atIso
         };
-        const key = `${ev.field}|${ev.oldValue}|${ev.newValue}|${ev.atIso}`;
+        const key = `${ev.field}|${ev.oldValue}|${ev.newValue}|${ev.at}`;
         if (!seen.has(key)) {
           seen.add(key);
           out.push(ev);

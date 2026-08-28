@@ -40,6 +40,15 @@ console.log("== response SLA ==");
 check("P1 simple hms", R.calcResponseSLA("10-08-2026 09:00:00", "10-08-2026 10:30:00", "", "", "1"), "1:30:00");
 check("no ackn -> empty", R.calcResponseSLA("", "10-08-2026 10:30:00", "", "", "1"), "");
 
+console.log("== instance-zone business hours (TZ-invariant, issue 003) ==");
+// The input strings are instance-local wall-clock. The math must be independent of
+// the browser's timezone (run report-test under any TZ value -> identical results),
+// which the old `new Date("...")` + getHours() code did NOT guarantee.
+check("same-day 09->12", R.businessHoursBetween("10-08-2026 09:00:00", "10-08-2026 12:00:00"), 3);
+check("cross-weekend Fri16->Mon10", R.businessHoursBetween("14-08-2026 16:00:00", "17-08-2026 10:00:00"), 3);
+check("cross-day Tue09->Wed10 (P3)", R.calcBusinessHours("25-08-2026 09:00:00", "26-08-2026 10:00:00", "", "", "3 - Moderate"), "10.00");
+check("P3 sub-day after-hours-only start is 0", R.businessHoursBetween("25-08-2026 18:00:00", "25-08-2026 19:00:00"), 0);
+
 console.log("== met flags (strict <) ==");
 check("met max: 3 < P2.max(8)", R.metSLA(3, "2 - High", "max"), "YES");
 check("at threshold: 8 < P2.max(8) is false", R.metSLA(8, "2 - High", "max"), "NO");

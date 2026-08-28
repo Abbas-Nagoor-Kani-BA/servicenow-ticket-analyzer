@@ -1,3 +1,5 @@
+import { pairOffsetMs } from "../lib/sntime.js";
+
 const SLA_TABLE = {
   1: { min: 1, max: 4 },
   2: { min: 2, max: 8 },
@@ -62,10 +64,11 @@ function normDisplay(v) {
 }
 
 /**
- * Parse an instance-display wall-clock string ("dd-MM-yyyy HH:mm:ss") to a
- * Date. WARNING: `new Date("...")` with no suffix is parsed in the BROWSER's
- * local timezone, not the instance's. Business-hours arithmetic downstream is
- * therefore zone-dependent (see issues/003-report-tz-bug.md).
+ * Parse an instance-display wall-clock string ("dd-MM-yyyy HH:mm:ss") into a
+ * Date whose `getUTC*` fields reproduce the displayed wall-clock, independent
+ * of the browser's timezone. All business-hours math uses `getUTC*`/`Date.UTC`
+ * in this same projected space, so results match the instance clock regardless
+ * of where the extension runs (fixes issues/003-report-tz-bug.md).
  * @param {string} str
  */
 function parseDisplayWallClock(str) {
@@ -73,7 +76,8 @@ function parseDisplayWallClock(str) {
   const [datePart, timePart] = String(str).trim().split(/\s+/);
   const [dd, mm, yyyy] = datePart.split("-");
   if (!yyyy || !mm || !dd) return null;
-  const d = new Date(`${yyyy}-${mm}-${dd}T${timePart || "00:00:00"}`);
+  const [h = 0, mi = 0, s = 0] = String(timePart || "").split(":").map(Number);
+  const d = new Date(Date.UTC(+yyyy, +mm - 1, +dd, h, mi, s));
   return isNaN(d.getTime()) ? null : d;
 }
 
@@ -85,29 +89,29 @@ function businessHoursBetween(startStr, endStr) {
   const WORK_START_H = 8;
   const WORK_END_H = 17;
 
-  function isWorkday(d) { const day = d.getDay(); return day !== 0 && day !== 6; }
+  function isWorkday(d) { const day = d.getUTCDay(); return day !== 0 && day !== 6; }
 
   let hours = 0;
-  const startDay = new Date(start.getFullYear(), start.getMonth(), start.getDate());
-  const endDay = new Date(end.getFullYear(), end.getMonth(), end.getDate());
+  const startDayEpoch = Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate());
+  const endDayEpoch = Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), end.getUTCDate());
 
-  for (let d = new Date(startDay); d <= endDay; d.setDate(d.getDate() + 1)) {
+  for (let d = new Date(startDayEpoch); d.getTime() <= endDayEpoch; d.setUTCDate(d.getUTCDate() + 1)) {
     if (!isWorkday(d)) continue;
-    const ws = new Date(d); ws.setHours(WORK_START_H, 0, 0, 0);
-    const we = new Date(d); we.setHours(WORK_END_H, 0, 0, 0);
-    const segStart = d.getTime() === startDay.getTime() ? new Date(Math.min(Math.max(start.getTime(), ws.getTime()), we.getTime())) : ws;
-    const segEnd = d.getTime() === endDay.getTime() ? new Date(Math.min(Math.max(end.getTime(), ws.getTime()), we.getTime())) : we;
+    const ws = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), WORK_START_H));
+    const we = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), WORK_END_H));
+    const segStart = d.getTime() === startDayEpoch ? new Date(Math.min(Math.max(start.getTime(), ws.getTime()), we.getTime())) : ws;
+    const segEnd = d.getTime() === endDayEpoch ? new Date(Math.min(Math.max(end.getTime(), ws.getTime()), we.getTime())) : we;
     if (segEnd > segStart) hours += (segEnd.getTime() - segStart.getTime()) / 3600000;
   }
   return hours;
 }
 
-function calcBusinessHours(createdStr, resolvedStr, suspendedStr, resumedStr, priority) {
+function calcBusinessHours(createdStr, resolvedStr, suspendedStr, resumedStr, priority, offsetMs = 0) {
   const p = slaPriority(priority);
   const start = parseDisplayWallClock(createdStr);
   if (!start) return "";
 
-  const end = resolvedStr ? parseDisplayWallClock(resolvedStr) : new Date();
+  const end = resolvedStr ? parseDisplayWallClock(resolvedStr) : new Date(Date.now() + offsetMs);
   if (!end) return "";
 
   if (p === 1 || p === 2) {
@@ -127,14 +131,14 @@ function calcBusinessHours(createdStr, resolvedStr, suspendedStr, resumedStr, pr
   return Math.max(0, hours).toFixed(2);
 }
 
-function calcIncCurrentHours(assignedStr, resolvedStr, suspendedStr, resumedStr, priority) {
+function calcIncCurrentHours(assignedStr, resolvedStr, suspendedStr, resumedStr, priority, offsetMs = 0) {
   if (!assignedStr) return "0";
   const p = slaPriority(priority);
   const start = parseDisplayWallClock(assignedStr);
   if (!start) return "0";
 
   if (p === 1 || p === 2) {
-    const end = resolvedStr ? parseDisplayWallClock(resolvedStr) : new Date();
+    const end = resolvedStr ? parseDisplayWallClock(resolvedStr) : new Date(Date.now() + offsetMs);
     if (!end) return "0";
     return Math.max(0, (end.getTime() - start.getTime()) / 3600000).toFixed(2);
   }
@@ -143,11 +147,11 @@ function calcIncCurrentHours(assignedStr, resolvedStr, suspendedStr, resumedStr,
   if (resolvedStr) {
     end = parseDisplayWallClock(resolvedStr);
   } else if (!suspendedStr) {
-    end = new Date();
+    end = new Date(Date.now() + offsetMs);
   } else if (!resumedStr) {
     end = parseDisplayWallClock(suspendedStr);
   } else {
-    end = new Date();
+    end = new Date(Date.now() + offsetMs);
   }
   if (!end) return "0";
 
@@ -164,12 +168,12 @@ function calcIncCurrentHours(assignedStr, resolvedStr, suspendedStr, resumedStr,
   return Math.max(0, hours).toFixed(2);
 }
 
-function calcResponseSLA(assignedStr, acknowledgedStr, suspendedStr, resumedStr, priority) {
+function calcResponseSLA(assignedStr, acknowledgedStr, suspendedStr, resumedStr, priority, offsetMs = 0) {
   if (!assignedStr) return "";
   const p = slaPriority(priority);
   const start = parseDisplayWallClock(assignedStr);
   if (!start) return "";
-  const end = acknowledgedStr ? parseDisplayWallClock(acknowledgedStr) : new Date();
+  const end = acknowledgedStr ? parseDisplayWallClock(acknowledgedStr) : new Date(Date.now() + offsetMs);
   if (!end) return "";
 
   if (p === 1 || p === 2) {
@@ -214,14 +218,15 @@ function buildReport(row, fmt, now = new Date()) {
   const resolved = normDisplay(row.resolvedAt);
   const susp = normDisplay(fmt ? fmt(row.suspendTimeUtcIso) : row.suspendTimeUtcIso);
   const resumed = normDisplay(fmt ? fmt(row.resumeTimeUtcIso) : row.resumeTimeUtcIso);
+  const instanceOffsetMs = pairOffsetMs(row.openedAt, row.openedAtRaw) || 0;
 
-  const incidentHoursRaw =   calcBusinessHours(created, resolved, susp, resumed, row.priority);
+  const incidentHoursRaw =   calcBusinessHours(created, resolved, susp, resumed, row.priority, instanceOffsetMs);
   const incidentHours = hoursToHMS(incidentHoursRaw);
   const incidentTotalAge = calcTotalAgeDays(incidentHoursRaw);
-  const incCurrentHoursRaw = calcIncCurrentHours(assigned, resolved, susp, resumed, row.priority);
+  const incCurrentHoursRaw = calcIncCurrentHours(assigned, resolved, susp, resumed, row.priority, instanceOffsetMs);
   const incCurrentHours = hoursToHMS(incCurrentHoursRaw);
   const incidentCurrentAge = calcTotalAgeDays(incCurrentHoursRaw);
-  const responseSLA = calcResponseSLA(assigned, ackn, susp, resumed, row.priority);
+  const responseSLA = calcResponseSLA(assigned, ackn, susp, resumed, row.priority, instanceOffsetMs);
   const respVal = responseSLA === "" ? NaN : hmsToHours(responseSLA);
   const respThreshold = RESPONSE_SLA_TABLE[slaPriority(row.priority)] || 0;
   const metResponse = isNaN(respVal) || !respThreshold ? "" : (respVal < respThreshold ? "YES" : "No");
