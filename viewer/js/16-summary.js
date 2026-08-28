@@ -11,7 +11,7 @@ function panelFmt(utcIso, row) {
   if (isNaN(d.getTime())) return String(utcIso);
   const offsetMs = rowOffsetMs(row, dataStore.getState().snOffsetMs);
   const local = new Date(d.getTime() + offsetMs);
-  return `${local.getUTCFullYear()}-${pad2(local.getUTCMonth() + 1)}-${pad2(local.getUTCDate())} ` +
+  return `${pad2(local.getUTCDate())}-${pad2(local.getUTCMonth() + 1)}-${local.getUTCFullYear()} ` +
     `${pad2(local.getUTCHours())}:${pad2(local.getUTCMinutes())}:${pad2(local.getUTCSeconds())}`;
 }
 

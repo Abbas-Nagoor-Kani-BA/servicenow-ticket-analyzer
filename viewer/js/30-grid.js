@@ -137,7 +137,7 @@ function currentRows() {
 }
 
 function formatWallClock(d) {
-  return `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())} ` +
+  return `${pad2(d.getUTCDate())}-${pad2(d.getUTCMonth() + 1)}-${d.getUTCFullYear()} ` +
     `${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}:${pad2(d.getUTCSeconds())}`;
 }
 
@@ -160,7 +160,7 @@ function buildTableRows(rows, cols, fmtInstant) {
     const rep = buildReport(row, fmtInstant);
     const num = String(row.number ?? "");
     if (num) typeCounts[rep.type || "Other"] = (typeCounts[rep.type || "Other"] || 0) + 1;
-    for (const [key, cls] of cols) {
+    for (const [key, , cls] of cols) {
       const td = document.createElement("td");
       if (cls) td.className = cls;
       let v;
