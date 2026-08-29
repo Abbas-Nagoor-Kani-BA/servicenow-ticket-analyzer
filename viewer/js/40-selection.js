@@ -93,6 +93,40 @@ function moveSel(dr, dc, extend) {
   setSelPoint(String(rows[ri].sysId ?? ""), cols[ci][0], extend).then(() => scrollSelIntoView());
 }
 
+function moveToRowFirstLast(extend, which) {
+  const rows = currentRows();
+  const cols = visibleCols();
+  if (!rows.length || !cols.length) return;
+  const focus = sel().focus;
+  let ri = 0;
+  if (focus) {
+    ri = rowIdxOf(focus.sysId, rows);
+    if (ri < 0) ri = 0;
+  }
+  const ci = which === "first" ? 0 : cols.length - 1;
+  setSelPoint(String(rows[ri].sysId ?? ""), cols[ci][0], extend).then(() => scrollSelIntoView());
+}
+
+function movePage(dr, extend) {
+  const rows = currentRows();
+  const cols = visibleCols();
+  if (!rows.length || !cols.length) return;
+  const focus = sel().focus;
+  let ri = 0, ci = 0;
+  if (focus) {
+    ri = rowIdxOf(focus.sysId, rows);
+    ci = colIdxOf(focus.key, cols);
+    if (ri < 0 || ci < 0) { ri = 0; ci = 0; }
+  }
+  let page = 20;
+  const rowEl = $("tbl").tBodies[0].rows[ri];
+  const rowH = rowEl ? rowEl.offsetHeight : 24;
+  const wrapH = $("wrap").clientHeight;
+  if (rowH > 0 && wrapH > 0) page = Math.max(1, Math.floor((wrapH - 40) / rowH));
+  ri = Math.min(rows.length - 1, Math.max(0, ri + dr * page));
+  setSelPoint(String(rows[ri].sysId ?? ""), cols[ci][0], extend).then(() => scrollSelIntoView());
+}
+
 function applySelHighlight() {
   for (const tdEl of sel().prev) {
     tdEl.classList.remove("sel", "selr");
@@ -187,6 +221,8 @@ export {
   selectionBounds,
   setSelPoint,
   moveSel,
+  moveToRowFirstLast,
+  movePage,
   applySelHighlight,
   scrollSelIntoView,
   selectedTd,

@@ -16,8 +16,11 @@ import { loadTplInfo } from "./20-toolbar.js";
 import { dataStore, hydrateStores, wireViewer } from "./00-store.js";
 import { load } from "./30-grid.js";
 import { syncMsrLists } from "./00-core.js";
+import { anyOverlayOpen } from "./40-selection.js";
+import { initTooltips } from "../../lib/tooltip.js";
 
 async function boot() {
+  initTooltips(() => anyOverlayOpen());
   await hydrateStores();
   wireViewer({ onData: load, onLists: syncMsrLists });
   loadTplInfo();

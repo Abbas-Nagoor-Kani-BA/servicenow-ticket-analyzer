@@ -1,6 +1,6 @@
 import { $, visibleCols } from "./00-core.js";
 import { findRowBySysId, render } from "./30-grid.js";
-import { anyOverlayOpen, copySelectedRange, getSelFocus, moveSel, selectedTd, selectionBounds, setSelPoint } from "./40-selection.js";
+import { anyOverlayOpen, copySelectedRange, getSelFocus, movePage, moveSel, moveToRowFirstLast, selectedTd, selectionBounds, setSelPoint } from "./40-selection.js";
 import { openTicketPopup } from "./50-ticketpop.js";
 import { startEdit } from "./70-editors.js";
 
@@ -73,7 +73,11 @@ document.addEventListener("keydown", e => {
     case "ArrowUp": e.preventDefault(); moveSel(-1, 0, e.shiftKey); break;
     case "ArrowLeft": e.preventDefault(); moveSel(0, -1, e.shiftKey); break;
     case "ArrowRight": e.preventDefault(); moveSel(0, 1, e.shiftKey); break;
-    case "Tab": e.preventDefault(); moveSel(0, e.shiftKey ? -1 : 1, false); break;
+    case "Home": e.preventDefault(); moveToRowFirstLast(e.shiftKey, "first"); break;
+    case "End": e.preventDefault(); moveToRowFirstLast(e.shiftKey, "last"); break;
+    case "PageDown": e.preventDefault(); movePage(1, e.shiftKey); break;
+    case "PageUp": e.preventDefault(); movePage(-1, e.shiftKey); break;
+    case "Tab": if (!e.ctrlKey && !e.metaKey) { e.preventDefault(); moveSel(0, e.shiftKey ? -1 : 1, false); } break;
     case "Enter":
     case "F2": {
       const td = selectedTd();

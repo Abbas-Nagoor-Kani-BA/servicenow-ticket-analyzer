@@ -46,6 +46,8 @@ const browserGlobals = {
   btoa: "readonly",
   atob: "readonly",
   queueMicrotask: "readonly",
+  ResizeObserver: "readonly",
+  MutationObserver: "readonly",
   chrome: "readonly"
 };
 

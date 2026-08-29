@@ -1,5 +1,6 @@
 import * as Markup from "../../lib/markup.js";
 import { STORAGE } from "../../lib/keys.js";
+import { setTip } from "../../lib/tooltip.js";
 import { $, el, setStatus } from "./00-core.js";
 import { DEFAULT_EXPORT_MAP, EXPORT_FIELD_BY_ID, EXPORT_GROUPS, MAP_MAX_COL } from "./10-exporter.js";
 import { ciSplit, getCiSplit, setCiSplit, setSavedMapPresent, syncSplitRadio, updateCiBtn, updateExportDots } from "./20-toolbar.js";
@@ -66,11 +67,11 @@ function buildMapList() {
       row.dataset.label = f[1];
       const label = document.createElement("span");
       label.textContent = f[1];
-      label.title = f[1];
+      setTip(label, f[1]);
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = "mapPick";
-      btn.title = "Click to search and pick a column (A–AN)";
+      setTip(btn, "Click to search and pick a column (A–AN)");
       btn.addEventListener("click", e => {
         e.stopPropagation();
         toggleLetterPop(f[0], btn);
@@ -304,7 +305,7 @@ function renderCiGroups() {
     });
     const del = el("button", "ciDelGroup");
     del.textContent = "✕";
-    del.title = "Delete this group";
+    setTip(del, "Delete this group");
     del.addEventListener("click", () => {
       ciDraft.splice(gi, 1);
       renderCiGroups();
@@ -325,12 +326,12 @@ function renderCiGroups() {
     g.items.forEach((it, ii) => {
       const chip = el("div", "ciChip");
       chip.draggable = true;
-      chip.title = "Drag to another group";
+      setTip(chip, "Drag to another group");
       const lbl = el("span", "lbl");
       lbl.textContent = it;
       const rm = el("button", "rm");
       rm.textContent = "✕";
-      rm.title = "Remove this configuration item";
+      setTip(rm, "Remove this configuration item");
       rm.addEventListener("click", () => {
         g.items.splice(ii, 1);
         renderCiGroups();
@@ -346,7 +347,7 @@ function renderCiGroups() {
     inp.placeholder = "Add configuration item";
     const addBtn = document.createElement("button");
     addBtn.textContent = "+";
-    addBtn.title = "Add to this group";
+    setTip(addBtn, "Add to this group");
     addBtn.addEventListener("click", () => commitCiInput(inp, g));
     inp.addEventListener("keydown", ev => {
       if (ev.key === "Enter") {

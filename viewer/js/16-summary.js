@@ -198,19 +198,44 @@ function renderSummary() {
   buildProblemTable(probTbl.tBodies[0], s.items.filter(i => i.ticketType === "Problem"));
 }
 
-$("tabTickets").addEventListener("click", () => {
+function setTab(ticketsOn) {
+  $("tabTickets").classList.toggle("on", ticketsOn);
+  $("tabSummary").classList.toggle("on", !ticketsOn);
+  $("tabTickets").setAttribute("aria-selected", ticketsOn ? "true" : "false");
+  $("tabSummary").setAttribute("aria-selected", ticketsOn ? "false" : "true");
+}
+
+function showTickets() {
+  setTab(true);
   $("wrap").classList.remove("hidden");
   $("summaryWrap").classList.add("hidden");
-  $("tabTickets").classList.add("on");
-  $("tabSummary").classList.remove("on");
-});
+}
 
-$("tabSummary").addEventListener("click", () => {
+function showSummary() {
+  setTab(false);
   $("wrap").classList.add("hidden");
   $("summaryWrap").classList.remove("hidden");
-  $("tabTickets").classList.remove("on");
-  $("tabSummary").classList.add("on");
   renderSummary();
+}
+
+$("tabTickets").addEventListener("click", () => showTickets());
+$("tabSummary").addEventListener("click", () => showSummary());
+
+document.addEventListener("keydown", e => {
+  const t = e.target;
+  if (t instanceof HTMLElement &&
+      (t.tagName === "INPUT" || t.tagName === "SELECT" || t.tagName === "TEXTAREA" || t.isContentEditable)) {
+    return;
+  }
+  const mod = e.ctrlKey || e.metaKey;
+  if (!mod) return;
+  if (e.key === "1") { e.preventDefault(); showTickets(); }
+  else if (e.key === "2") { e.preventDefault(); showSummary(); }
+  else if (e.key === "Tab") {
+    e.preventDefault();
+    if (e.shiftKey) showTickets();
+    else showSummary();
+  }
 });
 
 export { attachSummaryToData, renderSummary, setRowsProvider };

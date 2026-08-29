@@ -8,13 +8,14 @@
 
     :root { --bg:#1e1e2e; --card:#181825; --line:#313244; --text:#cdd6f4; --dim:#a6adc8; }
     * { box-sizing: border-box; }
-    body { margin:0; font-family:system-ui,sans-serif; font-size:13px; background:var(--bg); color:var(--text); }
-    header { display:flex; align-items:baseline; gap:14px; padding:14px 18px 6px; }
-    h1 { font-size:16px; margin:0; color:#89b4fa; white-space:nowrap; }
-    #meta { color:var(--dim); font-size:12px; }
-    .toolbar { display:flex; gap:10px; align-items:center; padding:8px 18px 12px; position:sticky; top:0;
+    html, body { height:100%; }
+    body { margin:0; font-family:system-ui,sans-serif; font-size:13px; background:var(--bg); color:var(--text);
+      overflow:hidden; display:flex; flex-direction:column; }
+    .toolbar { flex:none; display:flex; gap:12px; align-items:center; padding:8px 14px; position:sticky; top:0;
       background:var(--bg); z-index:2; border-bottom:1px solid var(--line); }
-    #search { flex:1; max-width:420px; background:#11111b; color:var(--text); border:1px solid var(--line);
+    .tbLeft { display:flex; gap:10px; align-items:center; min-width:0; flex-shrink:1; }
+    .tbRight { display:flex; gap:8px; align-items:center; margin-left:auto; justify-content:flex-end; }
+    #search { width:300px; max-width:36vw; background:#11111b; color:var(--text); border:1px solid var(--line);
       border-radius:6px; padding:7px 10px; font-size:13px; }
     #count { color:var(--dim); font-size:12px; white-space:nowrap; }
     button { padding:7px 12px; border:none; border-radius:6px; background:#45475a; color:var(--text);
@@ -42,7 +43,7 @@
     .radioRow label:hover { color:var(--accent); }
     .radioRow input[type="radio"] { accent-color:#89b4fa; margin:0; cursor:pointer; }
     #menuTplClear { color:#f38ba8; }
-    #wrap { overflow:auto; height:calc(100vh - 96px); }
+    #wrap { flex:1; min-height:0; overflow:auto; position:relative; }
     table { border-collapse:collapse; table-layout:fixed; width:100%; }
     th, td { text-align:left; padding:6px 10px; border-bottom:1px solid var(--line); white-space:nowrap;
       overflow:hidden; text-overflow:ellipsis; position:relative; }
@@ -154,13 +155,13 @@
     td.copied { animation:copyflash .8s ease-out; }
     @keyframes copyflash { 0% { background:rgba(166,227,161,.25); color:#a6e3a1; } 100% { background:transparent; } }
     @keyframes rowflash { 0% { background:rgba(250,179,135,.18); } 100% { } }
-    #slaBar { padding:4px 18px 4px; font-size:11px; color:var(--dim); display:flex; align-items:center; gap:8px; }
+    #slaBar { flex:none; padding:4px 18px 4px; font-size:11px; color:var(--dim); display:flex; align-items:center; gap:8px; }
     #slaBar.hidden { display:none; }
     #slaBar .slaDot { display:inline-block; width:8px; height:8px; border-radius:50%; }
     #slaBar .slaDot.r  { background:var(--bad); }
     #slaBar .slaDot.m  { background:#fab387; }
     #slaBar .slaDot.rm { background:#e03060; }
-    #empty { padding:60px 20px; text-align:center; color:var(--dim); font-size:14px; }
+    #empty { flex:1; padding:60px 20px; text-align:center; color:var(--dim); font-size:14px; }
     .hidden { display:none; }
     button.primary { background:#89b4fa; color:#11111b; }
     #status { color:#a6e3a1; font-size:12px; min-width:80px; }
@@ -170,11 +171,20 @@
     #aiStop { padding:2px 10px; font-size:11px; background:#f38ba8; color:#11111b; border:none;
       border-radius:999px; cursor:pointer; font-weight:600; }
     #aiStop:hover { filter:brightness(1.15); }
-    #tabs { display:flex; gap:4px; padding:6px 18px 0; }
-    #tabs button.tab { background:transparent; color:var(--dim); border:1px solid transparent;
-      border-radius:999px; padding:5px 14px; font-size:12px; }
-    #tabs button.tab.on { background:#89b4fa; color:#11111b; }
-    #summaryWrap { overflow:auto; height:calc(100vh - 120px); padding:4px 18px 18px; }
+    #tabs { flex:none; display:inline-flex; gap:2px; padding:6px 18px 0; }
+    #tabs button.tab { background:#181825; color:var(--dim); border:1px solid var(--line);
+      padding:6px 16px; font-size:12px; border-radius:0; font-weight:600; cursor:pointer;
+      display:inline-flex; align-items:center; gap:7px; }
+    #tabs button.tab .g { font-size:13px; line-height:1; }
+    #tabs button.tab:first-child { border-top-left-radius:8px; border-bottom-left-radius:8px; }
+    #tabs button.tab:last-child { border-top-right-radius:8px; border-bottom-right-radius:8px; }
+    #tabs button.tab:hover { filter:none; background:#313244; color:var(--text); }
+    #tabs button.tab.on { background:#89b4fa; color:#11111b; border-color:#89b4fa; }
+    #tabs button.tab.on:hover { background:#9dc4ff; color:#11111b; }
+    #tabs button.tab:focus-visible { outline:none; z-index:1; box-shadow:inset 0 0 0 2px #89b4fa; }
+    #tabs button.tab.on:focus-visible { box-shadow:inset 0 0 0 2px #11111b; }
+    #tabs button.tab[aria-selected="true"] { background:#89b4fa; color:#11111b; border-color:#89b4fa; }
+    #summaryWrap { flex:1; min-height:0; overflow:auto; padding:4px 18px 18px; }
     #sumMeta { color:var(--dim); font-size:12px; padding:4px 0 8px; }
     .table-wrapper { margin-bottom:22px; }
     .sum-table { width:100%; max-width:1100px; border-collapse:collapse; table-layout:fixed; font-size:12.5px; }
@@ -299,44 +309,44 @@
   </style>
 </head>
 <body>
-  <header>
-    <h1>ServiceNow Ticket Data</h1>
-    <span id="meta"></span>
-  </header>
   <div class="toolbar">
-    <input id="search" placeholder="Search number, state, group, assignee…">
-    <span id="count"></span>
-    <span id="status"></span>
-    <div id="exportCluster">
-      <button id="exportBtn" class="primary" title="Fill the template with the current view">Export</button>
-      <button id="exportMenuBtn" title="Export options">▼</button>
-      <div id="exportMenu" class="hidden">
-        <div class="radioRow" id="splitRadios">
-          <label><input type="radio" name="splitMode" id="radSingle" checked> Single file</label>
-          <label><input type="radio" name="splitMode" id="radSplit"> Separate files per CI group</label>
+    <div class="tbLeft">
+      <input id="search" placeholder="Search number, state, group, assignee…">
+      <span id="count"></span>
+    </div>
+    <div class="tbRight">
+      <span id="status"></span>
+      <button id="copyMsrBtn" data-tip="Copy the current view as MSR 'BA AO' input columns (A–U) — paste onto rows whose formulas in V–AJ stay intact">Copy for MSR</button>
+      <button id="colsBtn" data-tip="Choose which columns are shown">Columns</button>
+      <div id="colMenu" class="hidden">
+        <div class="menuHead"><span>Visible columns</span><button id="showAllCols">Show all</button></div>
+        <input id="colSearch" placeholder="Search columns…">
+        <div id="colList"></div>
+      </div>
+      <button id="clearBtn">Clear</button>
+      <div id="exportCluster">
+        <button id="exportBtn" class="primary" data-tip="Fill the template with the current view">Export</button>
+        <button id="exportMenuBtn" data-tip="Export options">▼</button>
+        <div id="exportMenu" class="hidden">
+          <div class="radioRow" id="splitRadios">
+            <label><input type="radio" name="splitMode" id="radSingle" checked> Single file</label>
+            <label><input type="radio" name="splitMode" id="radSplit"> Separate files per CI group</label>
+          </div>
+          <div class="menuSep"></div>
+          <button class="exportMenuItem" id="menuMapBtn"><span class="dot" id="mapDot"></span><span class="lbl">Column mapping…</span></button>
+          <button class="exportMenuItem" id="menuCiBtn"><span class="dot" id="ciDot"></span><span class="lbl">Split by CI groups…</span></button>
+          <div class="menuSep"></div>
+          <button class="exportMenuItem" id="menuTplBtn"><span class="lbl" id="menuTplLabel">No template — pick on export</span></button>
+          <button class="exportMenuItem hidden" id="menuTplClear">Clear saved template</button>
         </div>
-        <div class="menuSep"></div>
-        <button class="exportMenuItem" id="menuMapBtn"><span class="dot" id="mapDot"></span><span class="lbl">Column mapping…</span></button>
-        <button class="exportMenuItem" id="menuCiBtn"><span class="dot" id="ciDot"></span><span class="lbl">Split by CI groups…</span></button>
-        <div class="menuSep"></div>
-        <button class="exportMenuItem" id="menuTplBtn"><span class="lbl" id="menuTplLabel">No template — pick on export</span></button>
-        <button class="exportMenuItem hidden" id="menuTplClear">Clear saved template</button>
       </div>
     </div>
     <input type="file" id="tplFile" accept=".xlsx" class="hidden">
-    <button id="copyMsrBtn" title="Copy the current view as MSR 'BA AO' input columns (A–U) — paste onto rows whose formulas in V–AJ stay intact">Copy for MSR</button>
-    <button id="colsBtn" title="Choose which columns are shown">Columns</button>
-    <div id="colMenu" class="hidden">
-      <div class="menuHead"><span>Visible columns</span><button id="showAllCols">Show all</button></div>
-      <input id="colSearch" placeholder="Search columns…">
-      <div id="colList"></div>
-    </div>
-    <button id="clearBtn">Clear</button>
   </div>
   <div id="slaBar" class="hidden"></div>
-  <div id="tabs">
-    <button id="tabTickets" class="tab on">Tickets</button>
-    <button id="tabSummary" class="tab">Summary SLA</button>
+  <div id="tabs" role="tablist">
+    <button id="tabTickets" class="tab on" role="tab" aria-selected="true"><span class="g">☰</span> Tickets</button>
+    <button id="tabSummary" class="tab" role="tab" aria-selected="false"><span class="g">Σ</span> Summary SLA</button>
   </div>
   <div id="wrap">
     <table id="tbl">
@@ -372,7 +382,7 @@
       <div id="letterList"></div>
     </div>
     <div id="mapCard">
-      <div class="mapHead"><span>Export column mapping</span><button id="mapClose" title="Close">✕</button></div>
+      <div class="mapHead"><span>Export column mapping</span><button id="mapClose" data-tip="Close">✕</button></div>
       <p class="mapHint">Pick the Excel column (A–AN) each field is written to. A field exports to one
         column; unmapped fields are skipped and unmapped columns stay as the template has them.</p>
       <input id="mapSearch" placeholder="Search fields…">
@@ -387,7 +397,7 @@
   </div>
   <div id="ciModal" class="hidden">
     <div id="ciCard">
-      <div class="mapHead"><span>Split export by configuration item</span><button id="ciClose" title="Close">✕</button></div>
+      <div class="mapHead"><span>Split export by configuration item</span><button id="ciClose" data-tip="Close">✕</button></div>
       <label class="ciToggle"><input type="checkbox" id="ciEnabled"> Split each export into separate files</label>
       <p class="mapHint">Groups become the file names. Drag configuration items between groups.
         An item matches every configuration item that starts with it — e.g. "Payment Gateway" also

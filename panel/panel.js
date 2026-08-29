@@ -4,6 +4,7 @@ import { STORAGE, MSG } from "../lib/keys.js";
 import { createLogger } from "./log.js";
 import { broadcast } from "../lib/storage.js";
 import { showToast } from "../lib/toast.js";
+import { initTooltips, setTip } from "../lib/tooltip.js";
 
 /** @param {string} id @returns {any} */
 const $ = id => document.getElementById(id);
@@ -93,6 +94,7 @@ async function applyPluginSettings() {
   refreshGenerated();
 }
 $("settingsBtn").addEventListener("click", () => chrome.runtime.openOptionsPage());
+initTooltips();
 chrome.storage.local.get(["snInstance", "lastRun"], async (cfg) => {
   await applyPluginSettings();
   if (cfg.snInstance && !els.instance.value) els.instance.value = cfg.snInstance;
@@ -187,7 +189,7 @@ function renderFilterList() {
     span.textContent = describeFilterSet(f);
     const btn = document.createElement("button");
     btn.type = "button";
-    btn.title = "Remove";
+    setTip(btn, "Remove");
     btn.textContent = "\u2715";
     btn.addEventListener("click", () => {
       filterList.splice(i, 1);
@@ -343,7 +345,7 @@ function createDeleteButton(index) {
   const del = document.createElement("button");
   del.type = "button";
   del.className = "cdel";
-  del.title = "Remove condition";
+  setTip(del, "Remove condition");
   del.textContent = "\u2715";
   del.addEventListener("click", () => {
     condRows.splice(index, 1);

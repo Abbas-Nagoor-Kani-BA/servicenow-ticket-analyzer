@@ -4,6 +4,7 @@ import { STORAGE, MSG } from "../lib/keys.js";
 import { broadcast } from "../lib/storage.js";
 import { createChipList } from "./chips.js";
 import { showToast } from "../lib/toast.js";
+import { initTooltips } from "../lib/tooltip.js";
 
 /** @param {string} id @returns {any} */
 const $ = id => document.getElementById(id);
@@ -108,6 +109,7 @@ async function save() {
   showToast(`Settings saved \u2014 ${q} queue${q === 1 ? "" : "s"}, ${m} member${m === 1 ? "" : "s"}`);
 }
 $("saveBtn").addEventListener("click", () => save().catch((e) => showToast(e.message, "error")));
+initTooltips();
 $("resetBtn").addEventListener("click", async () => {
   fill(null);
   await chrome.storage.local.set({ [STORAGE.pluginSettings]: collect() });

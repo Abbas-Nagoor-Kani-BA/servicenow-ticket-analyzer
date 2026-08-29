@@ -16,7 +16,7 @@
     <div class="row">
       <input id="instance" type="url" placeholder="https://yourcompany.service-now.com">
       <button id="connectBtn">Connect</button>
-      <button id="settingsBtn" type="button" class="linklike" title="Open settings">&#9881; Settings</button>
+      <button id="settingsBtn" type="button" class="linklike" data-tip="Open settings">&#9881; Settings</button>
     </div>
   </section>
 
@@ -67,7 +67,7 @@
   </section>
 
   <section class="card log-card hidden" id="logCard">
-    <h2 id="logHead" title="Click to open full log">Log <span id="logErrBadge" class="hidden"></span></h2>
+    <h2 id="logHead" data-tip="Click to open full log">Log <span id="logErrBadge" class="hidden"></span></h2>
     <div id="log"></div>
   </section>
 
@@ -76,7 +76,7 @@
       <div class="log-head">
         <span>Request &amp; activity log</span>
         <button id="logCopy" type="button" class="linklike">Copy all</button>
-        <button id="logClose" type="button" title="Close">&#10005;</button>
+        <button id="logClose" type="button" data-tip="Close">&#10005;</button>
       </div>
       <div id="logMirror"></div>
     </div>

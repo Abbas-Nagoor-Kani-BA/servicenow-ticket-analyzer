@@ -1,10 +1,10 @@
 import { detectSnOffsetMs, rowOffsetMs } from "../../lib/sntime.js";
 import { extractHeuristic } from "../../analysis/aiextract.js";
 import { buildReport } from "../../analysis/report.js";
-import { SN_TABLE_LABELS } from "../../lib/statechoices.js";
 import { STORAGE } from "../../lib/keys.js";
 import { pad2 } from "../../lib/format.js";
 import { showToast } from "../../lib/toast.js";
+import { setTip } from "../../lib/tooltip.js";
 import { $, COLUMNS, cellShort, columnOptionList, migrateLegacyResolutions, setStatus, visibleCols } from "./00-core.js";
 import { cellValue, tsvCell } from "./15-clipboard.js";
 import { applySelHighlight, ensureDefaultSelection, restorePendingSel } from "./40-selection.js";
@@ -34,31 +34,12 @@ function load(d) {
     return;
   }
   $("tabs").classList.remove("hidden");
-  const missing = data.missingAudit ? ` · ${data.missingAudit} without timeline events` : "";
-  const runs = data.runs || [];
-  const lastRun = runs[runs.length - 1];
-  let scope;
-  if (runs.length) {
-    const groups = [...new Set(runs.map(r => r.group))];
-    scope = `${runs.length} run(s) · groups: ${groups.join(", ")}`;
-  } else {
-    scope = `${SN_TABLE_LABELS[data.table] || data.table} · group "${data.group}"`;
-  }
-  $("meta").textContent =
-    `${scope} · pulled ${data.at.slice(0, 16).replace("T", " ")}${missing}`;
-  if (lastRun?.cached) {
-    const badge = document.createElement("span");
-    const age = lastRun.cacheAt ? ` (${Math.max(1, Math.round((Date.now() - lastRun.cacheAt) / 60000))} min old)` : "";
-    badge.textContent = ` · cached data${age}`;
-    badge.style.cssText = "color:#fab387;font-weight:600;";
-    $("meta").appendChild(badge);
-  }
   if (data.debug && data.debug.ticketsWithAudit === 0) {
     const warn = document.createElement("div");
     warn.style.cssText = "padding:6px 18px;color:#fab387;font-size:12px;";
     warn.textContent =
       "No timeline events found for any pulled ticket. Common causes: (1) the activity feed returned nothing - open a ticket's form in this instance's tab and check its Activity section renders field changes; (2) tickets were never updated through the platform; (3) list_history.do is blocked on this release. Timeline columns stay empty without feed events.";
-    $("meta").after(warn);
+    $("tabs").before(warn);
   }
   buildHead();
   render();
@@ -91,7 +72,7 @@ function buildHead() {
     const cc = document.createElement("span");
     cc.className = "colCopy";
     cc.textContent = "📋";
-    cc.title = "Copy entire column";
+    setTip(cc, "Copy entire column");
     cc.addEventListener("click", e => {
       e.stopPropagation();
       const rows = currentRows();
@@ -175,7 +156,7 @@ function buildTableRows(rows, cols, fmtInstant) {
       }
       const text = v === null || v === undefined ? "" : String(v);
       td.textContent = cls ? text : cellShort(text);
-      td.title = text ? `${text}${td.classList.contains("editable") ? "\n— double-click to edit" : ""}` : "";
+      setTip(td, text ? `${text}${td.classList.contains("editable") ? "\n— double-click to edit" : ""}` : "");
       if (key === "number" && text.startsWith("INC")) {
         const stt = String(row.state ?? "").toLowerCase();
         if (stt.startsWith("close") || stt.startsWith("resolv")) {
@@ -183,17 +164,21 @@ function buildTableRows(rows, cols, fmtInstant) {
           if (breach) {
             td.classList.add("sla-breach-" + breach.toLowerCase());
             for (const ch of breach) { const k = ch.toLowerCase(); if (k in breachCounts) breachCounts[k]++; }
+            const labels = [];
+            if (breach.includes("R")) labels.push("Response SLA");
+            if (breach.includes("M")) labels.push("Resolution SLA");
+            setTip(td, `⚠ SLA breached — ${labels.join(" & ")}\n\n${td.getAttribute("data-tip") ?? ""}`, "tip-warn");
           }
         }
       }
       if (row.parseReview && (key === "solutionType" || key === "rootCause") && text) {
         td.classList.add("review");
-        td.title = `⚠ Low-confidence parse — please verify\n\n${td.title}`;
+        setTip(td, `⚠ Low-confidence parse — please verify\n\n${td.getAttribute("data-tip") ?? ""}`, "tip-warn");
       }
       const opts = td.classList.contains("editable") && text ? columnOptionList(key, row) : null;
       if (opts && opts.length && !opts.some(o => o.toLowerCase() === text.toLowerCase())) {
         td.classList.add("offlist");
-        td.title = `Value not in the MSR option list\n\n${td.title}`;
+        setTip(td, `Value not in the MSR option list\n\n${td.getAttribute("data-tip") ?? ""}`, "tip-warn");
       }
       tr.appendChild(td);
     }

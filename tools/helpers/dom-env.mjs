@@ -110,44 +110,47 @@ export async function flush(times = 4) {
 
 const SKELETON = `
 <div class="toolbar">
-  <input id="search">
-  <span id="count"></span>
-  <span id="status"></span>
-  <div id="exportCluster">
-    <button id="exportBtn" class="primary">Export</button>
-    <button id="exportMenuBtn">▼</button>
-    <div id="exportMenu" class="hidden">
-      <div class="radioRow">
-        <label><input type="radio" name="splitMode" id="radSingle" checked> Single file</label>
-        <label><input type="radio" name="splitMode" id="radSplit"> Separate files per CI group</label>
+  <div class="tbLeft">
+    <input id="search">
+    <span id="count"></span>
+  </div>
+  <div class="tbRight">
+    <span id="status"></span>
+    <div id="exportCluster">
+      <button id="exportBtn" class="primary">Export</button>
+      <button id="exportMenuBtn">▼</button>
+      <div id="exportMenu" class="hidden">
+        <div class="radioRow">
+          <label><input type="radio" name="splitMode" id="radSingle" checked> Single file</label>
+          <label><input type="radio" name="splitMode" id="radSplit"> Separate files per CI group</label>
+        </div>
+        <div class="menuSep"></div>
+        <button class="exportMenuItem" id="menuMapBtn"><span class="dot" id="mapDot"></span><span class="lbl">Column mapping…</span></button>
+        <button class="exportMenuItem" id="menuCiBtn"><span class="dot" id="ciDot"></span><span class="lbl">Split by CI groups…</span></button>
+        <div class="menuSep"></div>
+        <button class="exportMenuItem" id="menuTplBtn"><span class="lbl" id="menuTplLabel">No template — pick on export</span></button>
+        <button class="exportMenuItem hidden" id="menuTplClear">Clear saved template</button>
       </div>
-      <div class="menuSep"></div>
-      <button class="exportMenuItem" id="menuMapBtn"><span class="dot" id="mapDot"></span><span class="lbl">Column mapping…</span></button>
-      <button class="exportMenuItem" id="menuCiBtn"><span class="dot" id="ciDot"></span><span class="lbl">Split by CI groups…</span></button>
-      <div class="menuSep"></div>
-      <button class="exportMenuItem" id="menuTplBtn"><span class="lbl" id="menuTplLabel">No template — pick on export</span></button>
-      <button class="exportMenuItem hidden" id="menuTplClear">Clear saved template</button>
     </div>
+    <input type="file" id="tplFile" accept=".xlsx" class="hidden">
+    <button id="copyMsrBtn">Copy for MSR</button>
+    <button id="colsBtn">Columns</button>
+    <div id="colMenu" class="hidden">
+      <div class="menuHead"><span>Visible columns</span><button id="showAllCols">Show all</button></div>
+      <input id="colSearch">
+      <div id="colList"></div>
+    </div>
+    <button id="clearBtn">Clear</button>
   </div>
-  <input type="file" id="tplFile" accept=".xlsx" class="hidden">
-  <button id="copyMsrBtn">Copy for MSR</button>
-  <button id="colsBtn">Columns</button>
-  <div id="colMenu" class="hidden">
-    <div class="menuHead"><span>Visible columns</span><button id="showAllCols">Show all</button></div>
-    <input id="colSearch">
-    <div id="colList"></div>
-  </div>
-  <button id="clearBtn">Clear</button>
 </div>
-<div id="meta"></div>
 <div id="slaBar" class="hidden"></div>
 <div id="tabs">
   <button id="tabTickets" class="tab on">Tickets</button>
   <button id="tabSummary" class="tab">Summary SLA</button>
 </div>
-<div id="wrap">
-  <table id="tbl"><thead></thead><tbody></tbody></table>
-</div>
+  <div id="wrap">
+    <table id="tbl"><thead></thead><tbody></tbody></table>
+  </div>
 <div id="summaryWrap" class="hidden">
   <div id="sumMeta"></div>
   <div class="table-wrapper">

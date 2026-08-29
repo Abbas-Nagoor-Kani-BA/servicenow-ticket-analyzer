@@ -57,3 +57,42 @@ button.primary { background: var(--accent); color: #11111b; }
 .toast.out { opacity: 0; transform: translateY(-8px); }
 .toast.error { border-left-color: var(--bad); color: #f38ba8; }
 .toast.info { border-left-color: var(--accent); }
+
+.tip {
+  position: fixed;
+  z-index: 999999;
+  max-width: min(360px, calc(100vw - 20px));
+  padding: 7px 11px;
+  border-radius: 8px;
+  background: rgba(24, 24, 37, 0.86);
+  border: 1px solid rgba(49, 50, 68, 0.75);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(137, 180, 250, 0.08);
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: pre-line;
+  word-break: break-word;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(3px) scale(0.98);
+  transition: opacity 0.12s ease, transform 0.12s ease;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.3));
+}
+.tip.in {
+  opacity: 1;
+  transform: none;
+}
+.tip::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 8px;
+  pointer-events: none;
+}
+.tip.warn {
+  border-color: rgba(250, 179, 135, 0.6);
+  color: #f9e2af;
+  background: rgba(40, 32, 24, 0.88);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(250, 179, 135, 0.25);
+}

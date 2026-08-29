@@ -1,6 +1,7 @@
 import * as Journal from "../../lib/journal.js";
 import { el } from "./00-core.js";
 import { fmtInstant } from "./30-grid.js";
+import { setTip } from "../../lib/tooltip.js";
 
 
 const FIELD_LABELS = {
@@ -96,7 +97,7 @@ function activityPaneEl(row) {
       const meta = el("div", "noteMeta");
       const av = el("span", "noteAvatar");
       av.textContent = Journal.authorInitials(author);
-      av.title = author;
+      setTip(av, author);
       const an = el("span", "noteAuthor");
       an.textContent = author;
       meta.append(av, an);

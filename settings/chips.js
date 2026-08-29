@@ -1,4 +1,5 @@
 import { normalizeNames, parseNameLines } from "../lib/names.js";
+import { setTip } from "../lib/tooltip.js";
 
 export function splitTerms(text) {
   return parseNameLines(String(text ?? "").replace(/[\n,;]+/g, "\n"));
@@ -35,7 +36,7 @@ export function createChipList(root, { placeholder = "", collapsible = false } =
     editBtn.type = "button";
     editBtn.className = "chipEditBtn";
     editBtn.textContent = "Edit";
-    editBtn.title = "Edit these values";
+    setTip(editBtn, "Edit these values");
 
     const head = el("div");
     head.className = "chipCardHead";
@@ -139,7 +140,7 @@ export function createChipList(root, { placeholder = "", collapsible = false } =
         rm.type = "button";
         rm.className = "rm";
         rm.textContent = "✕";
-        rm.title = "Remove";
+        setTip(rm, "Remove");
         rm.addEventListener("click", () => {
           values = normalizeNames(values.filter(x => x.toLowerCase() !== v.toLowerCase()));
           render();
