@@ -3,6 +3,7 @@ import "./00-core.js";
 import "./10-exporter.js";
 import "./15-clipboard.js";
 import "./16-summary.js";
+import "./17-paste.js";
 import "./20-toolbar.js";
 import "./25-dialogs.js";
 import "./30-grid.js";

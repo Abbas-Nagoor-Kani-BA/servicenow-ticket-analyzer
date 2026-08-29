@@ -83,11 +83,17 @@ globalThis.getComputedStyle = win.getComputedStyle.bind(win);
 globalThis.requestAnimationFrame = cb => setTimeout(cb, 0);
 globalThis.cancelAnimationFrame = id => clearTimeout(id);
 let lastCopied = null;
+let clipboardText = null;
 Object.defineProperty(win.navigator, "clipboard", {
-  value: { writeText: async t => { lastCopied = t; } },
+  value: {
+    writeText: async t => { lastCopied = t; },
+    readText: async () => clipboardText
+  },
   configurable: true
 });
 export function getLastCopied() { return lastCopied; }
+export function setClipboardText(t) { clipboardText = t; }
+export function clearClipboardText() { clipboardText = null; }
 globalThis.chrome = chrome;
 
 export function getDownloads() {
@@ -144,6 +150,7 @@ const SKELETON = `
 </div>
   <div id="wrap">
     <table id="tbl"><thead></thead><tbody></tbody></table>
+    <div id="fillHandle"></div>
   </div>
 <div id="summaryWrap" class="hidden">
   <div id="sumMeta"></div>

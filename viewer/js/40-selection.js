@@ -1,9 +1,10 @@
-import { $, visibleCols } from "./00-core.js";
+import { $, columnOptionList, visibleCols } from "./00-core.js";
 import { showToast } from "../../lib/toast.js";
 import { cellValue, tsvCell } from "./15-clipboard.js";
-import { currentRows, hasDataRows } from "./30-grid.js";
+import { currentRows, hasDataRows, parseLocalInput, render, scheduleSave } from "./30-grid.js";
 import { copyText } from "./85-shared.js";
 import { selStore, saveSel } from "./00-store.js";
+import { buildFillGrid, originRowValues, parseClipboardBlock, storedValue } from "./17-paste.js";
 
 
 function sel() { return selStore.getState(); }
@@ -134,6 +135,7 @@ function applySelHighlight() {
   }
   selStore.setState({ prev: [] });
   const b = selectionBounds();
+  positionFillHandle();
   if (!b) return;
   const want = new Set(b.rows.slice(b.lo, b.hi + 1).map(r => String(r.sysId ?? "")));
   const topSysId = String(b.rows[b.lo].sysId ?? "");
@@ -162,6 +164,19 @@ function applySelHighlight() {
     });
   }
   selStore.setState({ prev });
+}
+
+function positionFillHandle() {
+  const h = $("fillHandle");
+  if (!h) return;
+  const focus = sel().focus;
+  const td = selectedTd();
+  if (!focus || !td) { h.classList.add("hidden"); return; }
+  const wrapRect = $("wrap").getBoundingClientRect();
+  const r = td.getBoundingClientRect();
+  h.style.left = `${Math.max(0, r.right - wrapRect.left - 7)}px`;
+  h.style.top = `${Math.max(0, r.bottom - wrapRect.top - 7)}px`;
+  h.classList.remove("hidden");
 }
 
 function scrollSelIntoView() {
@@ -193,12 +208,84 @@ function rangeTsv() {
   return { text: lines.join("\n"), rowCount: b.hi - b.lo + 1, colCount: b.hc - b.lc + 1 };
 }
 
+let lastCopy = null;
+
 function copySelectedRange() {
+  const b = selectionBounds();
+  if (!b) return;
   const out = rangeTsv();
   if (!out) return;
+  const values = b.rows.slice(b.lo, b.hi + 1).map(row =>
+    b.cols.slice(b.lc, b.hc + 1).map(([key]) => row[key])
+  );
+  lastCopy = { values, rowCount: values.length, colCount: values[0] ? values[0].length : 0 };
   copyText(out.text)
     .then(() => showToast(`Copied ${out.rowCount} row${out.rowCount === 1 ? "" : "s"} to clipboard`))
     .catch(() => showToast("Copy failed", "error"));
+}
+
+function readClipboardText() {
+  return new Promise(resolve => {
+    if (typeof navigator !== "undefined" && navigator.clipboard &&
+        typeof navigator.clipboard.readText === "function") {
+      navigator.clipboard.readText().then(resolve).catch(() => resolve(null));
+      return;
+    }
+    resolve(null);
+  });
+}
+
+async function handlePaste() {
+  if (!hasSelection() || !selectionBounds()) return;
+  let fill = null;
+  let text = null;
+  try { text = await readClipboardText(); } catch { text = null; }
+  if (text) {
+    const grid = parseClipboardBlock(text);
+    if (grid && grid.length) fill = grid;
+  }
+  if (!fill && lastCopy && lastCopy.values) fill = lastCopy.values;
+  if (!fill && text !== null && text !== "") fill = [[text]];
+  if (!fill) { showToast("Clipboard empty", "info"); return; }
+  pasteIntoSelection(fill);
+}
+
+function writeFill(rows, cols, lo, hi, lc, hc, fillSource) {
+  const tr = hi - lo + 1;
+  const tc = hc - lc + 1;
+  const fill = buildFillGrid(fillSource, tr, tc);
+  const deps = { parseLocal: parseLocalInput, listFor: columnOptionList };
+  let touched = 0, skipped = 0;
+  for (let r = 0; r < tr; r++) {
+    for (let c = 0; c < tc; c++) {
+      const key = cols[lc + c][0];
+      if (!key || key === "number" || key.startsWith("rep:")) { skipped++; continue; }
+      rows[lo + r][key] = storedValue(fill[r][c], key, cols[lc + c][2], rows[lo + r], deps);
+      touched++;
+    }
+  }
+  if (touched) {
+    scheduleSave();
+    render();
+    applySelHighlight();
+  }
+  const part = touched ? `Pasted ${touched} cell${touched === 1 ? "" : "s"}` : "Nothing to paste";
+  const skip = skipped ? ` (${skipped} skipped)` : "";
+  showToast(part + skip);
+  return { touched, skipped };
+}
+
+function pasteIntoSelection(fillSource) {
+  const b = selectionBounds();
+  if (!b) return { touched: 0, skipped: 0 };
+  return writeFill(b.rows, b.cols, b.lo, b.hi, b.lc, b.hc, fillSource);
+}
+
+function fillFromSelectionOrigin(dragBounds) {
+  const b = dragBounds;
+  if (!b) return;
+  const srcRow = originRowValues(b.rows, b.cols, b.lo, b.lc, b.hc);
+  writeFill(b.rows, b.cols, b.lo, b.hi, b.lc, b.hc, [srcRow]);
 }
 
 function anyOverlayOpen() {
@@ -209,6 +296,7 @@ function anyOverlayOpen() {
 }
 
 function getSelFocus() { return sel().focus; }
+function getLastCopy() { return lastCopy; }
 function getSelAnchor() { return sel().anchor; }
 
 export {
@@ -224,11 +312,16 @@ export {
   moveToRowFirstLast,
   movePage,
   applySelHighlight,
+  positionFillHandle,
   scrollSelIntoView,
   selectedTd,
   rangeTsv,
   copySelectedRange,
   anyOverlayOpen,
+  handlePaste,
+  pasteIntoSelection,
+  fillFromSelectionOrigin,
+  getLastCopy,
   getSelFocus,
   getSelAnchor,
   saveSel

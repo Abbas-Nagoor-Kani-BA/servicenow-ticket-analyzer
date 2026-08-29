@@ -59,6 +59,9 @@
     td.sla-breach-rm { color:#e03060; font-weight:700; }
     td.selr { background:rgba(137,180,250,.13); }
     #tbl.selecting, #tbl.selecting td { user-select:none; }
+    #fillHandle { position:absolute; width:14px; height:14px; background:#89b4fa; border:2px solid #11111b;
+      border-radius:2px; cursor:crosshair; z-index:5; box-sizing:border-box; }
+    td.selFill { background:rgba(137,180,250,.28); }
     .msrPick { position:fixed; z-index:30; background:#181825; border:1px solid var(--line);
       border-radius:8px; padding:6px; display:flex; flex-direction:column; gap:6px;
       box-shadow:0 8px 24px rgba(17,17,27,.6); }
@@ -347,6 +350,7 @@
       <thead></thead>
       <tbody></tbody>
     </table>
+    <div id="fillHandle" title="Drag to fill cells"></div>
   </div>
   <div id="summaryWrap" class="hidden">
     <div id="sumMeta"></div>

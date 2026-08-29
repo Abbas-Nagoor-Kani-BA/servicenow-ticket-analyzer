@@ -2,7 +2,8 @@ import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  seedAll, seed, peek, flush, installSkeleton, getLastCopied, getDownloads, clearDownloads
+  seedAll, seed, peek, flush, installSkeleton, getLastCopied, getDownloads, clearDownloads,
+  setClipboardText, clearClipboardText
 } from "./helpers/dom-env.mjs";
 import fflate from "../lib/vendor/fflate.cjs";
 import { setFflate } from "../lib/templatexml.js";
@@ -402,4 +403,81 @@ test("split preview in config popup shows per-group ticket counts", async () => 
   assert.match(joined, /Identity\s*1/, "Identity group shows its count");
   assert.match(joined, /Will export 2 rows as 2 files/, "header summarizes totals");
   assert.doesNotMatch(joined, /no matching rows/, "no empty-group hint when both match");
+});
+
+let selModule = null;
+async function selectRect(keys, sysIds) {
+  if (!selModule) selModule = await import("../viewer/js/40-selection.js");
+  await selModule.setSelPoint(sysIds[0], keys[0], false);
+  await selModule.setSelPoint(sysIds[sysIds.length - 1], keys[keys.length - 1], true);
+}
+
+test("paste fills a selected 1x2 range with a 1x1 value and persists", { timeout: 8000 }, async () => {
+  if (!selModule) selModule = await import("../viewer/js/40-selection.js");
+  await selectRect(["shortDescription"], ["aaa", "bbb"]);
+  selModule.pasteIntoSelection([["hello"]]);
+  await flush();
+  assert.equal(grid.findRowBySysId("aaa").shortDescription, "hello", "first row filled");
+  assert.equal(grid.findRowBySysId("bbb").shortDescription, "hello", "second row filled");
+  const cellA = document.querySelector("#tbl tbody tr[data-sys-id='aaa']").children[1].textContent;
+  assert.equal(cellA, "hello", "grid re-rendered with pasted value");
+});
+
+test("Ctrl+V pastes from the clipboard into the selected range", { timeout: 8000 }, async () => {
+  if (!selModule) selModule = await import("../viewer/js/40-selection.js");
+  await selectRect(["shortDescription"], ["aaa", "bbb"]);
+  setClipboardText("clip-paste");
+  document.body.dispatchEvent(new window.KeyboardEvent("keydown", { key: "v", ctrlKey: true, bubbles: true }));
+  await flush();
+  assert.equal(grid.findRowBySysId("aaa").shortDescription, "clip-paste", "clipboard value applied");
+  assert.equal(grid.findRowBySysId("bbb").shortDescription, "clip-paste", "both rows applied");
+  clearClipboardText();
+});
+
+test("copy a block then paste tiles it vertically into a larger selection", { timeout: 8000 }, async () => {
+  if (!selModule) selModule = await import("../viewer/js/40-selection.js");
+  grid.findRowBySysId("aaa").shortDescription = "srcA";
+  grid.findRowBySysId("bbb").shortDescription = "srcB";
+  grid.render();
+  await selectRect(["shortDescription", "assignedTo"], ["aaa"]);
+  selModule.copySelectedRange();
+  assert.ok(selModule.getLastCopy(), "copy recorded an internal block");
+  await selectRect(["shortDescription", "assignedTo"], ["aaa", "bbb"]);
+  selModule.pasteIntoSelection(selModule.getLastCopy().values);
+  await flush();
+  assert.equal(grid.findRowBySysId("aaa").shortDescription, "srcA");
+  assert.equal(grid.findRowBySysId("bbb").shortDescription, "srcA", "one-row source tiled across both target rows");
+});
+
+test("picker-column paste stores the canonical option value", { timeout: 8000 }, async () => {
+  if (!selModule) selModule = await import("../viewer/js/40-selection.js");
+  await selectRect(["solutionType"], ["aaa", "bbb"]);
+  selModule.pasteIntoSelection([["workaround solution"]]);
+  await flush();
+  assert.equal(grid.findRowBySysId("aaa").solutionType, "Workaround solution", "canonical option stored");
+  assert.equal(grid.findRowBySysId("bbb").solutionType, "Workaround solution");
+});
+
+test("paste skips non-editable number column and reports the skip", { timeout: 8000 }, async () => {
+  if (!selModule) selModule = await import("../viewer/js/40-selection.js");
+  const before = grid.findRowBySysId("aaa").number;
+  await selectRect(["number", "shortDescription"], ["aaa"]);
+  const res = selModule.pasteIntoSelection([["X", "Y"]]);
+  await flush();
+  assert.equal(res.skipped, 1, "number column counted as skipped");
+  assert.equal(res.touched, 1, "shortDescription column filled");
+  assert.equal(grid.findRowBySysId("aaa").number, before, "number column unchanged");
+  assert.equal(grid.findRowBySysId("aaa").shortDescription, "Y", "adjacent editable column filled");
+});
+
+test("fill handle becomes visible when a selection exists and hides without one", async () => {
+  if (!selModule) selModule = await import("../viewer/js/40-selection.js");
+  await selectRect(["shortDescription"], ["aaa"]);
+  await flush();
+  const h = document.getElementById("fillHandle");
+  assert.ok(h, "fill handle element exists");
+  assert.ok(!h.classList.contains("hidden"), "handle visible with a selection");
+  await selModule.clearSelection();
+  await flush();
+  assert.ok(h.classList.contains("hidden"), "handle hidden after clear");
 });
