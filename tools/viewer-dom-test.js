@@ -2,8 +2,10 @@ import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  seedAll, peek, flush, installSkeleton, getLastCopied
+  seedAll, seed, peek, flush, installSkeleton, getLastCopied, getDownloads, clearDownloads
 } from "./helpers/dom-env.mjs";
+import fflate from "../lib/vendor/fflate.cjs";
+import { setFflate } from "../lib/templatexml.js";
 
 const FIXTURE = {
   lastData: {
@@ -279,4 +281,72 @@ test("selecting 'Separate files' with no groups opens the CI dialog and reverts"
   await flush();
   assert.ok(document.getElementById("ciModal").classList.contains("hidden"));
   assert.equal(document.getElementById("radSingle").checked, true, "cancel keeps single file");
+});
+
+test("split export writes one file per CI group (serialized downloads)", { timeout: 8000 }, async () => {
+  const enc = s => new TextEncoder().encode(s);
+  const ct = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+<Default Extension="xml" ContentType="application/xml"/>
+<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
+<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+</Types>`;
+  const rootRels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
+</Relationships>`;
+  const wb = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+<sheets><sheet name="All_Ticket_Details" sheetId="1" r:id="rId1"/></sheets>
+</workbook>`;
+  const wbRels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
+</Relationships>`;
+  const sheet = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><dimension ref="A1:E3"/>
+<sheetData>
+<row r="1"><c r="A1" t="inlineStr"><is><t>S.No</t></is></c><c r="E1" t="inlineStr"><is><t>Reference Number</t></is></c></row>
+<row r="2"><c r="A2" s="4"/><c r="E2" s="7" t="inlineStr"><is><t>INCOLD</t></is></c></row>
+</sheetData></worksheet>`;
+  const fixtureBuf = fflate.zipSync({
+    "[Content_Types].xml": enc(ct),
+    "_rels/.rels": enc(rootRels),
+    "xl/workbook.xml": enc(wb),
+    "xl/_rels/workbook.xml.rels": enc(wbRels),
+    "xl/worksheets/sheet1.xml": enc(sheet)
+  }, { level: 0 });
+  const b64 = Buffer.from(fixtureBuf).toString("base64");
+
+  setFflate(fflate);
+  globalThis.fflate = fflate;
+
+  const withCIs = JSON.parse(JSON.stringify(FIXTURE));
+  withCIs.lastData.rows[0].configItem = "Payment Gateway";
+  withCIs.lastData.rows[1].configItem = "Identity Platform";
+  seed("lastData", withCIs.lastData);
+  grid.load(withCIs.lastData);
+  await flush();
+  seed("snXlsxTemplate", { name: "report-template.xlsx", dataB64: b64, savedAt: Date.now() });
+
+  const toolbar = await import("../viewer/js/20-toolbar.js");
+  toolbar.setCiSplit({
+    enabled: true,
+    groups: [
+      { name: "Payments", items: ["Payment Gateway"] },
+      { name: "Identity", items: ["Identity Platform"] }
+    ]
+  });
+  clearDownloads();
+  await toolbar.loadTplInfo();
+  await toolbar.runExport();
+  await flush();
+
+  const dl = getDownloads();
+  assert.equal(dl.length, 2, "one download requested per CI group");
+  assert.ok(dl[0].filename !== dl[1].filename, "distinct filenames per group");
+  assert.match(dl.map(d => d.filename).join(","), /Payments/, "Payments group file present");
+  assert.match(dl.map(d => d.filename).join(","), /Identity/, "Identity group file present");
+  assert.equal(dl.every(d => d.saveAs === false), true, "no save-as prompts for split files");
 });

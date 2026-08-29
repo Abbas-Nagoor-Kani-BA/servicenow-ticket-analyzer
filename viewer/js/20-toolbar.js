@@ -309,13 +309,17 @@ async function runExport() {
       ({ exportColMap: savedMap } = await chrome.storage.local.get(STORAGE.exportColMap));
     } catch {}
     const mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
-    const downloadOut = (out, filename) => {
+    const downloadOne = (out, filename) => new Promise(resolve => {
       const blob = new Blob([out], { type: mime });
       const url = URL.createObjectURL(blob);
       chrome.downloads.download({ url, filename, saveAs: false }, () => {
-        setTimeout(() => URL.revokeObjectURL(url), 120000);
+        const revoke = /** @type {{ unref?: () => void }} */ (
+          /** @type {unknown} */ (setTimeout(() => URL.revokeObjectURL(url), 120000))
+        );
+        if (typeof revoke.unref === "function") revoke.unref();
+        resolve();
       });
-    };
+    });
     const tplCols = tplColumnsFromMap(savedMap);
     setStatus("Filling template…");
     if (ciSplit.enabled && ciSplit.groups.length) {
@@ -324,16 +328,17 @@ async function runExport() {
       for (const g of groups) {
         const out = TemplateXml.fillTemplateBuffer(bufferFromB64(tplInfo.dataB64), g.rows, tplCols, undefined,
           buildSlaSummaryRows(g.rows, fmtInstant));
-        downloadOut(out, filledFilename(tplInfo.name, g.name));
+        await downloadOne(out, filledFilename(tplInfo.name, g.name));
         total += g.rows.length;
       }
-      showToast(`Export complete \u2014 ${groups.length} file(s), ${total} row(s)`);
+      const per = groups.map(g => `${g.name} (${g.rows.length})`).join(", ");
+      showToast(`Export complete \u2014 ${groups.length} file(s), ${total} row(s) \u2014 ${per}`);
       closeConfigDialog();
       return;
     }
     const out = TemplateXml.fillTemplateBuffer(bufferFromB64(tplInfo.dataB64), rows, tplCols, undefined,
       buildSlaSummaryRows(rows, fmtInstant));
-    downloadOut(out, filledFilename(tplInfo.name));
+    await downloadOne(out, filledFilename(tplInfo.name));
     const filtered = rows.length !== getTotalRows() ? " (filtered)" : "";
     showToast(`Export complete \u2014 ${rows.length} row${rows.length === 1 ? "" : "s"}${filtered}`);
     closeConfigDialog();

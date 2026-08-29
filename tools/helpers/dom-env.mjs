@@ -90,6 +90,13 @@ Object.defineProperty(win.navigator, "clipboard", {
 export function getLastCopied() { return lastCopied; }
 globalThis.chrome = chrome;
 
+export function getDownloads() {
+  return downloads.map(d => ({ filename: d.filename, url: d.url, saveAs: d.saveAs }));
+}
+export function clearDownloads() {
+  downloads.length = 0;
+}
+
 export function seed(key, value) {
   if (value === undefined) { store.delete(key); return; }
   store.set(key, typeof value === "string" ? value : JSON.parse(JSON.stringify(value)));
