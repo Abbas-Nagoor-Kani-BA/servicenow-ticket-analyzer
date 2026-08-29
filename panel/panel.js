@@ -1,7 +1,9 @@
 import { buildEncodedQuery } from "../lib/querybuilder.js";
 import { snStateChoices, SN_PRIORITY_CHOICES, SN_TABLE_LABELS } from "../lib/statechoices.js";
 import { STORAGE, MSG } from "../lib/keys.ts";
-import { createLogger } from "./log.js";
+import { LogCard } from "../components/log-card.ts";
+import { ProgressCard } from "../components/progress-card.ts";
+import { ConditionBuilder } from "../components/condition-builder.ts";
 import { broadcast } from "../lib/storage.js";
 import { showToast } from "../lib/toast.js";
 import { initTooltips, setTip } from "../lib/tooltip.js";
@@ -20,26 +22,14 @@ const els = {
   filterListCard: $("filterListCard"),
   filterListBox: $("filterListBox"),
   addFilterBtn: $("addFilterBtn"),
-  condRows: $("condRows"),
-  addCondBtn: $("addCondBtn"),
   preview: $("previewBtn"),
   runBtn: $("runBtn"),
-  progressWrap: $("progressWrap"),
-  fill: $("fill"),
-  stageLabel: $("stageLabel"),
-  pullCounter: $("pullCounter"),
   viewBtn: $("viewBtn"),
-  logCard: $("logCard"),
-  log: $("log"),
-  lastRun: $("lastRun"),
-  logHead: $("logHead"),
-  logErrBadge: $("logErrBadge"),
-  logModal: $("logModal"),
-  logMirror: $("logMirror"),
-  logClose: $("logClose"),
-  logCopy: $("logCopy")
+  lastRun: $("lastRun")
 };
-const logger = createLogger(els);
+const logCard = new LogCard($("logCard"), { modal: $("logModal") });
+const progressCard = new ProgressCard($("progressWrap"));
+const logger = { log: (text, level) => logCard.log(text, level || "") };
 let busy = false;
 function choiceList(key) {
   if (key === "states") return snStateChoices(els.ticketType.value);
@@ -47,6 +37,7 @@ function choiceList(key) {
   if (key === "priorities") return SN_PRIORITY_CHOICES;
   return [];
 }
+/** @type {{key:string,label:string,field:string,type:"ref"|"string"|"choice"|"date",choicesKey?:string,tables?:string[]}[]} */
 const COND_FIELDS = [
   { key: "assignedTo", label: "Assigned to", field: "assigned_to", type: "ref" },
   { key: "parentIncident", label: "Parent incident", field: "u_parent_incident1", type: "ref", tables: ["incident"] },
@@ -61,6 +52,14 @@ const COND_FIELDS = [
   { key: "closedOn", label: "Closed", field: "closed_at", type: "date", tables: ["incident", "problem", "sc_req_item", "sc_task"] },
   { key: "resolvedOn", label: "Resolved", field: "resolved_at", type: "date", tables: ["incident", "problem", "sc_req_item"] }
 ];
+const conditions = new ConditionBuilder($("condRows"), {
+  on: { change: () => refreshGenerated() }
+}, {
+  fields: COND_FIELDS,
+  choiceList,
+  tableLabel: (t) => SN_TABLE_LABELS[t] || t,
+  addButton: $("addCondBtn")
+});
 let cfgQueues = [];
 let cfgMembers = [];
 const toEntry = (m) => {
@@ -90,7 +89,7 @@ async function applyPluginSettings() {
     cfgQueues = rawQueues.map(toEntry).filter(Boolean);
     cfgMembers = (Array.isArray(s.defaults?.teamMembers) ? s.defaults.teamMembers : []).map(toEntry).filter(Boolean);
   }
-  renderCondRows();
+  conditions.setTable(els.ticketType.value);
   refreshGenerated();
 }
 $("settingsBtn").addEventListener("click", () => chrome.runtime.openOptionsPage());
@@ -225,8 +224,7 @@ $("addFilterBtn").addEventListener("click", () => {
     }
     filterList.push(f);
     saveFilterList();
-    condRows = [];
-    renderCondRows();
+    conditions.setRows([]);
     refreshGenerated();
     els.filterListCard.classList.remove("flash");
     void els.filterListCard.offsetWidth;
@@ -244,188 +242,6 @@ $("clearFilterListBtn").addEventListener("click", () => {
   saveFilterList();
 });
 renderFilterList();
-function condsAllowedForTable() {
-  const t = els.ticketType.value;
-  return COND_FIELDS.filter((f) => !f.tables || f.tables.includes(t));
-}
-const COND_OPS = {
-  ref: [["isEmpty", "is empty"], ["isNotEmpty", "is not empty"]],
-  string: [["contains", "contains"], ["notContains", "doesn't contain"], ["startsWith", "starts with"], ["eq", "is"], ["isEmpty", "is empty"], ["isNotEmpty", "is not empty"]],
-  choice: [["eq", "is"], ["neq", "is not"]],
-  date: [["before", "before"], ["after", "after"], ["between", "between"]]
-};
-let condRows = [];
-function condFieldDef(key) {
-  return COND_FIELDS.find((f) => f.key === key);
-}
-function createJoinSelector(row) {
-  const joinSel = document.createElement("select");
-  joinSel.className = "cjoin";
-  for (const [v, lbl] of [["AND", "AND"], ["OR", "OR"]]) {
-    const o = document.createElement("option");
-    o.value = v;
-    o.textContent = lbl;
-    joinSel.appendChild(o);
-  }
-  joinSel.value = row.join || "AND";
-  joinSel.addEventListener("change", () => {
-    row.join = joinSel.value;
-    refreshGenerated();
-  });
-  return joinSel;
-}
-function createFieldSelector(row) {
-  const fieldSel = document.createElement("select");
-  fieldSel.className = "cfield";
-  for (const f of condsAllowedForTable()) {
-    const o = document.createElement("option");
-    o.value = f.key;
-    o.textContent = f.label;
-    fieldSel.appendChild(o);
-  }
-  if (![...fieldSel.options].some((o) => o.value === row.field)) {
-    row.field = fieldSel.options[0]?.value || "";
-    row.op = (COND_OPS[condFieldDef(row.field)?.type] || [])[0]?.[0];
-    row.value = "";
-    row.value2 = "";
-  }
-  fieldSel.value = row.field;
-  fieldSel.addEventListener("change", () => {
-    row.field = fieldSel.value;
-    row.op = (COND_OPS[condFieldDef(row.field).type][0] || [])[0];
-    row.value = "";
-    row.value2 = "";
-    renderCondRows();
-    refreshGenerated();
-  });
-  return fieldSel;
-}
-function createValueWidget(def, row) {
-  if (def.type === "choice") {
-    const valSel = document.createElement("select");
-    valSel.className = "cval";
-    const list = choiceList(def.choicesKey);
-    for (const c of list) {
-      const o = document.createElement("option");
-      o.value = String(c.value);
-      o.textContent = c.label;
-      valSel.appendChild(o);
-    }
-    if (!list.length) {
-      const o = document.createElement("option");
-      o.textContent = "(no values)";
-      valSel.appendChild(o);
-    }
-    if (row.value) valSel.value = String(row.value);
-    else if (list.length) {
-      row.value = String(list[0].value);
-      valSel.value = row.value;
-    }
-    valSel.addEventListener("change", () => {
-      row.value = valSel.value;
-      refreshGenerated();
-    });
-    return valSel;
-  }
-  const inp = document.createElement("input");
-  inp.className = "cval";
-  inp.type = def.type === "date" ? "date" : "text";
-  inp.placeholder = def.type === "date" ? "" : "value";
-  inp.value = row.value || "";
-  inp.addEventListener("input", () => {
-    row.value = inp.value;
-    refreshGenerated();
-  });
-  if (def.type === "date" && row.op === "between") {
-    const inp2 = document.createElement("input");
-    inp2.className = "cval";
-    inp2.type = "date";
-    inp2.value = row.value2 || "";
-    inp2.addEventListener("input", () => {
-      row.value2 = inp2.value;
-      refreshGenerated();
-    });
-    const wrap = document.createElement("span");
-    wrap.append(inp, inp2);
-    return wrap;
-  }
-  return inp;
-}
-function createDeleteButton(index) {
-  const del = document.createElement("button");
-  del.type = "button";
-  del.className = "cdel";
-  setTip(del, "Remove condition");
-  del.textContent = "\u2715";
-  del.addEventListener("click", () => {
-    condRows.splice(index, 1);
-    condRows.forEach((c, j) => {
-      if (j > 0 && !c.join) c.join = "AND";
-    });
-    renderCondRows();
-    refreshGenerated();
-  });
-  return del;
-}
-function renderCondRows() {
-  els.condRows.innerHTML = "";
-  if (!condRows.length) {
-    const hint = document.createElement("div");
-    hint.className = "hint";
-    hint.textContent = "No conditions \u2014 e.g. Assigned-to is empty OR State is In Progress";
-    els.condRows.appendChild(hint);
-    return;
-  }
-  condRows.forEach((r, i) => {
-    const row = document.createElement("div");
-    row.className = "crow";
-    if (i > 0) row.appendChild(createJoinSelector(r));
-    row.appendChild(createFieldSelector(r));
-    const def = condFieldDef(r.field);
-    const opSel = document.createElement("select");
-    opSel.className = "cop";
-    for (const [v, lbl] of COND_OPS[def.type] || []) {
-      const o = document.createElement("option");
-      o.value = v;
-      o.textContent = lbl;
-      opSel.appendChild(o);
-    }
-    opSel.value = r.op;
-    opSel.addEventListener("change", () => {
-      r.op = opSel.value;
-      renderCondRows();
-      refreshGenerated();
-    });
-    row.appendChild(opSel);
-    if (!["isEmpty", "isNotEmpty"].includes(r.op)) {
-      row.appendChild(createValueWidget(def, r));
-    }
-    row.appendChild(createDeleteButton(i));
-    els.condRows.appendChild(row);
-  });
-}
-els.addCondBtn.addEventListener("click", () => {
-  condRows.push({ field: COND_FIELDS[0].key, op: COND_OPS.ref[0][0], value: "", value2: "", join: "AND" });
-  renderCondRows();
-});
-renderCondRows();
-function collectConditions() {
-  const allowed = condsAllowedForTable();
-  return condRows.map((r, i) => {
-    const def = condFieldDef(r.field);
-    if (!def) throw new Error(`Condition ${i + 1}: unknown column`);
-    if (!allowed.includes(def)) {
-      throw new Error(`Condition ${i + 1}: ${def.label} does not exist on ${SN_TABLE_LABELS[els.ticketType.value] || els.ticketType.value}`);
-    }
-    const known = (COND_OPS[def.type] || []).some(([v]) => v === r.op);
-    if (!known) throw new Error(`Condition ${i + 1}: pick an operator`);
-    if (!["isEmpty", "isNotEmpty"].includes(r.op)) {
-      if (!String(r.value || "").trim()) throw new Error(`Condition ${i + 1}: enter a value`);
-      if (r.op === "between" && !String(r.value2 || "").trim()) throw new Error(`Condition ${i + 1}: enter the second date`);
-    }
-    return { join: i === 0 ? "AND" : r.join || "AND", field: def.field, oper: r.op, value: r.value || "", value2: r.value2 || "" };
-  });
-}
 function requireInstance() {
   const url = instanceUrl();
   if (!/^https:\/\/.+/.test(url)) throw new Error("Enter a valid https instance URL");
@@ -434,7 +250,7 @@ function requireInstance() {
 function currentFilters() {
   return {
     table: els.ticketType.value,
-    conditions: collectConditions(),
+    conditions: conditions.conditions(),
     rawQuery: els.rawQuery.value
   };
 }
@@ -497,7 +313,7 @@ function refreshGenerated() {
 });
 els.rawQuery.addEventListener("input", refreshGenerated);
 els.ticketType.addEventListener("change", () => {
-  renderCondRows();
+  conditions.setTable(els.ticketType.value);
   refreshGenerated();
 });
 els.connect.addEventListener("click", () => connect(true));
@@ -509,17 +325,13 @@ function setBusy(state) {
   busy = state;
   els.preview.disabled = state;
   els.runBtn.disabled = state;
-  els.progressWrap.classList.toggle("hidden", !state);
-  if (state) {
-    els.fill.style.width = "4%";
-    els.fill.style.background = "#fab387";
-    els.stageLabel.textContent = "Starting\u2026";
-  }
+  if (state) progressCard.begin();
+  else progressCard.end();
 }
 els.preview.addEventListener("click", async () => {
   try {
     setBusy(true);
-    els.stageLabel.textContent = "Counting\u2026";
+    progressCard.setLabel("Counting\u2026");
     const instanceUrl2 = requireInstance();
     const groups = configuredGroups();
     const live = currentFilters();
@@ -545,11 +357,11 @@ els.preview.addEventListener("click", async () => {
         pullable += res.total;
       }
     }
-    els.stageLabel.textContent = overLimit ? `${pullable} pullable \xB7 ${overLimit} set(s) skipped by limit` : `${pullable} matching ticket${pullable === 1 ? "" : "s"}`;
+    progressCard.setLabel(overLimit ? `${pullable} pullable \xB7 ${overLimit} set(s) skipped by limit` : `${pullable} matching ticket${pullable === 1 ? "" : "s"}`);
     showToast(`Preview \u2014 ${pullable} matching ticket${pullable === 1 ? "" : "s"}`);
     if (lastQuery) logger.log(`Query: ${lastQuery}`);
   } catch (err) {
-    els.stageLabel.textContent = err.message;
+    progressCard.setLabel(err.message);
     logger.log(err.message, "error");
     showToast(err.message, "error");
   } finally {
@@ -572,7 +384,7 @@ els.runBtn.addEventListener("click", async () => {
     logger.log(`Run started with ${sets.length} filter set${sets.length > 1 ? "s" : ""}\u2026`);
   } catch (err) {
     setBusy(false);
-    els.stageLabel.textContent = err.message;
+    progressCard.setLabel(err.message);
     logger.log(err.message, "error");
     showToast(err.message, "error");
   }
@@ -601,62 +413,22 @@ async function openViewer() {
   const tab = await chrome.tabs.create({ url });
   viewerTabId = tab.id;
 }
-const STAGE_PCT = { resolve: 8, count: 15, phase1: null, phase2: null, analyze: 92 };
-const STAGE_BASE = { phase1: 20, phase2: 60 };
-const fmtNum = (n) => Number(n || 0).toLocaleString("en-US");
-function updatePullCounter(pulled, planned) {
-  if (typeof pulled !== "number" || typeof planned !== "number" || planned <= 0) {
-    els.pullCounter.classList.add("hidden");
-    return false;
-  }
-  els.pullCounter.textContent = `${fmtNum(pulled)} of ${fmtNum(planned)} pulled \xB7 ${fmtNum(Math.max(0, planned - pulled))} remaining`;
-  els.pullCounter.classList.remove("hidden");
-  return true;
-}
 chrome.runtime.onMessage.addListener((msg) => {
   if (msg.type !== MSG.progress) return;
-  const { stage, detail } = msg;
-  if (stage === "diag") {
-    const isProblem = /401|403|429|MISSING|RATE LIMITED/.test(detail);
-    logger.log(detail, isProblem ? "error" : "");
+  const detail = String(msg.detail ?? "");
+  const level = progressCard.apply(msg);
+
+  if (msg.stage === "diag") {
+    logger.log(detail, level === "error" ? "error" : "");
     return;
   }
-  if (stage === "limit") {
-    els.fill.style.width = "100%";
-    els.fill.style.background = "var(--bad)";
-    els.stageLabel.textContent = detail;
+  if (level === "error") {
     logger.log(detail, "error");
     showToast(detail, "error");
     setBusy(false);
     return;
   }
-  if (stage === "error") {
-    els.fill.style.width = "100%";
-    els.fill.style.background = "var(--bad)";
-    els.stageLabel.textContent = detail;
-    logger.log(detail, "error");
-    showToast(detail, "error");
-    setBusy(false);
-    return;
-  }
-  els.stageLabel.textContent = detail;
-  if (stage !== "done") logger.log(detail);
-  const hasCounts = updatePullCounter(msg.pulled, msg.planned);
-  let pct = STAGE_PCT[stage];
-  if (hasCounts && stage === "phase1") {
-    els.fill.style.width = STAGE_BASE.phase1 + Math.min(1, msg.pulled / msg.planned) * 40 + "%";
-  } else if (pct === null) {
-    const m = detail.match(/(\d+)\/(\d+)/);
-    pct = m ? STAGE_BASE[stage] + +m[1] / +m[2] * (stage === "phase1" ? 40 : 25) : STAGE_BASE[stage];
-    els.fill.style.width = Math.min(pct, STAGE_BASE[stage] + 24) + "%";
-  } else if (typeof pct === "number") {
-    els.fill.style.width = pct + "%";
-  }
-  if (stage === "done") {
-    els.pullCounter.classList.add("hidden");
-    els.fill.style.width = "100%";
-    els.fill.style.background = "var(--good)";
-    els.stageLabel.textContent = detail;
+  if (msg.stage === "done") {
     logger.log(detail, "success");
     showToast(`Run complete \u2014 ${msg.pulled ?? 0} ticket${msg.pulled === 1 ? "" : "s"} pulled`);
     setBusy(false);
@@ -666,6 +438,8 @@ chrome.runtime.onMessage.addListener((msg) => {
         els.lastRun.textContent = `Last run: ${cfg.lastRun.tickets} tickets for "${cfg.lastRun.group}" \xB7 ${cfg.lastRun.at.slice(0, 16).replace("T", " ")}`;
       }
     });
+    return;
   }
+  logger.log(detail);
 });
 

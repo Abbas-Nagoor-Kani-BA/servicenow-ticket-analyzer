@@ -182,7 +182,50 @@ Verified by reintroducing the fix's inverse — 3 of the 8 new tests fail withou
 
 ---
 
-## Phase 3 — Panel components (OOP)
+## Phase 3a — Panel components — COMPLETE
+
+**Result: gate green — typecheck 0 errors, lint 0 errors, 139/139 tests, build OK.**
+**`panel/panel.js` went from 671 lines to 445; 172 lines of cond-row machinery deleted.**
+
+- [x] `components/component.ts` — abstract base: `build()` once, `patch()` always
+- [x] `components/log-card.ts` — replaces `panel/log.js` (deleted)
+- [x] `components/progress-card.ts` — bar/stage/counter, percentage derived from stage + counts
+- [x] `components/condition-builder.ts` — replaces `renderCondRows` + `collectConditions()`
+- [x] `tools/panel-components-test.ts` — 12 DOM tests, including focus preservation
+
+### The rule that got found twice
+
+**A subclass cannot use instance fields or `#private` methods from `build()` or
+the first `patch()`.** Both are installed on the instance only *after* `super()`
+returns, but the base constructor calls `build()`. Two symptoms, both hit:
+
+- a subclass field reads as `undefined` while the component builds itself
+- calling a `#private` method throws
+  `TypeError: Receiver must be an instance of class ...`
+  (this broke every `ConditionBuilder` test until the helpers were made
+  `protected`, i.e. prototype methods)
+
+`#private` is still fine for anything touched only after construction, such as
+the teardown handler in `LogCard`. This is now documented in
+`components/component.ts` rather than left to be rediscovered.
+
+### Why the condition builder does not re-render on keystrokes
+
+`patch()` compares row *shapes* (`join:field:op` per row), not values. Typing in
+a value input mutates state and emits `change` so the query preview refreshes,
+but never rebuilds the rows — a rebuild mid-keystroke would drop focus and the
+caret. `tools/panel-components-test.ts` asserts `document.activeElement` is
+still the input after two input events.
+
+### Deferred
+
+`components/filter-set-list.ts` and the panel composition root are not done;
+`panel.js` still owns the filter list and the instance-connect wiring. That is
+the next slice.
+
+---
+
+## Phase 3 — Panel components (OOP) — see above
 
 Chosen first: highest confusion, lowest risk, no hard-won invariants live there.
 

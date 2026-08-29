@@ -31,6 +31,10 @@
     "data/repositories/timeline-repository.ts",
     "services/queue-scope.ts",
     "services/pull-service.ts",
-    "services/connection-service.ts"
+    "services/connection-service.ts",
+    "components/component.ts",
+    "components/log-card.ts",
+    "components/progress-card.ts",
+    "components/condition-builder.ts"
   ]
 }
