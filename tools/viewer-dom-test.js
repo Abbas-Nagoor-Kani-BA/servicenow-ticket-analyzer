@@ -350,3 +350,29 @@ test("split export writes one file per CI group (serialized downloads)", { timeo
   assert.match(dl.map(d => d.filename).join(","), /Identity/, "Identity group file present");
   assert.equal(dl.every(d => d.saveAs === false), true, "no save-as prompts for split files");
 });
+
+test("buildCiGroups splits on contained keywords, not just start-prefixes", async () => {
+  const toolbar = await import("../viewer/js/20-toolbar.js");
+  toolbar.setCiSplit({
+    enabled: true,
+    groups: [
+      { name: "Payments", items: ["Payment Gateway", "Payment"] },
+      { name: "Identity", items: ["Identity Platform"] },
+      { name: "Network", items: ["Network"] }
+    ]
+  });
+  const rows = [
+    { configItem: "Gateway Payment" },
+    { configItem: "Web Payment Gateway" },
+    { configItem: "Prod Identity Platform" },
+    { configItem: "Core Network" },
+    { configItem: "Unrelated Zebra" }
+  ];
+  const groups = toolbar.buildCiGroups(rows);
+  const names = groups.map(g => `${g.name}:${g.rows.length}`).join(",");
+  assert.match(names, /Payments:2/, "Payment rows matched by substring despite word order");
+  assert.match(names, /Identity:1/, "Identity row matched");
+  assert.match(names, /Network:1/, "Network row matched");
+  assert.match(names, /Others:1/, "genuinely unmatched row falls back to Others");
+  assert.equal(groups.length, 4, "three groups plus Others = four buckets, not one");
+});

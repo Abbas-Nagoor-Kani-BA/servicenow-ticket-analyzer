@@ -108,7 +108,7 @@ function buildCiGroups(rows) {
     let best = null;
     if (k) {
       for (const b of bounds) {
-        if (k.startsWith(b.key) &&
+        if ((k.startsWith(b.key) || k.includes(b.key)) &&
           (!best || b.key.length > best.key.length || (b.key.length === best.key.length && b.gi < best.gi))) {
           best = b;
         }

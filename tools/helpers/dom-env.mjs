@@ -178,7 +178,7 @@ const SKELETON = `
   <div id="ciCard">
     <div class="mapHead"><span>Split</span><button id="ciClose">✕</button></div>
     <label class="ciToggle"><input type="checkbox" id="ciEnabled"></label>
-    <p class="mapHint">An item matches every configuration item that starts with it — e.g. "Payment Gateway" also matches "Payment Gateway PRD / PreLive / DEV / TEST". Longest match wins; the rest go to Others.</p>
+    <p class="mapHint">An item matches every configuration item that contains it (anywhere in the name) — e.g. "Payment Gateway" also matches "Payment Gateway PRD / PreLive / DEV / TEST" and "Web Payment Gateway". Longest match wins; the rest go to Others.</p>
     <div id="groupBoard"></div>
     <button id="addGroupBtn">+ Add group</button>
     <div class="mapFoot"><button id="ciSave" class="primary">Save</button>
