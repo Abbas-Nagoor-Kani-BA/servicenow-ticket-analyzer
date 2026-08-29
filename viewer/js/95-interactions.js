@@ -54,7 +54,7 @@ document.addEventListener("pointerup", stopDrag);
 
 $("tbl").tBodies[0].addEventListener("click", e => {
   if (dragMoved || anyOverlayOpen() || document.querySelector(".msrPick")) return;
-  const td = e.target.closest("td");
+  const td = hitTestTd(e);
   if (!td || !td.classList.contains("numLink")) return;
   const tr = td.parentElement;
   const row = findRowBySysId(tr.dataset.sysId);
@@ -62,9 +62,20 @@ $("tbl").tBodies[0].addEventListener("click", e => {
 });
 
 $("tbl").tBodies[0].addEventListener("dblclick", e => {
-  const td = e.target.closest("td");
+  const td = hitTestTd(e);
   if (td) startEdit(td);
 });
+
+function hitTestTd(e) {
+  if (typeof document.elementFromPoint === "function" && e.clientX != null) {
+    const byHit = document.elementFromPoint(e.clientX, e.clientY);
+    if (byHit && byHit.closest) {
+      const td = byHit.closest("td");
+      if (td) return td;
+    }
+  }
+  return e.target && e.target.closest ? e.target.closest("td") : null;
+}
 
 const handle = $("fillHandle");
 

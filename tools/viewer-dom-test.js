@@ -152,6 +152,32 @@ test("ticket popup edits timeline date in place", { timeout: 8000 }, async () =>
   assert.equal(document.querySelector(".ticketPop"), null, "Escape closed popup");
 });
 
+test("number popup opens on click even when pointer capture retargets the event to tbody", { timeout: 8000 }, async () => {
+  const tbody = document.querySelector("#tbl tbody");
+  const numTd = Array.from(tbody.querySelector("tr").children)
+    .find(td => td.classList.contains("numLink"));
+  assert.ok(numTd, "numLink cell exists");
+  const originalEqp = document.elementFromPoint;
+  let hitTest = numTd;
+  document.elementFromPoint = (x, y) => {
+    assert.equal(x, 42);
+    return hitTest;
+  };
+  try {
+    tbody.dispatchEvent(new window.MouseEvent("click", {
+      bubbles: true, cancelable: true, button: 0, clientX: 42, clientY: 10
+    }));
+    await flush();
+    assert.ok(document.querySelector(".ticketPop"), "popup opened via hit-tested td despite tbody target");
+    const esc = new window.KeyboardEvent("keydown", { key: "Escape", bubbles: true });
+    document.dispatchEvent(esc);
+    await flush();
+    assert.equal(document.querySelector(".ticketPop"), null, "Escape closed popup");
+  } finally {
+    document.elementFromPoint = originalEqp;
+  }
+});
+
 test("summary SLA tab renders counts and persists summarySla", { timeout: 8000 }, async () => {
   const tabSummary = document.getElementById("tabSummary");
   const tabTickets = document.getElementById("tabTickets");
