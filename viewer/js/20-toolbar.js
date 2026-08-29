@@ -1,6 +1,6 @@
 import * as Markup from "../../lib/markup.js";
 import * as TemplateXml from "../../lib/templatexml.js";
-import { STORAGE } from "../../lib/keys.js";
+import { STORAGE } from "../../lib/keys.ts";
 import { pad2 } from "../../lib/format.js";
 import { $, setStatus, el } from "./00-core.js";
 import {

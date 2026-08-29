@@ -1,0 +1,16 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "strict": true,
+    "noImplicitAny": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true
+  },
+  "include": [
+    "types/global.d.ts",
+    "di/token.ts",
+    "di/container.ts",
+    "di/tokens.ts",
+    "lib/keys.ts"
+  ]
+}

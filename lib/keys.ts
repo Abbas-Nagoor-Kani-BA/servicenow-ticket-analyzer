@@ -10,7 +10,7 @@ export const STORAGE = Object.freeze({
   ciSplit: "ciSplit",
   snXlsxTemplate: "snXlsxTemplate",
   snFilterList: "snFilterList"
-});
+} as const);
 
 export const MSG = Object.freeze({
   run: "RUN",
@@ -19,4 +19,4 @@ export const MSG = Object.freeze({
   progress: "PROGRESS",
   dataUpdated: "DATA_UPDATED",
   snFetch: "SN_FETCH"
-});
+} as const);

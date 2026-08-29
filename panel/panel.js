@@ -1,6 +1,6 @@
 import { buildEncodedQuery } from "../lib/querybuilder.js";
 import { snStateChoices, SN_PRIORITY_CHOICES, SN_TABLE_LABELS } from "../lib/statechoices.js";
-import { STORAGE, MSG } from "../lib/keys.js";
+import { STORAGE, MSG } from "../lib/keys.ts";
 import { createLogger } from "./log.js";
 import { broadcast } from "../lib/storage.js";
 import { showToast } from "../lib/toast.js";

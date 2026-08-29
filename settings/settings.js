@@ -1,6 +1,6 @@
 import { clearAll } from "../lib/cache.js";
 import { MSR_DEFAULT_LISTS, mergeMsrLists } from "../lib/msrchoices.js";
-import { STORAGE, MSG } from "../lib/keys.js";
+import { STORAGE, MSG } from "../lib/keys.ts";
 import { broadcast } from "../lib/storage.js";
 import { createChipList } from "./chips.js";
 import { showToast } from "../lib/toast.js";

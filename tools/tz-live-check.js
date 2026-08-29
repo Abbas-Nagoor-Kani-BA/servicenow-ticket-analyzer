@@ -5,7 +5,7 @@ const INSTANCE = (process.env.TZ_INSTANCE || process.env.SEED_INSTANCE || "").re
 const USER = process.env.TZ_USER || process.env.SEED_USER || "";
 const PASS = process.env.TZ_PASS || process.env.SEED_PASS || "";
 if (!INSTANCE || !USER || !PASS) {
-  console.error("Usage: TZ_INSTANCE=... TZ_USER=... TZ_PASS=... node tools/tz-live-test.js");
+  console.error("Usage: TZ_INSTANCE=... TZ_USER=... TZ_PASS=... node tools/tz-live-check.js");
   process.exit(2);
 }
 

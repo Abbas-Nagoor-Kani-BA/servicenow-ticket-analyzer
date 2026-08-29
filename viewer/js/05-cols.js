@@ -1,5 +1,5 @@
 import { removeValue, saveValue } from "../../lib/storage.js";
-import { STORAGE } from "../../lib/keys.js";
+import { STORAGE } from "../../lib/keys.ts";
 import { showToast } from "../../lib/toast.js";
 import { setHiddenCols } from "./00-store.js";
 import { buildHead, load, render, resetColWidths } from "./30-grid.js";

@@ -1,5 +1,5 @@
 import * as Markup from "../../lib/markup.js";
-import { STORAGE } from "../../lib/keys.js";
+import { STORAGE } from "../../lib/keys.ts";
 import { setTip } from "../../lib/tooltip.js";
 import { $, el, setStatus } from "./00-core.js";
 import { DEFAULT_EXPORT_MAP, EXPORT_FIELD_BY_ID, EXPORT_GROUPS, MAP_MAX_COL } from "./10-exporter.js";

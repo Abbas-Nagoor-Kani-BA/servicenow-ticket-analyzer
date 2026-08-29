@@ -1,4 +1,4 @@
-import { STORAGE } from "../../lib/keys.js";
+import { STORAGE } from "../../lib/keys.ts";
 import { $ } from "./00-core.js";
 
 let ciSplit = { enabled: false, groups: [] };

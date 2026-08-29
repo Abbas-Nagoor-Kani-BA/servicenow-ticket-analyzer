@@ -1,3 +1,5 @@
+import tseslint from "typescript-eslint";
+
 const browserGlobals = {
   document: "readonly",
   window: "readonly",
@@ -66,6 +68,42 @@ const nodeGlobals = {
   globalThis: "readonly"
 };
 
+const baseRules = {
+  "no-import-assign": "error",
+  "no-undef": "off",
+  "no-var": "warn",
+  "prefer-const": "warn"
+};
+
+// Node runs .ts directly via type stripping, which cannot transform
+// parameter properties, enum, or namespace. Ban them outright.
+//
+// no-explicit-any stays off: reflection-free DI cannot type its wiring
+// without it, and the base tsconfig is still `noImplicitAny: false` while
+// the migration is in progress.
+const tsRules = {
+  ...baseRules,
+  "@typescript-eslint/no-explicit-any": "off",
+  "@typescript-eslint/no-unused-vars": ["warn", { args: "none", varsIgnorePattern: "^_", caughtErrors: "none" }],
+  "@typescript-eslint/parameter-properties": "error",
+  "no-restricted-syntax": [
+    "error",
+    {
+      selector: "TSEnumDeclaration",
+      message: "Node type-stripping cannot transform enum; use a union of string literals or a frozen const object."
+    },
+    {
+      selector: "TSModuleDeclaration",
+      message: "Node type-stripping cannot transform namespace; use ES modules."
+    }
+  ]
+};
+
+// Declaration files emit no JS, so they never reach Node's type stripper.
+const declarationRules = {
+  "no-restricted-syntax": "off"
+};
+
 export default [
   {
     ignores: [
@@ -75,19 +113,43 @@ export default [
       "*.min.js"
     ]
   },
+  ...tseslint.configs.recommended.map((config) => ({
+    ...config,
+    files: ["**/*.ts"]
+  })),
   {
-    files: ["tools/**"],
+    files: ["**/*.ts"],
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: "module",
+      globals: browserGlobals
+    },
+    rules: tsRules
+  },
+  {
+    files: ["tools/**/*.ts"],
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: "module",
+      globals: { ...nodeGlobals, ...browserGlobals }
+    },
+    rules: tsRules
+  },
+  {
+    files: ["**/*.d.ts"],
+    rules: declarationRules
+  },
+  {
+    files: ["tools/**/*.js", "tools/**/*.mjs"],
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: "module",
       globals: { ...nodeGlobals, ...browserGlobals }
     },
     rules: {
+      ...baseRules,
       "no-unused-vars": ["warn", { args: "none", varsIgnorePattern: "^_", caughtErrors: "none" }],
-      "no-import-assign": "error",
-      "no-undef": "error",
-      "no-var": "warn",
-      "prefer-const": "warn"
+      "no-undef": "error"
     }
   },
   {
@@ -99,11 +161,9 @@ export default [
       globals: browserGlobals
     },
     rules: {
+      ...baseRules,
       "no-unused-vars": ["warn", { args: "none", varsIgnorePattern: "^_", caughtErrors: "none" }],
-      "no-import-assign": "error",
-      "no-undef": "error",
-      "no-var": "warn",
-      "prefer-const": "warn"
+      "no-undef": "error"
     }
   },
   {
@@ -114,8 +174,8 @@ export default [
       globals: browserGlobals
     },
     rules: {
-      "no-unused-vars": ["warn", { args: "none", varsIgnorePattern: "^_", caughtErrors: "none" }],
-      "no-undef": "off"
+      ...baseRules,
+      "no-unused-vars": ["warn", { args: "none", varsIgnorePattern: "^_", caughtErrors: "none" }]
     }
   }
 ];

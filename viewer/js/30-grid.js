@@ -1,7 +1,7 @@
 import { detectSnOffsetMs, rowOffsetMs } from "../../lib/sntime.js";
 import { extractHeuristic } from "../../analysis/aiextract.js";
 import { buildReport } from "../../analysis/report.js";
-import { STORAGE } from "../../lib/keys.js";
+import { STORAGE } from "../../lib/keys.ts";
 import { pad2 } from "../../lib/format.js";
 import { showToast } from "../../lib/toast.js";
 import { setTip } from "../../lib/tooltip.js";

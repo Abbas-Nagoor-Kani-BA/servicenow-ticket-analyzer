@@ -1,7 +1,7 @@
 import { ServiceNowClient } from "./lib/servicenow.js";
 import { buildEncodedQuery } from "./lib/querybuilder.js";
 import { snStateMap, SN_TABLE_LABELS } from "./lib/statechoices.js";
-import { STORAGE, MSG } from "./lib/keys.js";
+import { STORAGE, MSG } from "./lib/keys.ts";
 import { broadcast } from "./lib/storage.js";
 import { normalizeNames } from "./lib/names.js";
 import * as Analysis from "./analysis/phase2.js";

@@ -129,7 +129,7 @@ queue context.
   shows a warning banner; check one ticket's Activity section renders changes
   before suspecting the plugin.
 - Tests: `node tools/tz-unit-test.js` (offline, exits non-zero on failure);
-  `TZ_INSTANCE=… TZ_USER=… TZ_PASS=… node tools/tz-live-test.js` (verifies rendered
+  `TZ_INSTANCE=… TZ_USER=… TZ_PASS=… node tools/tz-live-check.js` (verifies rendered
   times equal SN's display values on scenario + cross-DST tickets).
 
 ### Download path (MV3 constraint)
@@ -148,7 +148,7 @@ node --check background.js lib/*.js analysis/*.js viewer/js/*.js panel/*.js sett
 node -e "JSON.parse(require('fs').readFileSync('manifest.json'))"
 ```
 
-`npm run typecheck` (tsconfig.check.json, `checkJs:true`) is meaningful — keep it at 0 errors; `npm run lint` likewise.
+`npm run typecheck` (tsconfig.json `checkJs:true` + tsconfig.strict.json) is meaningful — keep it at 0 errors; `npm run lint` likewise. `npm test` runs the offline suites (the glob is required; `node --test tools` does not work). See `docs/migration-plan.md` for the current gate.
 
 Pure modules (`querybuilder.js`, `phase2.js`) are ES modules and run standalone in plain node, e.g.:
 
