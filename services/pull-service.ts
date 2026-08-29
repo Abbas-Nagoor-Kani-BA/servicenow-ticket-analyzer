@@ -8,7 +8,7 @@ import type { TimelineRepository } from "../data/repositories/timeline-repositor
 import type { TicketRow } from "../data/repositories/dataset-repository.ts";
 
 import { buildEncodedQuery } from "../lib/querybuilder.js";
-import { snStateMap, SN_TABLE_LABELS } from "../lib/statechoices.js";
+import { snStateMap, snTableLabel } from "../lib/statechoices.js";
 import { normalizeNames } from "../lib/names.js";
 import { mergeRows } from "../lib/rowmerge.js";
 import { analyzeAll } from "../analysis/phase2.js";
@@ -67,8 +67,7 @@ export const DEFAULT_FIELDS = [
 
 const noProgress: ProgressFn = () => {};
 
-const TABLE_LABELS = SN_TABLE_LABELS as Record<string, string>;
-const tableLabel = (table: string): string => TABLE_LABELS[table] || table;
+const tableLabel = snTableLabel;
 
 function clampNum(value: unknown, lo: number, hi: number): number | null {
   const n = Math.round(Number(value));

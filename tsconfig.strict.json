@@ -35,6 +35,8 @@
     "components/component.ts",
     "components/log-card.ts",
     "components/progress-card.ts",
-    "components/condition-builder.ts"
+    "components/condition-builder.ts",
+    "components/filter-set-list.ts",
+    "surfaces/panel/index.ts"
   ]
 }

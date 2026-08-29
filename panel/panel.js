@@ -1,12 +1,10 @@
 import { buildEncodedQuery } from "../lib/querybuilder.js";
-import { snStateChoices, SN_PRIORITY_CHOICES, SN_TABLE_LABELS } from "../lib/statechoices.js";
+import { snStateChoices, SN_PRIORITY_CHOICES, snTableLabel } from "../lib/statechoices.js";
 import { STORAGE, MSG } from "../lib/keys.ts";
-import { LogCard } from "../components/log-card.ts";
-import { ProgressCard } from "../components/progress-card.ts";
-import { ConditionBuilder } from "../components/condition-builder.ts";
+import { createPanel, describeFilterSet } from "../surfaces/panel/index.ts";
 import { broadcast } from "../lib/storage.js";
 import { showToast } from "../lib/toast.js";
-import { initTooltips, setTip } from "../lib/tooltip.js";
+import { initTooltips } from "../lib/tooltip.js";
 
 /** @param {string} id @returns {any} */
 const $ = id => document.getElementById(id);
@@ -19,18 +17,11 @@ const els = {
   rawQuery: $("rawQuery"),
   generatedQuery: $("generatedQuery"),
   advancedBox: $("advancedBox"),
-  filterListCard: $("filterListCard"),
-  filterListBox: $("filterListBox"),
-  addFilterBtn: $("addFilterBtn"),
   preview: $("previewBtn"),
   runBtn: $("runBtn"),
   viewBtn: $("viewBtn"),
   lastRun: $("lastRun")
 };
-const logCard = new LogCard($("logCard"), { modal: $("logModal") });
-const progressCard = new ProgressCard($("progressWrap"));
-const logger = { log: (text, level) => logCard.log(text, level || "") };
-let busy = false;
 function choiceList(key) {
   if (key === "states") return snStateChoices(els.ticketType.value);
   if (key === "incidentStates") return snStateChoices("incident");
@@ -52,14 +43,16 @@ const COND_FIELDS = [
   { key: "closedOn", label: "Closed", field: "closed_at", type: "date", tables: ["incident", "problem", "sc_req_item", "sc_task"] },
   { key: "resolvedOn", label: "Resolved", field: "resolved_at", type: "date", tables: ["incident", "problem", "sc_req_item"] }
 ];
-const conditions = new ConditionBuilder($("condRows"), {
-  on: { change: () => refreshGenerated() }
-}, {
-  fields: COND_FIELDS,
-  choiceList,
-  tableLabel: (t) => SN_TABLE_LABELS[t] || t,
-  addButton: $("addCondBtn")
+
+const panel = createPanel({
+  condFields: COND_FIELDS,
+  choiceList: (key) => choiceList(key),
+  onConditionChange: () => refreshGenerated(),
+  onFilterSetChange: () => refreshGenerated()
 });
+const { logCard, progressCard, conditions, filterSets } = panel;
+const logger = { log: (text, level) => logCard.log(text, level || "") };
+let busy = false;
 let cfgQueues = [];
 let cfgMembers = [];
 const toEntry = (m) => {
@@ -94,6 +87,7 @@ async function applyPluginSettings() {
 }
 $("settingsBtn").addEventListener("click", () => chrome.runtime.openOptionsPage());
 initTooltips();
+panel.ready.then(() => refreshGenerated()).catch(() => {});
 chrome.storage.local.get(["snInstance", "lastRun"], async (cfg) => {
   await applyPluginSettings();
   if (cfg.snInstance && !els.instance.value) els.instance.value = cfg.snInstance;
@@ -140,108 +134,31 @@ async function detectInstanceFromTabs() {
 function instanceUrl() {
   return els.instance.value.trim();
 }
-let filterList = [];
-try {
-  filterList = JSON.parse(localStorage.getItem(STORAGE.snFilterList) || "[]");
-} catch {
-}
-const COND_OP_LABELS = {
-  isEmpty: "is empty",
-  isNotEmpty: "is not empty",
-  eq: "is",
-  neq: "is not",
-  contains: "contains",
-  notContains: "doesn't contain",
-  startsWith: "starts with",
-  before: "before",
-  after: "after",
-  between: "between"
-};
-function conditionText(c) {
-  const def = COND_FIELDS.find((x) => x.field === c.field);
-  const label = def ? def.label : c.field;
-  const op = COND_OP_LABELS[c.oper] || c.oper;
-  if (c.oper === "isEmpty" || c.oper === "isNotEmpty") return `${label} ${op}`;
-  let val = String(c.value ?? "");
-  if (def?.type === "choice") {
-    const hit = choiceList(def.choicesKey).find((v) => String(v.value) === val);
-    if (hit) val = hit.label;
-  }
-  if (c.oper === "between") return `${label} between ${val} and ${c.value2}`;
-  return `${label} ${op} ${val}`;
-}
-function conditionsSummary(conds) {
-  let out = "";
-  (conds || []).forEach((c, i) => {
-    out += i > 0 ? c.join === "OR" ? " OR " : " AND " : "";
-    out += conditionText(c);
-  });
-  return out;
-}
-function describeFilterSet(f) {
-  const bits = [SN_TABLE_LABELS[f.table] || f.table];
-  const cs = conditionsSummary(f.conditions);
-  if (cs) bits.push(cs);
-  return bits.join(" \xB7 ");
-}
-function filterKey(f) {
-  return JSON.stringify([f.table, f.conditions]);
-}
-function renderFilterList() {
-  els.filterListCard.classList.toggle("hidden", !filterList.length);
-  els.addFilterBtn.textContent = filterList.length ? `Add to filter list (${filterList.length})` : "+ Add to filter list";
-  els.filterListBox.innerHTML = "";
-  filterList.forEach((f, i) => {
-    const div = document.createElement("div");
-    div.className = "flitem";
-    const span = document.createElement("span");
-    span.textContent = describeFilterSet(f);
-    const btn = document.createElement("button");
-    btn.type = "button";
-    setTip(btn, "Remove");
-    btn.textContent = "\u2715";
-    btn.addEventListener("click", () => {
-      filterList.splice(i, 1);
-      saveFilterList();
-    });
-    div.append(span, btn);
-    els.filterListBox.appendChild(div);
-  });
-}
-function saveFilterList() {
-  localStorage.setItem(STORAGE.snFilterList, JSON.stringify(filterList));
-  renderFilterList();
-}
-$("addFilterBtn").addEventListener("click", () => {
+$("addFilterBtn").addEventListener("click", async () => {
   try {
     const f = currentFilters();
     delete f.onlyMyQueue;
     delete f.rawQuery;
-    const key = filterKey(f);
-    if (filterList.some((x) => filterKey(x) === key)) {
+    const outcome = await filterSets.add(f);
+    if (outcome === "duplicate") {
       logger.log("This exact filter set is already in the list");
       return;
     }
-    filterList.push(f);
-    saveFilterList();
     conditions.setRows([]);
     refreshGenerated();
-    els.filterListCard.classList.remove("flash");
-    void els.filterListCard.offsetWidth;
-    els.filterListCard.classList.add("flash");
-    setTimeout(() => els.filterListCard.classList.remove("flash"), 1e3);
-    logger.log(`Added filter ${filterList.length}: ${describeFilterSet(f)}`, "success");
-    showToast(`Filter ${filterList.length} added`);
+    filterSets.flash();
+    const total = filterSets.getSets().length;
+    logger.log(`Added filter ${total}: ${describeFilterSet(f, COND_FIELDS, (k) => choiceList(k))}`, "success");
+    showToast(`Filter ${total} added`);
   } catch (err) {
     logger.log(err.message, "error");
     showToast(err.message, "error");
   }
 });
-$("clearFilterListBtn").addEventListener("click", () => {
-  filterList = [];
-  saveFilterList();
+$("clearFilterListBtn").addEventListener("click", async () => {
+  await filterSets.clear();
+  refreshGenerated();
 });
-renderFilterList();
 function requireInstance() {
   const url = instanceUrl();
   if (!/^https:\/\/.+/.test(url)) throw new Error("Enter a valid https instance URL");
@@ -299,7 +216,7 @@ async function connect(manual = false) {
 function refreshGenerated() {
   try {
     const q = buildEncodedQuery(currentFilters());
-    els.generatedQuery.textContent = q || `(no filters \u2014 all ${SN_TABLE_LABELS[els.ticketType.value] || "tickets"} you can read)`;
+    els.generatedQuery.textContent = q || `(no filters \u2014 all ${snTableLabel(els.ticketType.value)} you can read)`;
   } catch (e) {
     els.generatedQuery.textContent = e.message;
   }
@@ -335,7 +252,8 @@ els.preview.addEventListener("click", async () => {
     const instanceUrl2 = requireInstance();
     const groups = configuredGroups();
     const live = currentFilters();
-    const sets = filterList.length ? filterList.map((f) => ({ ...f, rawQuery: live.rawQuery })) : [live];
+    const saved = filterSets.getSets();
+    const sets = saved.length ? saved.map((f) => ({ ...f, rawQuery: live.rawQuery })) : [live];
     let pullable = 0;
     let overLimit = 0;
     let lastQuery = "";
@@ -373,7 +291,8 @@ els.runBtn.addEventListener("click", async () => {
     if (busy) return;
     setBusy(true);
     const live = currentFilters();
-    const sets = filterList.length ? filterList.map((f) => ({ ...f, rawQuery: live.rawQuery })) : [live];
+    const saved = filterSets.getSets();
+    const sets = saved.length ? saved.map((f) => ({ ...f, rawQuery: live.rawQuery })) : [live];
     await send({
       type: MSG.run,
       instanceUrl: requireInstance(),

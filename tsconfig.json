@@ -10,7 +10,11 @@
     "strict": false,
     "noImplicitAny": false,
     "skipLibCheck": true,
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
     "types": []
   },
   "include": [
@@ -23,10 +27,10 @@
     "data/**/*",
     "services/**/*",
     "components/**/*",
-    "surfaces/**/*",
     "viewer/js/**/*",
     "panel/*",
-    "settings/*"
+    "settings/*",
+    "surfaces/**/*"
   ],
   "exclude": [
     "**/vendor/**",

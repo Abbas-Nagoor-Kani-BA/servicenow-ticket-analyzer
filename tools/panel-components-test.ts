@@ -25,6 +25,7 @@ globalThis.HTMLInputElement = win.HTMLInputElement;
 globalThis.Event = win.Event;
 globalThis.MouseEvent = win.MouseEvent;
 globalThis.KeyboardEvent = win.KeyboardEvent;
+globalThis.localStorage = win.localStorage;
 win.document.body.innerHTML = html;
 
 const { LogCard } = await import("../components/log-card.ts");
@@ -257,4 +258,99 @@ test("validateConditions rejects a field absent from the chosen table", () => {
       ),
     /does not exist on problem/
   );
+});
+
+// --- filter set list ---
+
+const { FilterSetList, migrateLegacyFilterSets } = await import("../components/filter-set-list.ts");
+const { createMemoryKeyValueStore } = await import("../data/key-value-store.ts");
+const { FilterListStore } = await import("../data/repositories/filter-list-repository.ts");
+
+function makeFilterList(repo = new FilterListStore(createMemoryKeyValueStore())) {
+  const box = $("filterListBox");
+  box.innerHTML = "";
+  return new FilterSetList(
+    box,
+    {},
+    {
+      repository: repo,
+      card: $("filterListCard"),
+      addButton: $("addFilterBtn"),
+      describe: (s) => `${s.table}:${JSON.stringify(s.conditions)}`,
+      keyOf: (s) => JSON.stringify([s.table, s.conditions])
+    }
+  );
+}
+
+test("filter list hides its card until a set exists", async () => {
+  const list = makeFilterList();
+  assert.equal($("filterListCard").classList.contains("hidden"), true);
+  assert.equal($("addFilterBtn").textContent, "+ Add to filter list");
+
+  await list.add({ table: "incident", conditions: [] });
+
+  assert.equal($("filterListCard").classList.contains("hidden"), false);
+  assert.equal($("filterListBox").querySelectorAll(".flitem").length, 1);
+  assert.equal($("addFilterBtn").textContent, "Add to filter list (1)");
+});
+
+test("filter list rejects a duplicate set", async () => {
+  const list = makeFilterList();
+  assert.equal(await list.add({ table: "incident", conditions: [] }), "added");
+  assert.equal(await list.add({ table: "incident", conditions: [] }), "duplicate");
+  assert.equal(list.getSets().length, 1);
+});
+
+test("filter list persists through the repository, not localStorage", async () => {
+  const repo = new FilterListStore(createMemoryKeyValueStore());
+  const list = makeFilterList(repo);
+  await list.add({ table: "incident", conditions: [{ field: "state" }] });
+
+  assert.equal((await repo.load()).length, 1);
+
+  const reloaded = makeFilterList(repo);
+  await reloaded.load();
+  assert.equal(reloaded.getSets().length, 1, "survives a reload");
+});
+
+test("removing and clearing a filter list persists each change", async () => {
+  const repo = new FilterListStore(createMemoryKeyValueStore());
+  const list = makeFilterList(repo);
+  await list.add({ table: "incident", conditions: [] });
+  await list.add({ table: "problem", conditions: [] });
+
+  $("filterListBox").querySelectorAll(".flitem button")[0]
+    .dispatchEvent(new win.MouseEvent("click", { bubbles: true }));
+  await new Promise((r) => setTimeout(r, 0));
+
+  assert.equal(list.getSets().length, 1);
+  assert.equal((await repo.load()).length, 1);
+
+  await list.clear();
+  assert.equal(list.getSets().length, 0);
+  assert.deepEqual(await repo.load(), []);
+  assert.equal($("filterListCard").classList.contains("hidden"), true);
+});
+
+test("legacy localStorage filter sets are imported once", async () => {
+  const repo = new FilterListStore(createMemoryKeyValueStore());
+  globalThis.localStorage.setItem("snFilterList", JSON.stringify([{ table: "incident", conditions: [] }]));
+
+  assert.equal(await migrateLegacyFilterSets(repo), 1);
+  assert.equal((await repo.load()).length, 1);
+  assert.equal(globalThis.localStorage.getItem("snFilterList"), null, "legacy key cleared");
+
+  // a second run must not re-import or clobber existing sets
+  assert.equal(await migrateLegacyFilterSets(repo), 0);
+  assert.equal((await repo.load()).length, 1);
+});
+
+test("legacy import is a no-op when the new store already has sets", async () => {
+  const repo = new FilterListStore(createMemoryKeyValueStore());
+  await repo.save([{ table: "problem", conditions: [] }]);
+  globalThis.localStorage.setItem("snFilterList", JSON.stringify([{ table: "incident", conditions: [] }]));
+
+  assert.equal(await migrateLegacyFilterSets(repo), 0);
+  assert.equal((await repo.load())[0].table, "problem", "existing sets win");
+  assert.equal(globalThis.localStorage.getItem("snFilterList"), null);
 });

@@ -217,15 +217,45 @@ but never rebuilds the rows — a rebuild mid-keystroke would drop focus and the
 caret. `tools/panel-components-test.ts` asserts `document.activeElement` is
 still the input after two input events.
 
-### Deferred
+---
 
-`components/filter-set-list.ts` and the panel composition root are not done;
-`panel.js` still owns the filter list and the instance-connect wiring. That is
-the next slice.
+## Phase 3b — Filter list + panel composition root — COMPLETE
+
+**Result: gate green — typecheck 0 errors, lint 0 errors, 145/145 tests, build OK.**
+**`panel/panel.js` went from 671 lines (pre-migration) to 364.**
+
+- [x] `components/filter-set-list.ts` — owns the saved sets; persistence goes
+      through `FilterListRepository`, never `localStorage`
+- [x] `surfaces/panel/index.ts` — composition root: builds the container and the
+      four components, injecting repositories via `deps`
+- [x] `migrateLegacyFilterSets()` — one-time import from the old `localStorage`
+      key, or a user's saved sets would vanish on first load after upgrading
+- [x] `lib/statechoices.js` — added `snTableLabel()`; `SN_TABLE_LABELS[someString]`
+      does not type-check (closed record, no index signature) and three files
+      were each casting it locally
+
+### Filter list rebuilds where the condition builder does not
+
+`FilterSetList` rebuilds its rows on every change; `ConditionBuilder` does not.
+That asymmetry is deliberate: filter rows contain no text inputs, so there is no
+focus or caret to lose, and the list is short. The rule is "rebuild only when
+rebuilding is free" — not "never rebuild".
+
+### Remaining in panel.js
+
+Instance url + connect, the raw-query box, generated-query preview, preview and
+run handlers, and the viewer-tab opener. The file is a bootstrap plus those
+handlers, and no longer touches condition or filter-list state directly.
+
+### Deferred to Phase 4
+
+`services/remote-bridge.ts` (page-side service proxies over `chrome.runtime`) —
+the panel still sends `MSG.count` / `MSG.run` by hand. It becomes worthwhile
+when the viewer and settings get their own composition roots.
 
 ---
 
-## Phase 3 — Panel components (OOP) — see above
+## Phase 3 — Panel components (OOP) — see 3a and 3b above
 
 Chosen first: highest confusion, lowest risk, no hard-won invariants live there.
 
