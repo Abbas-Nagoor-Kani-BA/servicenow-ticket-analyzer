@@ -1,6 +1,6 @@
 import { $, visibleCols } from "./00-core.js";
 import { findRowBySysId, render } from "./30-grid.js";
-import { anyOverlayOpen, copySelectedRange, fillFromSelectionOrigin, getSelFocus, handlePaste, movePage, moveSel, moveToRowFirstLast, selectedTd, selectionBounds, setSelPoint } from "./40-selection.js";
+import { anyOverlayOpen, copySelectedRange, fillFromSelectionOrigin, getSelFocus, handlePaste, movePage, moveSel, moveToRowFirstLast, selectedTd, selectionBounds, setSelPoint, undoLast } from "./40-selection.js";
 import { openTicketPopup } from "./50-ticketpop.js";
 import { startEdit } from "./70-editors.js";
 
@@ -125,6 +125,13 @@ document.addEventListener("keydown", e => {
     if (!anyOverlayOpen() && getSelFocus() && selectionBounds()) {
       e.preventDefault();
       handlePaste();
+    }
+    return;
+  }
+  if ((e.ctrlKey || e.metaKey) && (e.key === "z" || e.key === "Z")) {
+    if (!anyOverlayOpen()) {
+      e.preventDefault();
+      undoLast();
     }
     return;
   }

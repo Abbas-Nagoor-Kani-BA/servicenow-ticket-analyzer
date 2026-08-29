@@ -481,3 +481,32 @@ test("fill handle becomes visible when a selection exists and hides without one"
   await flush();
   assert.ok(h.classList.contains("hidden"), "handle hidden after clear");
 });
+
+test("undo restores the pre-paste value after a paste", { timeout: 8000 }, async () => {
+  if (!selModule) selModule = await import("../viewer/js/40-selection.js");
+  grid.findRowBySysId("aaa").shortDescription = "original";
+  grid.findRowBySysId("bbb").shortDescription = "orig-b";
+  grid.render();
+  await selectRect(["shortDescription"], ["aaa", "bbb"]);
+  selModule.pasteIntoSelection([["changed"]]);
+  await flush();
+  assert.equal(grid.findRowBySysId("aaa").shortDescription, "changed", "paste applied");
+  assert.equal(grid.findRowBySysId("bbb").shortDescription, "changed", "paste applied both");
+  selModule.undoLast();
+  await flush();
+  assert.equal(grid.findRowBySysId("aaa").shortDescription, "original", "undo restored first row");
+  assert.equal(grid.findRowBySysId("bbb").shortDescription, "orig-b", "undo restored second row to its prior value");
+});
+
+test("Ctrl+Z undoes the last paste", { timeout: 8000 }, async () => {
+  if (!selModule) selModule = await import("../viewer/js/40-selection.js");
+  grid.findRowBySysId("aaa").shortDescription = "z-original";
+  grid.render();
+  await selectRect(["shortDescription"], ["aaa", "bbb"]);
+  selModule.pasteIntoSelection([["z-pasted"]]);
+  await flush();
+  assert.equal(grid.findRowBySysId("aaa").shortDescription, "z-pasted");
+  document.body.dispatchEvent(new window.KeyboardEvent("keydown", { key: "z", ctrlKey: true, bubbles: true }));
+  await flush();
+  assert.equal(grid.findRowBySysId("aaa").shortDescription, "z-original", "Ctrl+Z undid the paste");
+});

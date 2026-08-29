@@ -209,6 +209,27 @@ function rangeTsv() {
 }
 
 let lastCopy = null;
+const UNDO_MAX = 20;
+let undoStack = [];
+
+function pushUndo(snapshot) {
+  undoStack.push(snapshot);
+  if (undoStack.length > UNDO_MAX) undoStack.shift();
+}
+
+function clearUndo() {
+  undoStack = [];
+}
+
+function undoLast() {
+  const op = undoStack.pop();
+  if (!op) { showToast("Nothing to undo", "info"); return; }
+  for (const { row, key, old } of op) row[key] = old;
+  scheduleSave();
+  render();
+  applySelHighlight();
+  showToast(`Undid paste (${op.length} cell${op.length === 1 ? "" : "s"})`);
+}
 
 function copySelectedRange() {
   const b = selectionBounds();
@@ -256,15 +277,19 @@ function writeFill(rows, cols, lo, hi, lc, hc, fillSource) {
   const fill = buildFillGrid(fillSource, tr, tc);
   const deps = { parseLocal: parseLocalInput, listFor: columnOptionList };
   let touched = 0, skipped = 0;
+  const snapshot = [];
   for (let r = 0; r < tr; r++) {
     for (let c = 0; c < tc; c++) {
       const key = cols[lc + c][0];
       if (!key || key === "number" || key.startsWith("rep:")) { skipped++; continue; }
-      rows[lo + r][key] = storedValue(fill[r][c], key, cols[lc + c][2], rows[lo + r], deps);
+      const row = rows[lo + r];
+      snapshot.push({ row, key, old: row[key] });
+      row[key] = storedValue(fill[r][c], key, cols[lc + c][2], row, deps);
       touched++;
     }
   }
   if (touched) {
+    pushUndo(snapshot);
     scheduleSave();
     render();
     applySelHighlight();
@@ -322,6 +347,8 @@ export {
   pasteIntoSelection,
   fillFromSelectionOrigin,
   getLastCopy,
+  undoLast,
+  clearUndo,
   getSelFocus,
   getSelAnchor,
   saveSel

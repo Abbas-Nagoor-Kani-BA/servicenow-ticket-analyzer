@@ -7,7 +7,7 @@ import { showToast } from "../../lib/toast.js";
 import { setTip } from "../../lib/tooltip.js";
 import { $, COLUMNS, cellShort, columnOptionList, migrateLegacyResolutions, setStatus, visibleCols } from "./00-core.js";
 import { cellValue, tsvCell } from "./15-clipboard.js";
-import { applySelHighlight, ensureDefaultSelection, restorePendingSel } from "./40-selection.js";
+import { applySelHighlight, clearUndo, ensureDefaultSelection, restorePendingSel } from "./40-selection.js";
 import { copyText } from "./85-shared.js";
 import { dataStore, setSelfPush } from "./00-store.js";
 import { attachSummaryToData, renderSummary, setRowsProvider } from "./16-summary.js";
@@ -17,6 +17,7 @@ function st() { return dataStore.getState(); }
 setRowsProvider(() => currentRows());
 
 function load(d) {
+  clearUndo();
   const data = d && Array.isArray(d.rows) ? d : null;
   dataStore.setState({ data, sortKey: null, sortDir: 1, snOffsetMs: data ? detectSnOffsetMs(data.rows) : 0 });
   let migrated = 0;
