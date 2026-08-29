@@ -126,9 +126,9 @@ chrome.storage.local.get([STORAGE.msrLists], ({ msrLists }) => {
 $("clearCacheBtn").addEventListener("click", async () => {
   try {
     await clearAll();
-    await chrome.storage.local.remove(STORAGE.lastRun);
+    await chrome.storage.local.remove([STORAGE.lastRun, STORAGE.lastData]);
     broadcast({ type: MSG.dataUpdated });
-    showToast("Pull cache cleared");
+    showToast("Pull cache and saved data cleared");
   } catch (e) {
     showToast(e.message, "error");
   }
