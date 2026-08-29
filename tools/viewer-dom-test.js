@@ -510,3 +510,64 @@ test("Ctrl+Z undoes the last paste", { timeout: 8000 }, async () => {
   await flush();
   assert.equal(grid.findRowBySysId("aaa").shortDescription, "z-original", "Ctrl+Z undid the paste");
 });
+
+test("column-copy button removed from headers", async () => {
+  const copyBtns = document.querySelectorAll("#tbl thead th .colCopy");
+  assert.equal(copyBtns.length, 0, "no .colCopy button remains");
+  const resizeHandles = document.querySelectorAll("#tbl thead th .colResize");
+  assert.ok(resizeHandles.length > 0, "resize handles exist on headers");
+});
+
+test("persisted column width is applied by buildHead", async () => {
+  const store = await import("../viewer/js/00-store.js");
+  store.setColWidths({ shortDescription: 300 });
+  grid.buildHead();
+  const ths = document.querySelectorAll("#tbl thead th");
+  const idx = [...ths].findIndex(t => t.textContent.trim() === "Short description");
+  const col = document.querySelectorAll("#tbl colgroup col")[idx];
+  assert.equal(col.style.width, "300px", "col width reflects persisted value");
+});
+
+test("dragging a column resize handle updates and persists the width", { timeout: 8000 }, async () => {
+  const store = await import("../viewer/js/00-store.js");
+  store.setColWidths({});
+  grid.buildHead();
+  const ths = document.querySelectorAll("#tbl thead th");
+  const idx = [...ths].findIndex(t => t.textContent.trim() === "Short description");
+  const handle = ths[idx].querySelector(".colResize");
+  const col = document.querySelectorAll("#tbl colgroup col")[idx];
+  const before = parseInt(col.style.width, 10);
+  function fire(el, type, clientX) {
+    const ev = new window.MouseEvent(type, { bubbles: true, clientX });
+    el.dispatchEvent(ev);
+  }
+  fire(handle, "pointerdown", 0);
+  fire(handle, "pointermove", 60);
+  fire(handle, "pointerup", 60);
+  await flush();
+  assert.equal(parseInt(col.style.width, 10), before + 60, "col width changed by drag");
+  assert.equal(store.getColWidths().shortDescription, before + 60, "width persisted to store");
+});
+
+test("clicking the resize handle does not trigger header sort", { timeout: 8000 }, async () => {
+  const ths = document.querySelectorAll("#tbl thead th");
+  const idx = [...ths].findIndex(t => t.textContent.trim() === "Short description");
+  const before = ths[idx].className;
+  const handle = ths[idx].querySelector(".colResize");
+  handle.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+  await flush();
+  assert.equal(ths[idx].className, before, "sort class unchanged by handle click");
+});
+
+test("reset widths clears persisted widths and reverts the column", async () => {
+  const store = await import("../viewer/js/00-store.js");
+  store.setColWidths({ shortDescription: 320 });
+  grid.buildHead();
+  grid.resetColWidths();
+  await flush();
+  assert.deepEqual(store.getColWidths(), {}, "persisted widths cleared");
+  const ths = document.querySelectorAll("#tbl thead th");
+  const idx = [...ths].findIndex(t => t.textContent.trim() === "Short description");
+  const col = document.querySelectorAll("#tbl colgroup col")[idx];
+  assert.equal(col.style.width, "150px", "column reverted to default width");
+});

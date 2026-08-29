@@ -137,6 +137,7 @@ const SKELETON = `
     <button id="colsBtn">Columns</button>
     <div id="colMenu" class="hidden">
       <div class="menuHead"><span>Visible columns</span><button id="showAllCols">Show all</button></div>
+      <div class="menuHead sub"><button id="resetColWidthsBtn">Reset widths</button></div>
       <input id="colSearch">
       <div id="colList"></div>
     </div>

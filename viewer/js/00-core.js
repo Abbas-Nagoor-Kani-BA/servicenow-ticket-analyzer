@@ -3,7 +3,7 @@ import { saveValue, removeValue } from "../../lib/storage.js";
 import { STORAGE } from "../../lib/keys.js";
 import { showToast } from "../../lib/toast.js";
 import { uiStore, setHiddenCols, setMsrLists, getMsrLists } from "./00-store.js";
-import { buildHead, load, render } from "./30-grid.js";
+import { buildHead, load, render, resetColWidths } from "./30-grid.js";
 
 
 /** @param {string} id @returns {any} */
@@ -171,6 +171,11 @@ $("showAllCols").addEventListener("click", async () => {
   render();
   updateColsBtn();
   setStatus("All columns visible");
+});
+
+$("resetColWidthsBtn").addEventListener("click", () => {
+  resetColWidths();
+  setStatus("Column widths reset");
 });
 
 function el(tag, cls) {

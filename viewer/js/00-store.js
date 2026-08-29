@@ -21,6 +21,7 @@ export const selStore = createStore({
 
 export const uiStore = createStore({
   hiddenCols: new Set(),
+  colWidths: {},
   msrLists: null
 });
 
@@ -28,23 +29,30 @@ export function getSelfPush() { return dataStore.getState().selfPush; }
 export function setSelfPush(v) { dataStore.setState({ selfPush: v }); }
 
 export function setHiddenCols(set) { uiStore.setState({ hiddenCols: set }); }
+export function getColWidths() { return uiStore.getState().colWidths; }
+export function setColWidths(widths) { uiStore.setState({ colWidths: widths || {} }); }
 export function getMsrLists() { return uiStore.getState().msrLists; }
 export function setMsrLists(lists) {
   uiStore.setState({ msrLists: MsrChoices.mergeMsrLists(lists ?? null) });
 }
 
 export async function hydrateStores() {
-  const [lastData, viewerSel, hiddenCols, storedLists] = await Promise.all([
+  const [lastData, viewerSel, hiddenCols, colWidths, storedLists] = await Promise.all([
     loadOnce(STORAGE.lastData, null),
     loadOnce(STORAGE.viewerSel, null),
     loadOnce(STORAGE.viewerHiddenCols, []),
+    loadOnce(STORAGE.viewerColWidths, {}),
     loadOnce(STORAGE.msrLists, null)
   ]);
   const hc = new Set(Array.isArray(hiddenCols) ? hiddenCols : []);
   dataStore.setState({ data: lastData || null });
   selStore.setState({ pending: viewerSel && viewerSel.a && viewerSel.f ? viewerSel : null });
-  uiStore.setState({ hiddenCols: hc });
+  uiStore.setState({ hiddenCols: hc, colWidths: (colWidths && typeof colWidths === "object") ? colWidths : {} });
   setMsrLists(storedLists && storedLists.lists ? storedLists.lists : null);
+}
+
+export async function saveColWidths() {
+  await saveValue(STORAGE.viewerColWidths, getColWidths());
 }
 
 export async function saveSel() {

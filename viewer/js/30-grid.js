@@ -6,10 +6,8 @@ import { pad2 } from "../../lib/format.js";
 import { showToast } from "../../lib/toast.js";
 import { setTip } from "../../lib/tooltip.js";
 import { $, COLUMNS, cellShort, columnOptionList, migrateLegacyResolutions, setStatus, visibleCols } from "./00-core.js";
-import { cellValue, tsvCell } from "./15-clipboard.js";
 import { applySelHighlight, clearUndo, ensureDefaultSelection, restorePendingSel } from "./40-selection.js";
-import { copyText } from "./85-shared.js";
-import { dataStore, setSelfPush } from "./00-store.js";
+import { dataStore, getColWidths, saveColWidths, setColWidths, setSelfPush } from "./00-store.js";
 import { attachSummaryToData, renderSummary, setRowsProvider } from "./16-summary.js";
 
 function st() { return dataStore.getState(); }
@@ -50,6 +48,14 @@ function load(d) {
   renderSummary();
 }
 
+const MIN_COL_W = 40;
+let resizeState = null;
+
+function colWidthOf(key, defaultW) {
+  const w = getColWidths()[key];
+  return Number.isFinite(w) && w > 0 ? w : (defaultW || 170);
+}
+
 function buildHead() {
   const { sortKey, sortDir } = st();
   const table = $("tbl");
@@ -59,31 +65,43 @@ function buildHead() {
     table.prepend(colgroup);
   }
   colgroup.innerHTML = "";
-  for (const col of visibleCols()) {
+  const cols = visibleCols();
+  const colEls = [];
+  for (const col of cols) {
     const el = document.createElement("col");
-    el.style.width = `${col[3] || 170}px`;
+    el.style.width = `${colWidthOf(col[0], col[3])}px`;
     colgroup.appendChild(el);
+    colEls.push(el);
   }
   const thead = table.tHead;
   thead.innerHTML = "";
   const tr = document.createElement("tr");
-  for (const [key, label, cls] of visibleCols()) {
+  cols.forEach(([key, label], i) => {
     const th = document.createElement("th");
     th.textContent = label;
-    const cc = document.createElement("span");
-    cc.className = "colCopy";
-    cc.textContent = "📋";
-    setTip(cc, "Copy entire column");
-    cc.addEventListener("click", e => {
+    const rz = document.createElement("span");
+    rz.className = "colResize";
+    rz.addEventListener("pointerdown", e => {
+      e.preventDefault();
       e.stopPropagation();
-      const rows = currentRows();
-      if (!rows.length) return;
-      const vals = rows.map(r => tsvCell(cellValue(r, key, cls)));
-      copyText(vals.join("\n"))
-        .then(() => showToast(`Column "${label}" copied`))
-        .catch(() => showToast("Copy failed", "error"));
+      resizeState = { key, colEl: colEls[i], startX: e.clientX, startW: colWidthOf(key, cols[i][3]) };
+      try { rz.setPointerCapture(e.pointerId); } catch {}
     });
-    th.appendChild(cc);
+    rz.addEventListener("pointermove", e => {
+      if (!resizeState || resizeState.key !== key) return;
+      const w = Math.max(MIN_COL_W, resizeState.startW + (e.clientX - resizeState.startX));
+      resizeState.colEl.style.width = `${w}px`;
+    });
+    rz.addEventListener("pointerup", () => {
+      if (!resizeState || resizeState.key !== key) return;
+      const w = parseFloat(resizeState.colEl.style.width) || resizeState.startW;
+      resizeState = null;
+      const widths = { ...getColWidths(), [key]: w };
+      setColWidths(widths);
+      saveColWidths();
+    });
+    rz.addEventListener("click", e => e.stopPropagation());
+    th.appendChild(rz);
     if (key === sortKey) th.classList.add("sorted", ...(sortDir === -1 ? ["desc"] : []));
     th.addEventListener("click", () => {
       if (sortKey === key) dataStore.setState({ sortDir: -sortDir });
@@ -92,8 +110,15 @@ function buildHead() {
       render();
     });
     tr.appendChild(th);
-  }
+  });
   thead.appendChild(tr);
+}
+
+function resetColWidths() {
+  setColWidths({});
+  saveColWidths();
+  buildHead();
+  render();
 }
 
 function currentRows() {
@@ -329,5 +354,6 @@ export {
   hasDataRows,
   findRowBySysId,
   displayedValue,
-  autoParse
+  autoParse,
+  resetColWidths
 };

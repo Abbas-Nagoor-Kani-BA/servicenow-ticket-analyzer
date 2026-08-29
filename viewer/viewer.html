@@ -32,10 +32,9 @@
     th, td { text-align:left; padding:6px 10px; border-bottom:1px solid var(--line); white-space:nowrap;
       overflow:hidden; text-overflow:ellipsis; position:relative; }
     td.editable:hover { box-shadow:inset 0 0 0 1px #585b70; }
-    th .colCopy { display:none; position:absolute; top:2px; right:4px;
-      font-size:12px; line-height:1; padding:2px 5px;
-      background:#45475a; border-radius:4px; cursor:copy; }
-    th:hover .colCopy { display:inline-block; }
+    th .colResize { position:absolute; top:0; right:0; bottom:0; width:6px; cursor:col-resize; }
+    th .colResize:hover { background:rgba(137,180,250,.28); }
+    th .colResize.active { background:rgba(137,180,250,.45); }
     th { position:relative; }
     td:not(.editable):hover { box-shadow:inset 0 0 0 1px #585b70; }
     thead th { position:sticky; top:0; background:#181825; cursor:pointer; user-select:none;
@@ -218,6 +217,9 @@
       padding-bottom:6px; margin-bottom:4px; border-bottom:1px solid var(--line);
       font-size:11.5px; text-transform:uppercase; letter-spacing:.4px; color:#bac2de; }
     #colMenu .menuHead button { font-size:11px; padding:3px 8px; font-weight:400; }
+    #colMenu .menuHead.sub { justify-content:flex-end; border-bottom:none; padding-bottom:0; margin-bottom:0; }
+    #colMenu .menuHead.sub button { text-transform:none; letter-spacing:0; color:var(--accent);
+      border:1px solid var(--line); border-radius:6px; }
     #colSearch, #mapSearch { width:100%; background:#11111b; color:var(--text); border:1px solid var(--line);
       border-radius:6px; padding:6px 9px; font-size:12px; outline:none; }
     #colSearch:focus, #mapSearch:focus { border-color:#89b4fa; }
@@ -330,6 +332,7 @@
       <button id="colsBtn" data-tip="Choose which columns are shown">Columns</button>
       <div id="colMenu" class="hidden">
         <div class="menuHead"><span>Visible columns</span><button id="showAllCols">Show all</button></div>
+        <div class="menuHead sub"><button id="resetColWidthsBtn">Reset widths</button></div>
         <input id="colSearch" placeholder="Search columns…">
         <div id="colList"></div>
       </div>
