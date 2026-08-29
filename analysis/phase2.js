@@ -9,6 +9,8 @@
  * @property {string} openedAtUtcRaw raw opened_at string in UTC (no suffix)
  */
 
+import { parseSnDisplayMs } from "../lib/sntime.js";
+
 function parseUtc(s) {
   if (!s) return NaN;
   const str = String(s).trim().replace(" ", "T");
@@ -262,26 +264,6 @@ const ACTIVITY_ANCHORS = [
   { field: "assigned_to", labels: ["assigned to"] },
   { field: "state", labels: ["state", "incident state"] }
 ];
-
-function pmHour(h, ap) {
-  if (/p/i.test(ap || "") && h < 12) return h + 12;
-  if (/a/i.test(ap || "") && h === 12) return 0;
-  return h;
-}
-
-function parseSnDisplayMs(s) {
-  const str = String(s || "").trim();
-  let m = str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})[ T](\d{1,2}):(\d{2})(?::(\d{2}))?\s*([AaPp][Mm])?/);
-  if (!m) {
-    m = str.match(/^(\d{1,2})[-.](\d{1,2})[-.](\d{4})[ T](\d{1,2}):(\d{2})(?::(\d{2}))?\s*([AaPp][Mm])?/);
-    if (m) return Date.UTC(+m[3], +m[2] - 1, +m[1], pmHour(+m[4], m[7]), +m[5], +(m[6] || 0));
-    m = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})[ T](\d{1,2}):(\d{2})(?::(\d{2}))?\s*([AaPp][Mm])?/);
-    if (m) return Date.UTC(+m[3], +m[1] - 1, +m[2], pmHour(+m[4], m[7]), +m[5], +(m[6] || 0));
-    const p = Date.parse(str);
-    return Number.isFinite(p) ? p : NaN;
-  }
-  return Date.UTC(+m[1], +m[2] - 1, +m[3], pmHour(+m[4], m[7]), +m[5], +(m[6] || 0));
-}
 
 const ACTIVITY_DT_RE = /(\d{4}-\d{1,2}-\d{1,2}|\d{1,2}[-/.]\d{1,2}[-/.]\d{4}|\d{1,2}\/\d{1,2}\/\d{4})[ T](\d{1,2}:\d{2}(?::\d{2})?)\s*([AaPp][Mm])?/g;
 
