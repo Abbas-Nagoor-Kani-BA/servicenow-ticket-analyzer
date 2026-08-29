@@ -498,10 +498,5 @@ export {
   addCiUnique,
   focusGroupInput,
   commitCiInput,
-  dropCiItem,
-  mapWorking,
-  mapSelects,
-  popTargetFid,
-  ciDraft,
-  ciDragSrc
+  dropCiItem
 };

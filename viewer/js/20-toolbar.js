@@ -396,6 +396,5 @@ export {
   updateExportDots,
   pickTemplateFile,
   tplColumnsFromMap,
-  filledFilename,
-  tplInfo
+  filledFilename
 };
