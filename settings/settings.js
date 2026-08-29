@@ -1,4 +1,4 @@
-import { clearAll } from "../lib/cache.js";
+import { getDefaultDatabase } from "../data/idb.ts";
 import { MSR_DEFAULT_LISTS, mergeMsrLists } from "../lib/msrchoices.js";
 import { STORAGE, MSG } from "../lib/keys.ts";
 import { broadcast } from "../lib/storage.js";
@@ -125,7 +125,7 @@ chrome.storage.local.get([STORAGE.msrLists], ({ msrLists }) => {
 });
 $("clearCacheBtn").addEventListener("click", async () => {
   try {
-    await clearAll();
+    await getDefaultDatabase().clearAll();
     await chrome.storage.local.remove([STORAGE.lastRun, STORAGE.lastData]);
     broadcast({ type: MSG.dataUpdated });
     showToast("Pull cache and saved data cleared");

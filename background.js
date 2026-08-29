@@ -1,4 +1,3 @@
-import { ServiceNowClient } from "./lib/servicenow.js";
 import { buildEncodedQuery } from "./lib/querybuilder.js";
 import { snStateMap, SN_TABLE_LABELS } from "./lib/statechoices.js";
 import { STORAGE, MSG } from "./lib/keys.ts";
@@ -6,10 +5,15 @@ import { broadcast } from "./lib/storage.js";
 import { normalizeNames } from "./lib/names.js";
 import * as Analysis from "./analysis/phase2.js";
 import { analyzeAll } from "./analysis/phase2.js";
-import { setQueryTtlMinutes, isFreshQuery, timelineNeedsFetch, getQuery, putQuery, getTimelines, putTimelines } from "./lib/cache.js";
 import { mergeRows } from "./lib/rowmerge.js";
+import { createSmartTransport } from "./data/datasource/sn-transport.ts";
+import { createServiceNowRemote } from "./data/datasource/sn-remote.ts";
+import { SETTINGS_REPO, SN_REMOTE, TICKET_REPO, TIMELINE_REPO } from "./di/tokens.ts";
+import { createBackgroundContainer } from "./di/register-background.ts";
 
 globalThis.Analysis = Analysis;
+
+const rootContainer = createBackgroundContainer();
 
 chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {
 });
@@ -37,148 +41,61 @@ const DEFAULT_FIELDS = [
   "comments"
 ];
 let running = false;
-let tokenCache = null;
-const TOKEN_TTL_MS = 8 * 60 * 1e3;
-async function resolveToken(origin, tab, forceFresh = false) {
-  if (!forceFresh && tokenCache && Date.now() - tokenCache.at < TOKEN_TTL_MS) {
-    return tokenCache;
-  }
-  let token = await getCookieToken(origin);
-  let source = token ? "cookie" : null;
-  if (!token && tab?.id !== void 0) {
-    token = await getPageToken(tab.id);
-    source = token ? "page-injection" : null;
-  }
-  if (token) tokenCache = { value: token, source, at: Date.now() };
-  return { value: token, source };
-}
-async function findServiceNowTab(origin) {
-  try {
-    const tabs = await chrome.tabs.query({ url: `${origin}/*` });
-    return tabs.sort((a, b) => (b.lastAccessed || 0) - (a.lastAccessed || 0))[0] || null;
-  } catch {
-    return null;
-  }
-}
-function getCookieToken(origin) {
-  return new Promise((resolve) => {
-    try {
-      chrome.cookies.get({ url: origin, name: "g_ck" }, (c) => resolve(c?.value || null));
-    } catch {
-      resolve(null);
-    }
-  });
-}
-async function getPageToken(tabId) {
-  try {
-    const results = await chrome.scripting.executeScript({
-      target: { tabId },
-      world: "MAIN",
-      func: () => {
-        try {
-          return typeof window.g_ck === "string" && window.g_ck ? window.g_ck : null;
-        } catch {
-          return null;
-        }
-      }
-    });
-    return results?.[0]?.result || null;
-  } catch {
-    return null;
-  }
-}
-async function smartFetch(url, opts = {}) {
-  const attempt = opts.attempt || 0;
-  const origin = new URL(url).origin;
-  const tab = await findServiceNowTab(origin);
-  if (!tab) {
-    return {
-      ok: false,
-      error: `No open tab found for ${origin}. Open your ServiceNow instance in a browser tab, log in, and keep it open while using the analyzer.`
-    };
-  }
-  const { value: token, source } = await resolveToken(origin, tab, attempt > 0);
-  try {
-    const resp = await chrome.tabs.sendMessage(tab.id, { type: MSG.snFetch, url, token });
-    if (resp && resp.ok) {
-      if (resp.status === 401 && attempt < 2) {
-        tokenCache = null;
-        await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
-        return smartFetch(url, { ...opts, attempt: attempt + 1 });
-      }
-      return {
-        ok: true,
-        status: resp.status,
-        text: resp.text,
-        headers: resp.headers,
-        via: "relay",
-        hadToken: Boolean(resp.tokenFound),
-        tokenSource: source
-      };
-    }
-  } catch {
-  }
-  const headers = { "Accept": "application/json" };
-  if (token) headers["X-UserToken"] = token;
-  try {
-    const res = await fetch(url, { method: "GET", credentials: "include", headers });
-    const text = await res.text();
-    const responseHeaders = {};
-    res.headers.forEach((v, k) => {
-      responseHeaders[k] = v;
-    });
-    if (res.status === 401 && token && attempt < 2) {
-      tokenCache = null;
-      await new Promise((r) => setTimeout(r, 800 * (attempt + 1)));
-      return smartFetch(url, { attempt: attempt + 1 });
-    }
-    return { ok: true, status: res.status, text, headers: responseHeaders, via: "direct", hadToken: Boolean(token), tokenSource: source };
-  } catch (err) {
-    return { ok: false, error: String(err), via: "direct", hadToken: Boolean(token) };
-  }
-}
 function diagError(type, err) {
   try {
     progress("diag", `${type} failed: ${err.message}`);
   } catch {
   }
 }
-function makeClient(instanceUrl) {
-  const client = new ServiceNowClient(instanceUrl, {
-    transport: smartFetch,
-    onDiagnostic: (d) => {
-      const ms = typeof d.ms === "number" ? ` \xB7 ${d.ms}ms` : "";
-      if (d.kind === "warn") {
-        if (d.note) {
-          progress("diag", `${d.path || "audit"} \u26A0 ${d.note}`);
-          return;
-        }
-        if (d.rateLimited) {
-          progress("diag", `\u26A0 RATE LIMITED \u2014 ServiceNow is throttling requests; auto-retrying (${d.attempt}/${4}). If this repeats, reduce tickets per run or ask your admin about rate-limit rules.`);
-          return;
-        }
-        const why = d.netError ? `network: ${d.netError}` : `server ${d.status}`;
-        progress("diag", `${d.path} \u2715 ${why} \xB7 retrying (${d.attempt}/${4})${ms} \xB7 q=${d.query || ""}`);
-        return;
-      }
-      if (d.kind === "err") {
-        progress("diag", `${d.path} \u2192 HTTP ${d.status}${ms}${d.retriesExhausted ? " \xB7 retries exhausted" : ""} \xB7 q=${d.query || ""}`);
-        return;
-      }
-      const token = d.hadToken === null || d.hadToken === void 0 ? "" : ` \xB7 token=${d.hadToken ? d.tokenSource || "sent" : "MISSING"}`;
-      const rows = d.bodyRows !== void 0 && d.bodyRows !== null ? ` \xB7 result=${d.bodyRows}` : "";
-      const preview = d.bodyPreview ? ` \xB7 body=${d.bodyPreview}` : "";
-      progress("diag", `${d.path} \u2192 ${d.status}${ms} \xB7 via=${d.via}${token}${rows} \xB7 q=${d.query || ""}${preview}`);
+function onDiagnostic(d) {
+  const ms = typeof d.ms === "number" ? ` \xB7 ${d.ms}ms` : "";
+  if (d.kind === "warn") {
+    if (d.note) {
+      progress("diag", `${d.path || "audit"} \u26A0 ${d.note}`);
+      return;
     }
-  });
-  return chrome.storage.local.get(STORAGE.pluginSettings).then(({ pluginSettings: s }) => {
-    if (s?.params) {
-      client.pageSize = clampNum(s.params.tablePageSize, 100, 5e3) || client.pageSize;
-      client.debugResponses = !!s.params.debugResponses;
-      setQueryTtlMinutes(s.params.cacheTtlMinutes);
+    if (d.rateLimited) {
+      progress("diag", `\u26A0 RATE LIMITED \u2014 ServiceNow is throttling requests; auto-retrying (${d.attempt}/${4}). If this repeats, reduce tickets per run or ask your admin about rate-limit rules.`);
+      return;
     }
-    return client;
-  });
+    const why = d.netError ? `network: ${d.netError}` : `server ${d.status}`;
+    progress("diag", `${d.path} \u2715 ${why} \xB7 retrying (${d.attempt}/${4})${ms} \xB7 q=${d.query || ""}`);
+    return;
+  }
+  if (d.kind === "err") {
+    progress("diag", `${d.path} \u2192 HTTP ${d.status}${ms}${d.retriesExhausted ? " \xB7 retries exhausted" : ""} \xB7 q=${d.query || ""}`);
+    return;
+  }
+  const token = d.hadToken === null || d.hadToken === void 0 ? "" : ` \xB7 token=${d.hadToken ? d.tokenSource || "sent" : "MISSING"}`;
+  const rows = d.bodyRows !== void 0 && d.bodyRows !== null ? ` \xB7 result=${d.bodyRows}` : "";
+  const preview = d.bodyPreview ? ` \xB7 body=${d.bodyPreview}` : "";
+  progress("diag", `${d.path} \u2192 ${d.status}${ms} \xB7 via=${d.via}${token}${rows} \xB7 q=${d.query || ""}${preview}`);
+}
+
+/**
+ * Builds a per-run container: one ServiceNow remote bound to `instanceUrl`,
+ * plus the cache-backed repositories that read through it.
+ *
+ * The remote is registered on a child rather than the root because it is
+ * request-specific; the repositories cache the resolved instance per
+ * container, so a child also keeps one run from reusing another's wiring.
+ */
+async function makeRunContainer(instanceUrl) {
+  const settings = await rootContainer.resolve(SETTINGS_REPO).load();
+  const params = settings?.params || {};
+
+  const child = rootContainer.child();
+  child.registerValue(
+    SN_REMOTE,
+    createServiceNowRemote(instanceUrl, createSmartTransport(), {
+      pageSize: clampNum(params.tablePageSize, 100, 5e3) || undefined,
+      debugResponses: !!params.debugResponses,
+      onDiagnostic
+    })
+  );
+
+  child.resolve(TICKET_REPO).setQueryTtlMinutes(params.cacheTtlMinutes);
+  return child;
 }
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === MSG.ping) {
@@ -220,27 +137,27 @@ function groupScopeOf(groupNames) {
 }
 /** @param {import("./types/global.d.ts").MsgCount} msg */
 async function handleCount(msg) {
-  const table = msg.filters?.table || "incident";
-  const client = await makeClient(msg.instanceUrl);
+  const table = String(msg.filters?.table || "incident");
+  const container = await makeRunContainer(msg.instanceUrl);
   const groups = scopeGroups(msg);
   const { memberSysIds: _drop, ...filters } = msg.filters || {};
   const encodedQuery = buildEncodedQuery({ ...filters, ...groupScopeOf(groups) });
-  const total = await client.count(table, encodedQuery);
-  const s = (await chrome.storage.local.get(STORAGE.pluginSettings)).pluginSettings;
-  const limit = clampNum(s?.params?.maxTicketsPerPull, 0, 1e5) ?? 0;
+  const total = await container.resolve(TICKET_REPO).count(table, encodedQuery);
+  const settings = await rootContainer.resolve(SETTINGS_REPO).load();
+  const limit = clampNum(settings?.params?.maxTicketsPerPull, 0, 1e5) ?? 0;
   return { ok: true, total, encodedQuery, limit };
 }
 function progress(stage, detail, extra = {}) {
   broadcast({ type: MSG.progress, stage, detail, ...extra });
 }
 
-async function processFilterSet(client, set, index, totalSets, groupScope, fields, maxTickets, abortSignal) {
+async function processFilterSet(tickets, set, index, totalSets, groupScope, fields, maxTickets, abortSignal) {
   const table = set.table || "incident";
   const label = `Filter ${index + 1}/${totalSets}`;
   const { memberSysIds: _drop, ...rest } = set;
   const encodedQuery = buildEncodedQuery({ ...rest, ...groupScope });
   progress("count", `${label}: counting...`);
-  const total = await client.count(table, encodedQuery);
+  const total = await tickets.count(table, encodedQuery);
   progress("count", `${label}: ${total} tickets matched`);
   if (maxTickets > 0 && total > maxTickets) {
     progress("limit", `${label}: LIMIT \u2014 ${total} tickets match but the maximum is ${maxTickets} (Settings). Set skipped \u2014 narrow the filter or raise the limit`);
@@ -249,55 +166,56 @@ async function processFilterSet(client, set, index, totalSets, groupScope, field
   if (total === 0) {
     return { table, query: encodedQuery, pulled: 0, planned: 0, pulledDelta: 0, records: null };
   }
-  let records;
-  let cachedEntry = null;
-  const cachedHit = await getQuery(table, encodedQuery).catch(() => null);
-  if (isFreshQuery(cachedHit)) {
-    records = cachedHit.records;
-    cachedEntry = cachedHit;
-    const ageMin = Math.max(1, Math.round((Date.now() - cachedHit.at) / 6e4));
+  progress("phase1", `${label}: pulling ${total} tickets...`);
+  const { records, source, cachedAt } = await tickets.list({
+    table,
+    encodedQuery,
+    fields,
+    signal: abortSignal,
+    onProgress: (p) => progress("phase1", `${label}: phase1 ${p.fetched}/${total} tickets`)
+  });
+  if (source === "cache") {
+    const ageMin = Math.max(1, Math.round((Date.now() - (cachedAt || Date.now())) / 6e4));
     progress("phase1", `${label}: CACHE HIT \u2014 reused ${records.length} tickets from ${ageMin} min ago (no API calls)`);
-  } else {
-    progress("phase1", `${label}: pulling ${total} tickets...`);
-    records = await client.fetchAllRecords(table, encodedQuery, fields, (p) => {
-      progress("phase1", `${label}: phase1 ${p.fetched}/${total} tickets`);
-    }, abortSignal, total);
-    await putQuery(table, encodedQuery, records).catch(() => {});
   }
-  return { table, query: encodedQuery, pulled: records.length, cached: !!cachedEntry, cacheAt: cachedEntry?.at || null, planned: total, pulledDelta: records.length, records };
+  return {
+    table,
+    query: encodedQuery,
+    pulled: records.length,
+    cached: source === "cache",
+    cacheAt: cachedAt || null,
+    planned: total,
+    pulledDelta: records.length,
+    records
+  };
 }
 
-async function fetchTimelines(client, records, table, abortSignal, membersByQueue, teamNames) {
+async function fetchTimelines(timelines, records, table, abortSignal, membersByQueue, teamNames) {
   const tLabel = SN_TABLE_LABELS[table] || table;
   const sysIds = records.map((r) => r.sys_id?.value || r.sys_id).filter(Boolean);
   progress("phase2", `Phase 2 (${tLabel}): activity feed for ${sysIds.length} tickets...`);
-  const updatedOnById = new Map(records.map((r) => [r.sys_id?.value || r.sys_id, r.sys_updated_on?.value || r.sys_updated_on || ""]));
+
+  const tickets = records
+    .map((r) => ({
+      sysId: String(r.sys_id?.value || r.sys_id || ""),
+      updatedOn: String(r.sys_updated_on?.value || r.sys_updated_on || "")
+    }))
+    .filter((t) => t.sysId);
+
+  const { events: cachedEvents, reused } = await timelines.getMany({
+    table,
+    tickets,
+    signal: abortSignal,
+    onProgress: (p) => progress("phase2", `Phase 2 (${tLabel}): activity ticket ${p.ticketsDone}/${p.total}`)
+  });
+
   const eventsByTicket = {};
-  const needFetch = [];
-  try {
-    const cachedTl = await getTimelines(table, sysIds);
-    for (const id of sysIds) {
-      const e = cachedTl.get(id);
-      if (!timelineNeedsFetch(e, updatedOnById.get(id))) {
-        if (e.events.length) eventsByTicket[id] = e.events;
-      } else {
-        needFetch.push(id);
-      }
-    }
-    if (sysIds.length - needFetch.length > 0) {
-      progress("phase2", `Phase 2 (${tLabel}): ${sysIds.length - needFetch.length}/${sysIds.length} timelines reused from cache`);
-    }
-  } catch {
+  for (const [sysId, events] of cachedEvents) eventsByTicket[sysId] = events;
+
+  if (reused) {
+    progress("phase2", `Phase 2 (${tLabel}): ${reused}/${sysIds.length} timelines reused from cache`);
   }
-  if (needFetch.length) {
-    const fetched = await client.fetchTimelineEvents(needFetch, [], (p) => progress("phase2", `Phase 2 (${tLabel}): activity ticket ${p.ticketsDone}/${needFetch.length}`), abortSignal, table);
-    Object.assign(eventsByTicket, fetched);
-    await putTimelines(table, needFetch.map((id) => ({
-      sysId: id,
-      updatedAt: updatedOnById.get(id) || "",
-      events: fetched[id] || []
-    }))).catch(() => {});
-  }
+
   const auditCount = Object.keys(eventsByTicket).length;
   const sampleAuditRows = Object.entries(eventsByTicket).slice(0, 3).map(([k, v]) => ({ sysId: k.slice(0, 8), rows: v.length }));
   progress("analyze", `Applying timeline rules (${tLabel})...`);
@@ -369,13 +287,13 @@ async function resolveRunSettings(msg) {
   return { groups, groupScope, teamNames, membersByQueue, maxTickets };
 }
 
-async function pullFilterSets(client, sets, groupScope, fields, maxTickets, signal) {
+async function pullFilterSets(tickets, sets, groupScope, fields, maxTickets, signal) {
   const byTable = /* @__PURE__ */ new Map();
   const runEntries = [];
   let plannedSum = 0;
   let pulledDone = 0;
   for (let i = 0; i < sets.length; i++) {
-    const result = await processFilterSet(client, sets[i], i, sets.length, groupScope, fields, maxTickets, signal);
+    const result = await processFilterSet(tickets, sets[i], i, sets.length, groupScope, fields, maxTickets, signal);
     plannedSum += result.planned;
     if (!result.records) {
       runEntries.push({ table: result.table, query: result.query, pulled: result.pulled, skippedLimit: result.skippedLimit || false, matched: result.matched });
@@ -398,7 +316,7 @@ async function pullFilterSets(client, sets, groupScope, fields, maxTickets, sign
   return { byTable, runEntries, plannedSum };
 }
 
-async function fetchAllTimelines(client, byTable, signal, membersByQueue, teamNames) {
+async function fetchAllTimelines(timelines, byTable, signal, membersByQueue, teamNames) {
   const allRows = [];
   let missingAuditTotal = 0;
   const auditCounts = {};
@@ -407,7 +325,7 @@ async function fetchAllTimelines(client, byTable, signal, membersByQueue, teamNa
   for (const [table, bucket] of byTable) {
     const records = [...bucket.values()];
     if (!records.length) continue;
-    const tl = await fetchTimelines(client, records, table, signal, membersByQueue, teamNames);
+    const tl = await fetchTimelines(timelines, records, table, signal, membersByQueue, teamNames);
     auditCounts[table] = tl.auditCount;
     if (!sampleRecord) sampleRecord = tl.sampleRecord;
     if (!sampleAuditRows.length) sampleAuditRows.push(...tl.sampleAuditRows);
@@ -423,11 +341,13 @@ async function runPull(msg) {
   running = true;
   const abort = new AbortController();
   try {
-    const client = await makeClient(msg.instanceUrl);
+    const container = await makeRunContainer(msg.instanceUrl);
+    const tickets = container.resolve(TICKET_REPO);
+    const timelines = container.resolve(TIMELINE_REPO);
     const { groups, groupScope, membersByQueue, teamNames, maxTickets } = await resolveRunSettings(msg);
     const sets = Array.isArray(msg.filterSets) && msg.filterSets.length ? msg.filterSets : [msg.filters || {}];
-    const { byTable, runEntries, plannedSum } = await pullFilterSets(client, sets, groupScope, msg.fields || DEFAULT_FIELDS, maxTickets, abort.signal);
-    const { rows, missingAudit, auditCounts, sampleAuditRows, sampleRecord } = await fetchAllTimelines(client, byTable, abort.signal, membersByQueue, teamNames);
+    const { byTable, runEntries, plannedSum } = await pullFilterSets(tickets, sets, groupScope, msg.fields || DEFAULT_FIELDS, maxTickets, abort.signal);
+    const { rows, missingAudit, auditCounts, sampleAuditRows, sampleRecord } = await fetchAllTimelines(timelines, byTable, abort.signal, membersByQueue, teamNames);
     if (!rows.length) throw new Error("No tickets match this filter list");
     await persistResults(rows, runEntries, missingAudit, auditCounts, sampleAuditRows, sampleRecord, msg, groups, plannedSum);
   } catch (err) {

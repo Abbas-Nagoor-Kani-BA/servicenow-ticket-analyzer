@@ -70,7 +70,51 @@ Baseline before starting: typecheck **0 errors**, lint **1 warning**
 
 ---
 
-## Phase 1 — Repositories (no UI change)
+## Phase 1b — Remote repositories — COMPLETE
+
+**Result: gate green — typecheck 0 errors, lint 0 errors, 119/119 tests, build OK.**
+
+- [x] `data/idb.ts` — IndexedDB wrapper (`createIdbDatabase`) + `createMemoryDatabase` + `getDefaultDatabase`
+- [x] `data/datasource/sn-transport.ts` — `smartFetch`, `resolveToken`, `findServiceNowTab`, cookie/page token probes (moved out of `background.js`)
+- [x] `data/datasource/sn-remote.ts` — `SnRemote` interface, `ServiceNowRemote` adapter, `FakeSnRemote`
+- [x] `data/repositories/ticket-repository.ts` — cache-aside moved out of `background.js:254-266`
+- [x] `data/repositories/timeline-repository.ts` — cache-aside moved out of `background.js:277-300`
+- [x] `di/register-background.ts` — `createBackgroundContainer()`; `SN_REMOTE` registered per run on a `child()`
+- [x] `background.js` — `makeClient` replaced by `makeRunContainer`; `processFilterSet` / `fetchTimelines` now take repositories
+- [x] Delete `lib/cache.js` (superseded); `settings.js` clears via `getDefaultDatabase()`
+- [x] Delete `tools/cache-test.js` — its assertions were ported into `tools/pull-cache-test.ts`
+- [x] Add `fake-indexeddb`; `tools/idb-test.ts` covers the real IndexedDB path
+
+### Notes
+
+- No `data/repositories/fakes/` directory was needed. `createMemoryKeyValueStore()`
+  and `createMemoryDatabase()` cover the local repositories, and `FakeSnRemote`
+  covers the remote — so no test mocks an extension API at all.
+- `TimelineRepository.getMany` returns `{ events, reused, fetched }` rather than a
+  bare Map: the caller needs the reuse count for the progress line, and only the
+  repository knows which tickets it skipped.
+- `tsconfig.strict.json` sets `checkJs: false`. Without it the strict pass follows
+  imports into un-migrated `.js` and reports `noImplicitAny` errors from files that
+  have not been migrated yet. Strictness is opt-in per **TypeScript** file.
+
+### A real bug the IndexedDB tests caught
+
+`createIdbDatabase`'s transaction helper assigned `onsuccess` on whatever request
+the callback returned. For `deleteWhere` that clobbered the cursor's own
+`onsuccess`, so the cursor never advanced: **nothing was ever deleted and
+`purgeExpired` silently no-oped.** The in-memory database could not catch this.
+Verified by reintroducing the fix's inverse — 3 of the 8 new tests fail without it.
+
+---
+
+## Phase 1a — Local repositories — COMPLETE
+
+**Result: gate green — 102/102 tests.**
+
+- [x] `di/tokens.ts` — central token registry
+- [x] `data/key-value-store.ts` + `data/chrome-key-value-store.ts`
+- [x] `data/repositories/` — settings, dataset, run-state, export-config, viewer-prefs, template, filter-list
+- [x] `tools/repository-test.ts` — 9 tests
 
 **Goal:** establish the I/O boundary. Highest value, zero UI risk.
 
