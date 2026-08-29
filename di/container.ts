@@ -37,15 +37,23 @@ export class Container {
     return this;
   }
 
-  /** Registers a factory. `singleton: true` memoises the first result. */
+  /**
+   * Registers a factory. `singleton: true` memoises one instance **per
+   * container**, not globally: a child resolving an inherited singleton builds
+   * and caches its own, using the child's own overrides.
+   *
+   * Root-owned singletons would hand a child the parent's already-built
+   * instance, silently ignoring any override the child registered — which is
+   * exactly the fake-repository swap the container exists to enable.
+   */
   register<T>(t: Token<T>, factory: Provider<T>, opts: RegisterOptions = {}): this {
     if (!opts.singleton) {
       this.#providers.set(t, factory as Provider<unknown>);
       return this;
     }
-    this.#providers.set(t, (c) => {
-      if (!this.#singletons.has(t)) this.#singletons.set(t, factory(c));
-      return this.#singletons.get(t) as T;
+    this.#providers.set(t, (root) => {
+      if (!root.#singletons.has(t)) root.#singletons.set(t, factory(root));
+      return root.#singletons.get(t) as T;
     });
     return this;
   }
