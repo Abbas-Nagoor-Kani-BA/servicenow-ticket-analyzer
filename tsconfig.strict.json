@@ -37,6 +37,10 @@
     "components/progress-card.ts",
     "components/condition-builder.ts",
     "components/filter-set-list.ts",
-    "surfaces/panel/index.ts"
+    "surfaces/panel/index.ts",
+    "components/chip-list.ts",
+    "surfaces/settings/index.ts",
+    "services/settings-service.ts",
+    "data/repositories/msr-lists-repository.ts"
   ]
 }

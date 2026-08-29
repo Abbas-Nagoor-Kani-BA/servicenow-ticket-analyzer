@@ -219,6 +219,35 @@ still the input after two input events.
 
 ---
 
+## Phase 4a — Settings components — COMPLETE
+
+**Result: gate green — typecheck 0 errors, lint 0 errors, 157/157 tests, build OK.**
+
+- [x] `components/chip-list.ts` — `settings/chips.js` converted from a factory to
+      a `Component` subclass; `settings/chips.js` deleted
+- [x] `services/settings-service.ts` — `normaliseSettings()` (pure), load/save/reset
+- [x] `data/repositories/msr-lists-repository.ts` + `MSR_LISTS_REPO` token
+- [x] `surfaces/settings/index.ts` — composition root owning every chip list
+- [x] `tools/settings-service-test.ts` — 12 tests; the 15 chip tests now run
+      against the class rather than the factory
+
+### Notes
+
+- `splitTerms` moved from `settings/chips.js` to `lib/names.js`. A component
+  depending on a surface would have inverted the layering.
+- `ChipList.setValues()` normalises on the way in — legacy `{name, sysId}`
+  objects collapse to their name and duplicates drop case-insensitively. This
+  was in the factory and was lost on the first pass of the class; the chip tests
+  caught it.
+- `normaliseSettings` preserves a subtlety: an **empty** cache-TTL field means
+  `0` (caching disabled), not the 15-minute default. `Number("")` is `0`, which
+  is finite, so it does not hit the fallback branch. A test now pins this.
+- `settings.js` still owns the backup/import-export handlers and the
+  clear-cache button. Those are I/O orchestration for a single button each and
+  were left alone.
+
+---
+
 ## Phase 3b — Filter list + panel composition root — COMPLETE
 
 **Result: gate green — typecheck 0 errors, lint 0 errors, 145/145 tests, build OK.**

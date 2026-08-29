@@ -4,6 +4,7 @@ import type { ConnectionService } from "../services/connection-service.ts";
 import type { PullService } from "../services/pull-service.ts";
 
 import type { IdbDatabase } from "../data/idb.ts";
+import type { MsrListsRepository } from "../data/repositories/msr-lists-repository.ts";
 import type { SnRemote } from "../data/datasource/sn-remote.ts";
 import type { KeyValueStore } from "../data/key-value-store.ts";
 import type { DatasetRepository, Notifier, TicketRow } from "../data/repositories/dataset-repository.ts";
@@ -59,6 +60,7 @@ export const EXPORT_CONFIG_REPO = token<ExportConfigRepository>("export-config-r
 export const VIEWER_PREFS_REPO = token<ViewerPrefsRepository>("viewer-prefs-repo");
 export const TEMPLATE_REPO = token<TemplateRepository>("template-repo");
 export const FILTER_LIST_REPO = token<FilterListRepository>("filter-list-repo");
+export const MSR_LISTS_REPO = token<MsrListsRepository>("msr-lists-repo");
 
 // Repositories — IndexedDB cache + ServiceNow remote (service worker only)
 export const TICKET_REPO = token<TicketRepository>("ticket-repo");
