@@ -1,5 +1,5 @@
 import * as MsrChoices from "../../lib/msrchoices.js";
-import { placePopupNear } from "../../lib/markup.js";
+import { CELL_MAX, cellShort, placePopupNear } from "../../lib/markup.js";
 import { uiStore, setMsrLists, getMsrLists } from "./00-store.js";
 
 
@@ -44,12 +44,6 @@ function hideStore() { return uiStore.getState().hiddenCols; }
 
 function visibleCols() {
   return COLUMNS.filter(([key]) => !hideStore().has(key));
-}
-
-// Max characters shown in a cell before truncating (full text in tooltip).
-const CELL_MAX = 60;
-function cellShort(text) {
-  return text.length > CELL_MAX ? text.slice(0, CELL_MAX).trimEnd() + "…" : text;
 }
 
 function columnOptionList(key, row) {

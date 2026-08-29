@@ -219,6 +219,44 @@ still the input after two input events.
 
 ---
 
+## Phase 4c — Viewer: data grid component — COMPLETE
+
+**Result: gate green — typecheck 0 errors, lint 0 errors, 184/184 tests, build OK.**
+
+- [x] `components/data-grid.ts` — owns the table DOM: header, rows, footer
+- [x] `viewer/js/30-grid.js` 333 → 219 lines; keeps the data store, save
+      pipeline and `fmtInstant`, delegates all DOM to the component
+- [x] `tools/data-grid-test.ts` — 15 component-level tests
+- [x] `cellShort` moved from `viewer/js/00-core.js` to `lib/markup.js`
+
+`30-grid.js` is still the hub ten modules import from, and its export list is
+unchanged. That was deliberate: converting the module wholesale would have meant
+touching every one of those importers at once, in the file that carries the
+timezone and export invariants. The DOM moved; the data contract did not.
+
+### Three bugs the component tests caught that the viewer DOM test did not
+
+The 31 viewer DOM tests stayed green or near-green throughout, so each of these
+was found only by `data-grid-test.ts`:
+
+1. The table, `#count` and `#slaBar` are **siblings**, not nested. The component
+   initially used `q()` (root-scoped lookup) against `#wrap` and threw
+   "missing required element". They now arrive as `deps`, like the log modal.
+2. `refreshHead()` read widths from its own state, which is stale the moment a
+   caller changes a width. It now takes them explicitly.
+3. `colWidthOf()` read the component state while `buildHead()` had been given an
+   override — so persisted widths were ignored. Widths are now threaded through.
+
+### A coupling worth knowing
+
+The grid passes `fmtInstant` **into** `buildReport`, which uses it to normalise
+dates. So the formatter does not only affect displayed text — a non-identity one
+changes derived SLA results. That predates this change, but it is easy to trip
+over: the first version of the data-grid tests used a `fmt:`-prefixing formatter
+and the SLA breach marker silently disappeared.
+
+---
+
 ## Phase 4b — Viewer: shared search picker — COMPLETE
 
 **Result: gate green — typecheck 0 errors, lint 0 errors, 169/169 tests, build OK.**

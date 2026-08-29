@@ -1,11 +1,10 @@
 import { detectSnOffsetMs, rowOffsetMs } from "../../lib/sntime.js";
 import { extractHeuristic } from "../../analysis/aiextract.js";
-import { buildReport } from "../../analysis/report.js";
 import { STORAGE } from "../../lib/keys.ts";
 import { pad2 } from "../../lib/format.js";
 import { showToast } from "../../lib/toast.js";
-import { setTip } from "../../lib/tooltip.js";
-import { $, cellShort, columnOptionList, migrateLegacyResolutions, setStatus, visibleCols } from "./00-core.js";
+import { $, columnOptionList, migrateLegacyResolutions, setStatus, visibleCols } from "./00-core.js";
+import { DataGrid } from "../../components/data-grid.ts";
 import { currentRows, hasDataRows, parseLocalInput } from "./03-grid-data.js";
 import { dataStore, getColWidths, saveColWidths, setColWidths, setSelfPush } from "./00-store.js";
 import { attachSummaryToData, renderSummary, setRowsProvider } from "./16-summary.js";
@@ -49,91 +48,11 @@ function load(d) {
       "No timeline events found for any pulled ticket. Common causes: (1) the activity feed returned nothing - open a ticket's form in this instance's tab and check its Activity section renders field changes; (2) tickets were never updated through the platform; (3) list_history.do is blocked on this release. Timeline columns stay empty without feed events.";
     $("tabs").before(warn);
   }
-  buildHead();
   render();
   selHooks.restorePending();
   selHooks.ensureDefault();
   if (attachSummaryToData(data)) scheduleSave();
   renderSummary();
-}
-
-const MIN_COL_W = 40;
-let resizeState = null;
-
-function colWidthOf(key, defaultW) {
-  const w = getColWidths()[key];
-  return Number.isFinite(w) && w > 0 ? w : (defaultW || 170);
-}
-
-function buildHead() {
-  const { sortKey, sortDir } = st();
-  const table = $("tbl");
-  let colgroup = table.querySelector("colgroup");
-  if (!colgroup) {
-    colgroup = document.createElement("colgroup");
-    table.prepend(colgroup);
-  }
-  colgroup.innerHTML = "";
-  const cols = visibleCols();
-  const colEls = [];
-  for (const col of cols) {
-    const el = document.createElement("col");
-    el.style.width = `${colWidthOf(col[0], col[3])}px`;
-    colgroup.appendChild(el);
-    colEls.push(el);
-  }
-  const thead = table.tHead;
-  thead.innerHTML = "";
-  const tr = document.createElement("tr");
-  cols.forEach(([key, label], i) => {
-    const th = document.createElement("th");
-    th.textContent = label;
-    const rz = document.createElement("span");
-    rz.className = "colResize";
-    rz.addEventListener("pointerdown", e => {
-      e.preventDefault();
-      e.stopPropagation();
-      rz.classList.add("active");
-      resizeState = { key, colEl: colEls[i], startX: e.clientX, startW: colWidthOf(key, cols[i][3]) };
-      try { rz.setPointerCapture(e.pointerId); } catch {}
-    });
-    rz.addEventListener("pointermove", e => {
-      if (!resizeState || resizeState.key !== key) return;
-      const w = Math.max(MIN_COL_W, resizeState.startW + (e.clientX - resizeState.startX));
-      resizeState.colEl.style.width = `${w}px`;
-    });
-    rz.addEventListener("pointerup", () => {
-      if (!resizeState || resizeState.key !== key) return;
-      const w = parseFloat(resizeState.colEl.style.width) || resizeState.startW;
-      resizeState = null;
-      rz.classList.remove("active");
-      const widths = { ...getColWidths(), [key]: w };
-      setColWidths(widths);
-      saveColWidths();
-    });
-    rz.addEventListener("pointercancel", () => {
-      if (resizeState && resizeState.key === key) resizeState = null;
-      rz.classList.remove("active");
-    });
-    rz.addEventListener("click", e => e.stopPropagation());
-    th.appendChild(rz);
-    if (key === sortKey) th.classList.add("sorted", ...(sortDir === -1 ? ["desc"] : []));
-    th.addEventListener("click", () => {
-      if (sortKey === key) dataStore.setState({ sortDir: -sortDir });
-      else dataStore.setState({ sortKey: key, sortDir: 1 });
-      buildHead();
-      render();
-    });
-    tr.appendChild(th);
-  });
-  thead.appendChild(tr);
-}
-
-function resetColWidths() {
-  setColWidths({});
-  saveColWidths();
-  buildHead();
-  render();
 }
 
 function formatWallClock(d) {
@@ -150,89 +69,54 @@ function fmtInstant(utcIso, row) {
   return formatWallClock(local);
 }
 
-function buildTableRows(rows, cols, fmtInstant) {
-  const frag = document.createDocumentFragment();
-  const breachCounts = { r: 0, m: 0, rm: 0 };
-  const typeCounts = {};
-  for (const row of rows) {
-    const tr = document.createElement("tr");
-    tr.dataset.sysId = String(row.sysId ?? "");
-    const rep = buildReport(row, fmtInstant);
-    const num = String(row.number ?? "");
-    if (num) typeCounts[rep.type || "Other"] = (typeCounts[rep.type || "Other"] || 0) + 1;
-    for (const [key, , cls] of cols) {
-      const td = document.createElement("td");
-      if (cls) td.className = cls;
-      let v;
-      if (key.startsWith("rep:")) {
-        v = rep[key.slice(4)] ?? "";
-      } else {
-        if (key !== "number") td.classList.add("editable");
-        else td.classList.add("numLink");
-        v = row[key];
-        if (cls === "inst") v = fmtInstant(v, row);
-        if ((cls === "time" || cls === "inst") && !v) td.classList.add("empty-time");
-      }
-      const text = v === null || v === undefined ? "" : String(v);
-      td.textContent = cls ? text : cellShort(text);
-      setTip(td, text ? `${text}${td.classList.contains("editable") ? "\n— double-click to edit" : ""}` : "");
-      if (key === "number" && text.startsWith("INC")) {
-        const stt = String(row.state ?? "").toLowerCase();
-        if (stt.startsWith("close") || stt.startsWith("resolv")) {
-          const breach = rep.slaBreach;
-          if (breach) {
-            td.classList.add("sla-breach-" + breach.toLowerCase());
-            for (const ch of breach) { const k = ch.toLowerCase(); if (k in breachCounts) breachCounts[k]++; }
-            const labels = [];
-            if (breach.includes("R")) labels.push("Response SLA");
-            if (breach.includes("M")) labels.push("Resolution SLA");
-            setTip(td, `⚠ SLA breached — ${labels.join(" & ")}\n\n${td.getAttribute("data-tip") ?? ""}`, "tip-warn");
-          }
-        }
-      }
-      if (row.parseReview && (key === "solutionType" || key === "rootCause") && text) {
-        td.classList.add("review");
-        setTip(td, `⚠ Low-confidence parse — please verify\n\n${td.getAttribute("data-tip") ?? ""}`, "tip-warn");
-      }
-      const opts = td.classList.contains("editable") && text ? columnOptionList(key, row) : null;
-      if (opts && opts.length && !opts.some(o => o.toLowerCase() === text.toLowerCase())) {
-        td.classList.add("offlist");
-        setTip(td, `Value not in the MSR option list\n\n${td.getAttribute("data-tip") ?? ""}`, "tip-warn");
-      }
-      tr.appendChild(td);
-    }
-    frag.appendChild(tr);
+const grid = new DataGrid($("wrap"), {}, {
+  table: $("tbl"),
+  count: $("count"),
+  slaBar: $("slaBar"),
+  fmtInstant,
+  columnOptions: (key, row) => columnOptionList(key, row),
+  onSort: (key) => {
+    const { sortKey, sortDir } = st();
+    if (sortKey === key) dataStore.setState({ sortDir: -sortDir });
+    else dataStore.setState({ sortKey: key, sortDir: 1 });
+    render();
+  },
+  onWidthsChange: (widths) => {
+    setColWidths(widths);
+    saveColWidths();
+  },
+  afterRender: () => {
+    selHooks.highlight();
+    renderSummary();
   }
-  return { frag, breachCounts, typeCounts };
+});
+
+function gridState(rows) {
+  const { data, sortKey, sortDir } = st();
+  return {
+    cols: visibleCols(),
+    rows,
+    total: data ? data.rows.length : 0,
+    sortKey,
+    sortDir,
+    colWidths: getColWidths()
+  };
 }
 
-function updateFooter(data, rows, typeCounts, breachCounts) {
-  $("count").textContent = `${rows.length} / ${data.rows.length} tickets`;
-  const legend = $("slaBar");
-  const parts = [];
-  const typeKeys = Object.keys(typeCounts).sort();
-  for (const t of typeKeys) parts.push(`<b>${typeCounts[t]}</b> ${t}`);
-  const breachParts = [];
-  if (breachCounts.rm) breachParts.push(`<span class="slaDot rm"></span>${breachCounts.rm} both SLAs`);
-  if (breachCounts.r) breachParts.push(`<span class="slaDot r"></span>${breachCounts.r} response SLA`);
-  if (breachCounts.m) breachParts.push(`<span class="slaDot m"></span>${breachCounts.m} resolution SLA`);
-  if (breachParts.length) parts.push("SLA breached: " + breachParts.join(" · "));
-  if (parts.length) { legend.innerHTML = parts.join(" · "); legend.classList.remove("hidden"); }
-  else legend.classList.add("hidden");
+/** Rebuilds only the header. render() does this too; this is for callers that
+ *  change column visibility and then render separately. */
+function buildHead() {
+  grid.refreshHead(getColWidths());
+}
+
+function resetColWidths() {
+  setColWidths({});
+  saveColWidths();
+  render();
 }
 
 function render() {
-  const { data } = st();
-  if (document.querySelector("td.edit-input")) return;
-  const rows = currentRows();
-  const tbody = $("tbl").tBodies[0];
-  tbody.innerHTML = "";
-  const cols = visibleCols();
-  const { frag, breachCounts, typeCounts } = buildTableRows(rows, cols, fmtInstant);
-  tbody.appendChild(frag);
-  updateFooter(data, rows, typeCounts, breachCounts);
-  selHooks.highlight();
-  renderSummary();
+  grid.render(gridState(currentRows()));
 }
 
 function scheduleSave() {
