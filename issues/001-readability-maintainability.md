@@ -198,10 +198,14 @@ broken via a shared `viewer/js/05-config-state.js` (CI-split/export-config state
 accessors, with `20-toolbar` registering a refresh callback via `setOnConfigChange`).
 `25-dialogs` now imports the shared state and no longer imports `20-toolbar`.
 
-**Remaining known cycle (not part of this fix):** `30-grid ↔ 40-selection`
-(`30-grid.js:9` imports from `40-selection`; `40-selection.js:4` returns the favor),
-plus `40-selection → 15-clipboard → 10-exporter → 30-grid`. Works via live bindings
-but is the main patch of fragility left; see `docs/architecture.md` §1.
+**Also fixed 2026-08-29:** the third circular pair `30-grid ↔ 40-selection` was
+broken by moving the pure view accessors (`currentRows`, `hasDataRows`,
+`parseLocalInput`) into a leaf `viewer/js/03-grid-data.js` and having `30-grid`
+receive its selection operations (`highlight`, `clearUndo`, `restorePending`,
+`ensureDefault`) via `setSelectionHooks(...)`, which `40-selection` registers once
+at module load. `30-grid` no longer imports `40-selection` at all, so the longer
+`40-selection → 15-clipboard → 10-exporter → 30-grid` path is acyclic too.
+No known circular imports remain.
 **Action:** Move `buildHead`/`render`/`load` to a new `viewer/js/05-layout.js`
 or restructure so `00-core.js` doesn't import from `30-grid.js`.
 
@@ -304,6 +308,6 @@ No action needed.
 | File cleanup | 3 | **3/3 done** | All deleted |
 | Deduplication | 5 | 2/5 done | DEDUP-001, 003 fixed; 002/004/005 pending |
 | Function decomposition | 4 | **4/4 done** | All decomposed, all tests pass |
-| Architectural fixes | 3 | 2/3 done | ARCH-001 (both cycles) + ARCH-003 fixed; ARCH-002 (globalThis.Analysis) pending |
+| Architectural fixes | 3 | 3/3 done | ARCH-001 (all three cycles, incl. `30-grid ↔ 40-selection`) + ARCH-003 fixed; ARCH-002 (globalThis.Analysis) pending |
 | Consistency cleanup | 5 | **5/5 done** | All resolved or already documented |
 | Missing tests | 5 | 0/5 done | |

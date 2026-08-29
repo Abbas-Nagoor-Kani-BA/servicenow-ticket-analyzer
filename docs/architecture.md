@@ -30,9 +30,11 @@ then `boot()` wires the stores and renders. Dependency edges below (arrows =
 17-paste (leaf helpers)
 15-picker (MSR nested picker)
 
-30-grid (load, render, buildHead, fmtInstant, save pipeline)                  → 00-core, 00-store, 16-summary, 40-selection
-   ▲
-40-selection (range model, highlight, undo, fill)                             → 00-core, 00-store, 30-grid, 15-clipboard, 17-paste, 85-shared
+30-grid (load, render, buildHead, fmtInstant, save pipeline)                  → 00-core, 00-store, 16-summary, 03-grid-data
+    ▲
+40-selection (range model, highlight, undo, fill)                             → 00-core, 00-store, 30-grid, 03-grid-data, 15-clipboard, 17-paste, 85-shared
+    ▲
+03-grid-data (pure view accessors: currentRows, hasDataRows, parseLocalInput) → 00-core, 00-store
    ▲
 60-activity (activity pane)      → 00-core, 30-grid
    ▲
@@ -48,12 +50,9 @@ then `boot()` wires the stores and renders. Dependency edges below (arrows =
 ### Removed circular imports
 - `00-core ↔ 30-grid` — **broken** (was ARCH-001): the toolbar column/clear/reset wiring that needed `buildHead/load/render/resetColWidths` now lives in `05-cols.js`; `00-core` is a pure-helpers leaf.
 - `20-toolbar ↔ 25-dialogs` — **broken**: the CI-split + export-config **state** (with accessors) moved to `05-config-state.js`; `20-toolbar` registers its refresh callback via `setOnConfigChange(...)` so the state module never imports back.
+- `30-grid ↔ 40-selection` — **broken**: the pure view accessors (`currentRows`, `hasDataRows`, `parseLocalInput`) moved to `03-grid-data.js` (a leaf, so both `30-grid` and `40-selection` import it without cycling), and `30-grid` no longer imports `40-selection` at all — it receives the four selection operations (`highlight`, `clearUndo`, `restorePending`, `ensureDefault`) through `setSelectionHooks(...)`, which `40-selection` registers once at module load. The longer `40-selection → 15-clipboard → 10-exporter → 30-grid` path is now acyclic too, because `30-grid` no longer routes back into that subgraph. `30-grid` still re-exports `currentRows/hasDataRows/parseLocalInput` (imported from `03-grid-data`) so existing importers (`20-toolbar`, `70-editors`, `50-ticketpop`) keep working unchanged.
 
-### Known remaining cycle (not yet refactored)
-```
-30-grid ↔ 40-selection
-```
-`30-grid.js:9` imports `applySelHighlight, clearUndo, ensureDefaultSelection, restorePendingSel` from `40-selection`; `40-selection.js:4` imports `currentRows, hasDataRows, parseLocalInput, render, scheduleSave` from `30-grid`. Also `40-selection → 15-clipboard → 10-exporter → 30-grid` is a longer cycle. ES live bindings make these work, but they are the main patch of fragility left. Breaking them cleanly needs a shared "cell/layout" module and is a separate refactor.
+No known circular imports remain.
 
 ---
 
