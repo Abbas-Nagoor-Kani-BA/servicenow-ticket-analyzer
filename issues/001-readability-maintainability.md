@@ -52,7 +52,11 @@ code.
 
 ## Priority 3: Deduplication
 
-### DEDUP-001: `parseSnDisplayMs` + `pmHour` duplicated with inconsistent behavior
+### DEDUP-001: `parseSnDisplayMs` + `pmHour` duplicated with inconsistent behavior ~~FIXED~~
+
+**Fixed:** 2026-08-29 — local copy removed from `analysis/phase2.js`; imports the
+canonical `parseSnDisplayMs` from `lib/sntime.js`. Behavior preserved (`scanSnDateTime`
+checks `Number.isFinite`, which is false for both the old `NaN` and the canonical `null`).
 
 **Locations:**
 - `analysis/phase2.js:226-243` (local copy, returns `NaN` on failure)
@@ -64,7 +68,12 @@ Same function, different failure return values. Consumers must handle both
 **Action:** Remove the copy from `phase2.js`. Import from `lib/sntime.js`.
 Fix all callers to handle `null` (the canonical return).
 
-### DEDUP-002: `hmsToHours` duplicated
+### DEDUP-002: `hmsToHours` duplicated ~~WON'T FIX (semantics differ)~~
+
+**Deferred:** 2026-08-29 — the two copies have genuinely different behavior
+(`report.js` returns `0` for empty, `msrchoices.js` returns `NaN`; also differ on
+`parseInt` radix). Consolidating would change one caller's semantics. Left as-is;
+revisit only if both callers can agree on one behavior.
 
 **Locations:**
 - `analysis/report.js:31-35`
@@ -166,7 +175,10 @@ All four items decomposed on 2026-08-27. All syntax checks and 13 test suites pa
 
 ## Priority 5: Fix Architectural Issues
 
-### ARCH-001: Circular dependency between `00-core.js` and `30-grid.js`
+### ARCH-001: Circular dependency between `00-core.js` and `30-grid.js` ~~FIXED~~
+
+**Fixed:** 2026-08-29 — broken via new `viewer/js/05-cols.js` (toolbar column/
+clear/reset wiring moved out of `00-core`; see `docs/architecture.md`).
 
 `viewer/js/00-core.js:2` imports from `30-grid.js`:
 ```js
@@ -181,6 +193,15 @@ import { $, COLUMNS, cellShort, ... } from "./00-core.js";
 ES modules handle this via live bindings, but it makes the module graph
 fragile and hard to reason about.
 
+**Also fixed 2026-08-29:** the second circular pair `20-toolbar ↔ 25-dialogs` was
+broken via a shared `viewer/js/05-config-state.js` (CI-split/export-config state +
+accessors, with `20-toolbar` registering a refresh callback via `setOnConfigChange`).
+`25-dialogs` now imports the shared state and no longer imports `20-toolbar`.
+
+**Remaining known cycle (not part of this fix):** `30-grid ↔ 40-selection`
+(`30-grid.js:9` imports from `40-selection`; `40-selection.js:4` returns the favor),
+plus `40-selection → 15-clipboard → 10-exporter → 30-grid`. Works via live bindings
+but is the main patch of fragility left; see `docs/architecture.md` §1.
 **Action:** Move `buildHead`/`render`/`load` to a new `viewer/js/05-layout.js`
 or restructure so `00-core.js` doesn't import from `30-grid.js`.
 
@@ -194,7 +215,13 @@ module exports.
 **Action:** Convert the global reference in `servicenow.js` to a proper ES
 module import.
 
-### ARCH-003: Mutable state exported as raw bindings
+### ARCH-003: Mutable state exported as raw bindings ~~FIXED~~
+
+**Fixed:** 2026-08-27 (via `00-store` refactor, verified no `export let` remains)
++ **2026-08-29** removed the remaining dead raw-mutable exports (`mapWorking`,
+`mapSelects`, `popTargetFid`, `ciDraft`, `ciDragSrc` from `25-dialogs`; `tplInfo`
+from `20-toolbar`) — all were exported but unused externally. Shared config state
+now lives in `05-config-state.js` behind accessor functions.
 
 Multiple modules export mutable `let` bindings that can be reassigned
 without any tracking:
@@ -275,8 +302,8 @@ No action needed.
 |---|---|---|---|
 | Bug fixes | 2 | **2/2 done** | Both fixed |
 | File cleanup | 3 | **3/3 done** | All deleted |
-| Deduplication | 5 | 1/5 done | DEDUP-003 fixed; 001/002/004/005 pending |
+| Deduplication | 5 | 2/5 done | DEDUP-001, 003 fixed; 002/004/005 pending |
 | Function decomposition | 4 | **4/4 done** | All decomposed, all tests pass |
-| Architectural fixes | 3 | 0/3 done | |
+| Architectural fixes | 3 | 2/3 done | ARCH-001 (both cycles) + ARCH-003 fixed; ARCH-002 (globalThis.Analysis) pending |
 | Consistency cleanup | 5 | **5/5 done** | All resolved or already documented |
 | Missing tests | 5 | 0/5 done | |
