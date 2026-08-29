@@ -128,6 +128,19 @@ function buildCiGroups(rows) {
   return out;
 }
 
+function ciSplitDiagnostics(groups, rows) {
+  const names = new Set(groups.map(g => g.name));
+  const others = groups.find(g => g.name === "Others");
+  const emptyGroups = ciSplit.groups
+    .filter(g => g.items.length && !names.has(g.name))
+    .map(g => g.name);
+  return {
+    total: rows.length,
+    others: others ? others.rows.length : 0,
+    emptyGroups
+  };
+}
+
 function b64FromBuffer(buf) {
   const bytes = new Uint8Array(buf);
   let bin = "";
@@ -332,7 +345,16 @@ async function runExport() {
         total += g.rows.length;
       }
       const per = groups.map(g => `${g.name} (${g.rows.length})`).join(", ");
-      showToast(`Export complete \u2014 ${groups.length} file(s), ${total} row(s) \u2014 ${per}`);
+      const diag = ciSplitDiagnostics(groups, rows);
+      const warn = [];
+      if (diag.emptyGroups.length) {
+        warn.push(`Group${diag.emptyGroups.length > 1 ? "s" : ""} with no matching rows: ${diag.emptyGroups.join(", ")}`);
+      }
+      if (diag.others) {
+        warn.push(`${diag.others} row${diag.others === 1 ? "" : "s"} unmatched (Others)`);
+      }
+      showToast(`Export complete \u2014 ${groups.length} file(s), ${total} row(s) \u2014 ${per}`
+        + (warn.length ? ` \u2014 ${warn.join("; ")}` : ""));
       closeConfigDialog();
       return;
     }
@@ -381,6 +403,7 @@ export {
   syncSplitRadio,
   sanitizeFilePart,
   buildCiGroups,
+  ciSplitDiagnostics,
   b64FromBuffer,
   bufferFromB64,
   loadTplInfo,

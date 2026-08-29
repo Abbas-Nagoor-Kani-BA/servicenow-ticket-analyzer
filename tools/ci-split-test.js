@@ -4,7 +4,7 @@ import { installSkeleton } from "./helpers/dom-env.mjs";
 
 installSkeleton();
 
-const { buildCiGroups, setCiSplit, getCiSplit } = await import("../viewer/js/20-toolbar.js");
+const { buildCiGroups, setCiSplit, getCiSplit, ciSplitDiagnostics } = await import("../viewer/js/20-toolbar.js");
 
 function rows(...cis) {
   return cis.map(configItem => ({ configItem }));
@@ -104,4 +104,46 @@ test("setCiSplit normalizes group entries", () => {
   setCiSplit({ enabled: true, groups: [{ name: "G", items: ["A"] }, { name: "H", items: [42, "  "] }] });
   assert.equal(getCiSplit().groups.length, 2);
   assert.deepEqual(getCiSplit().groups[1], { name: "H", items: [] });
+});
+
+test("diagnostics flag a configured group that matched zero rows", () => {
+  setCiSplit({
+    enabled: true,
+    groups: [
+      { name: "Payments", items: ["Payment Gateway"] },
+      { name: "Nobody", items: ["A Different App"] }
+    ]
+  });
+  const r = rows("Payment Gateway PRD");
+  const groups = buildCiGroups(r);
+  const diag = ciSplitDiagnostics(groups, r);
+  assert.deepEqual(diag.emptyGroups, ["Nobody"], "group with no matching rows reported");
+  assert.equal(diag.others, 0, "no unmatched rows");
+  assert.equal(diag.total, 1);
+});
+
+test("diagnostics count unmatched rows routed to Others", () => {
+  setCiSplit({ enabled: true, groups: [{ name: "Payments", items: ["Payment Gateway"] }] });
+  const r = rows("Payment Gateway PRD", "Totally Unrelated", "Another Unrelated");
+  const groups = buildCiGroups(r);
+  const diag = ciSplitDiagnostics(groups, r);
+  assert.deepEqual(diag.emptyGroups, [], "single group matched something");
+  assert.equal(diag.others, 2, "two rows fell to Others");
+  assert.equal(diag.total, 3);
+});
+
+test("diagnostics are clean when everything matches", () => {
+  setCiSplit({
+    enabled: true,
+    groups: [
+      { name: "Payments", items: ["Payment Gateway"] },
+      { name: "Identity", items: ["Identity Platform"] }
+    ]
+  });
+  const r = rows("Payment Gateway PRD", "Identity Platform");
+  const groups = buildCiGroups(r);
+  const diag = ciSplitDiagnostics(groups, r);
+  assert.deepEqual(diag.emptyGroups, []);
+  assert.equal(diag.others, 0);
+  assert.equal(diag.total, 2);
 });
