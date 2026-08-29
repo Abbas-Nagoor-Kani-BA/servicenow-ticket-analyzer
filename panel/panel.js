@@ -116,7 +116,17 @@ chrome.storage.local.get(["snInstance", "lastRun"], async (cfg) => {
   }
 });
 chrome.storage.onChanged.addListener((ch, area) => {
-  if (area === "local" && ch.pluginSettings) applyPluginSettings();
+  if (area === "local") {
+    if (ch.pluginSettings) applyPluginSettings();
+    if (ch.lastRun) {
+      const cfg = ch.lastRun.newValue;
+      if (cfg) {
+        els.lastRun.textContent = `Last run: ${cfg.tickets} tickets for "${cfg.group}" \xB7 ${cfg.at.slice(0, 16).replace("T", " ")}`;
+      } else {
+        els.lastRun.textContent = "";
+      }
+    }
+  }
 });
 async function detectInstanceFromTabs() {
   try {
