@@ -1,6 +1,7 @@
 import "./00-store.js";
 import "./00-core.js";
 import "./05-cols.js";
+import "./05-config-state.js";
 import "./10-exporter.js";
 import "./15-clipboard.js";
 import "./16-summary.js";

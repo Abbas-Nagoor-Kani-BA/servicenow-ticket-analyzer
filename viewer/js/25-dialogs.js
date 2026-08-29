@@ -3,7 +3,7 @@ import { STORAGE } from "../../lib/keys.js";
 import { setTip } from "../../lib/tooltip.js";
 import { $, el, setStatus } from "./00-core.js";
 import { DEFAULT_EXPORT_MAP, EXPORT_FIELD_BY_ID, EXPORT_GROUPS, MAP_MAX_COL } from "./10-exporter.js";
-import { ciSplit, getCiSplit, setCiSplit, setSavedMapPresent, syncSplitRadio, updateCiBtn, updateExportDots, closeConfigDialog } from "./20-toolbar.js";
+import { getCiSplit, setCiSplit, setSavedMapPresent, syncSplitRadio, updateCiBtn, updateExportDots, closeConfigDialog } from "./05-config-state.js";
 import { clearSelection, hasSelection } from "./40-selection.js";
 
 
@@ -444,7 +444,7 @@ $("ciSave").addEventListener("click", async () => {
   }
   setCiSplit({ enabled, groups });
   try {
-    await chrome.storage.local.set({ [STORAGE.ciSplit]: ciSplit });
+    await chrome.storage.local.set({ [STORAGE.ciSplit]: getCiSplit() });
   } catch (err) {
     setStatus(`Save failed: ${err.message}`, true);
     return;

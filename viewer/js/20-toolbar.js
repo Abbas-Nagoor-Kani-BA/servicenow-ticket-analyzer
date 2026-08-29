@@ -3,6 +3,10 @@ import * as TemplateXml from "../../lib/templatexml.js";
 import { STORAGE } from "../../lib/keys.js";
 import { pad2 } from "../../lib/format.js";
 import { $, setStatus, el } from "./00-core.js";
+import {
+  getCiSplit, setCiSplit, getSavedMapPresent, setSavedMapPresent,
+  syncSplitRadio, closeConfigDialog, updateCiBtn, updateExportDots, setOnConfigChange
+} from "./05-config-state.js";
 import { showToast } from "../../lib/toast.js";
 import { EXPORT_FIELD_BY_ID, MAP_MAX_COL, TPL_COLUMNS } from "./10-exporter.js";
 import { buildMsrTsv } from "./15-clipboard.js";
@@ -14,74 +18,26 @@ import { copyText } from "./85-shared.js";
 
 let tplInfo = null;
 
-let ciSplit = { enabled: false, groups: [] };
-function getCiSplit() { return ciSplit; }
-function setCiSplit(v) {
-  ciSplit = {
-    enabled: !!(v && v.enabled),
-    groups: Array.isArray(v && v.groups)
-      ? v.groups
-          .filter(g => g && typeof g === "object")
-          .map(g => ({
-            name: String(g.name ?? ""),
-            items: Array.isArray(g.items) ? g.items.filter(x => typeof x === "string" && x.trim()) : []
-          }))
-      : []
-  };
-}
-chrome.storage.local.get([STORAGE.ciSplit], ({ ciSplit: cs }) => {
-  if (cs && typeof cs === "object") {
-    if (Array.isArray(cs.groups)) {
-      ciSplit = {
-        enabled: !!cs.enabled,
-        groups: cs.groups
-          .filter(g => g && typeof g === "object")
-          .map(g => ({
-            name: String(g.name ?? ""),
-            items: Array.isArray(g.items) ? g.items.filter(x => typeof x === "string" && x.trim()) : []
-          }))
-      };
-    } else if (Array.isArray(cs.items)) {
-      ciSplit = {
-        enabled: !!cs.enabled,
-        groups: cs.items
-          .filter(x => typeof x === "string" && x.trim())
-          .map(ci => ({ name: ci, items: [ci] }))
-      };
-    }
-    syncSplitRadio();
-  }
-});
-
-function updateCiBtn() {
-  updateExportDots();
-}
-
-function syncSplitRadio() {
-  const active = ciSplit.enabled && ciSplit.groups.length;
-  $("radSingle").checked = !active;
-  $("radSplit").checked = !!active;
-  updateExportDots();
-}
+setOnConfigChange(updateConfigSummary);
 
 $("radSingle").addEventListener("change", async () => {
-  if (!$("radSingle").checked || !ciSplit.enabled) return;
-  ciSplit = { ...ciSplit, enabled: false };
-  await chrome.storage.local.set({ [STORAGE.ciSplit]: ciSplit });
+  if (!$("radSingle").checked || !getCiSplit().enabled) return;
+  setCiSplit({ ...getCiSplit(), enabled: false });
+  await chrome.storage.local.set({ [STORAGE.ciSplit]: getCiSplit() });
   updateExportDots();
   showToast("Split export disabled — one file per export");
 });
 
 $("radSplit").addEventListener("change", () => {
   if (!$("radSplit").checked) return;
-  if (!ciSplit.groups.length) {
+  if (!getCiSplit().groups.length) {
     syncSplitRadio();
     openCiDialog();
     return;
   }
-  if (ciSplit.enabled) return;
-  ciSplit = { ...ciSplit, enabled: true };
-  chrome.storage.local.set({ [STORAGE.ciSplit]: ciSplit }).then(() => {
+  if (getCiSplit().enabled) return;
+  setCiSplit({ ...getCiSplit(), enabled: true });
+  chrome.storage.local.set({ [STORAGE.ciSplit]: getCiSplit() }).then(() => {
     updateExportDots();
     showToast("Split export enabled — one file per CI group");
   });
@@ -93,9 +49,10 @@ function sanitizeFilePart(s) {
 
 function buildCiGroups(rows) {
   const norm = s => String(s ?? "").trim().toLowerCase();
+  const groupsCfg = getCiSplit().groups;
   const bounds = [];
-  for (let gi = 0; gi < ciSplit.groups.length; gi++) {
-    const g = ciSplit.groups[gi];
+  for (let gi = 0; gi < groupsCfg.length; gi++) {
+    const g = groupsCfg[gi];
     for (const it of g.items) {
       const key = norm(it);
       if (key) bounds.push({ key, name: g.name, gi });
@@ -121,7 +78,7 @@ function buildCiGroups(rows) {
       byGroup.get(best.name).push(r);
     }
   }
-  const out = ciSplit.groups
+  const out = groupsCfg
     .filter(g => byGroup.has(g.name))
     .map(g => ({ name: g.name, rows: byGroup.get(g.name) }));
   if (others.length) out.push({ name: "Others", rows: others });
@@ -131,7 +88,7 @@ function buildCiGroups(rows) {
 function ciSplitDiagnostics(groups, rows) {
   const names = new Set(groups.map(g => g.name));
   const others = groups.find(g => g.name === "Others");
-  const emptyGroups = ciSplit.groups
+  const emptyGroups = getCiSplit().groups
     .filter(g => g.items.length && !names.has(g.name))
     .map(g => g.name);
   return {
@@ -191,19 +148,6 @@ $("cfgTplClear").addEventListener("click", async () => {
   showToast("Template cleared");
 });
 
-let savedMapPresent = false;
-function getSavedMapPresent() { return savedMapPresent; }
-function setSavedMapPresent(v) { savedMapPresent = v; }
-
-function updateExportDots() {
-  updateConfigSummary();
-}
-
-chrome.storage.local.get([STORAGE.exportColMap], ({ exportColMap }) => {
-  savedMapPresent = !!(exportColMap && Object.keys(exportColMap).length);
-  updateConfigSummary();
-});
-
 $("cfgMapBtn").addEventListener("click", () => openMapDialog());
 $("cfgCiBtn").addEventListener("click", () => openCiDialog());
 
@@ -220,11 +164,12 @@ function pickTemplateFile() {
 }
 
 function updateConfigSummary() {
+  const split = getCiSplit();
   $("cfgSplitLabel").textContent =
-    ciSplit.enabled && ciSplit.groups.length
-      ? `Separate files \u2014 ${ciSplit.groups.length} group${ciSplit.groups.length === 1 ? "" : "s"}`
+    split.enabled && split.groups.length
+      ? `Separate files \u2014 ${split.groups.length} group${split.groups.length === 1 ? "" : "s"}`
       : "Single file";
-  $("cfgMapLabel").textContent = savedMapPresent ? "Custom map" : "Defaults";
+  $("cfgMapLabel").textContent = getSavedMapPresent() ? "Custom map" : "Defaults";
   updateTplState();
   updateSplitPreview();
 }
@@ -232,7 +177,8 @@ function updateConfigSummary() {
 function updateSplitPreview() {
   const el_ = $("cfgSplitPreview");
   const rows = currentRows();
-  if (!ciSplit.enabled || !ciSplit.groups.length || !rows.length) {
+  const split = getCiSplit();
+  if (!split.enabled || !split.groups.length || !rows.length) {
     el_.classList.add("hidden");
     el_.innerHTML = "";
     return;
@@ -308,10 +254,6 @@ function openConfigDialog() {
   $("configModal").classList.remove("hidden");
 }
 
-function closeConfigDialog() {
-  $("configModal").classList.add("hidden");
-}
-
 $("configClose").addEventListener("click", closeConfigDialog);
 $("configCancel").addEventListener("click", closeConfigDialog);
 $("configModal").addEventListener("click", e => {
@@ -371,7 +313,8 @@ async function runExport() {
     });
     const tplCols = tplColumnsFromMap(savedMap);
     setStatus("Filling template…");
-    if (ciSplit.enabled && ciSplit.groups.length) {
+    const split = getCiSplit();
+    if (split.enabled && split.groups.length) {
       const groups = buildCiGroups(rows);
       let total = 0;
       for (const g of groups) {
@@ -454,7 +397,5 @@ export {
   pickTemplateFile,
   tplColumnsFromMap,
   filledFilename,
-  tplInfo,
-  ciSplit,
-  savedMapPresent
+  tplInfo
 };
