@@ -306,6 +306,13 @@
     button.cfgEdit:hover { filter:none; background:#313244; }
     #cfgTplClear { color:#f38ba8; }
     #configCard .radioRow { border-top:1px solid var(--line); padding:10px 2px 4px; }
+    #cfgSplitPreview { padding:4px 2px 8px; font-size:12.5px; line-height:1.7; }
+    #cfgSplitPreview .pvRow { display:flex; justify-content:space-between; gap:10px;
+      padding:2px 4px; border-radius:4px; }
+    #cfgSplitPreview .pvRow:nth-child(odd) { background:rgba(137,180,250,0.06); }
+    #cfgSplitPreview .pvRow.hint { color:var(--dim); background:none; padding-top:6px; }
+    #cfgSplitPreview .pvCount { font-weight:600; color:var(--accent); }
+    #cfgSplitPreview .pvZero { color:#f38ba8; }
   </style>
 </head>
 <body>
@@ -432,6 +439,7 @@
         <label><input type="radio" name="splitMode" id="radSingle" checked> Single file</label>
         <label><input type="radio" name="splitMode" id="radSplit"> Separate files per CI group</label>
       </div>
+      <div id="cfgSplitPreview" class="hidden"></div>
       <div class="mapFoot">
         <button id="configCancel">Cancel</button>
         <span class="spacer"></span>

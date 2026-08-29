@@ -2,7 +2,7 @@ import * as Markup from "../../lib/markup.js";
 import * as TemplateXml from "../../lib/templatexml.js";
 import { STORAGE } from "../../lib/keys.js";
 import { pad2 } from "../../lib/format.js";
-import { $, setStatus } from "./00-core.js";
+import { $, setStatus, el } from "./00-core.js";
 import { showToast } from "../../lib/toast.js";
 import { EXPORT_FIELD_BY_ID, MAP_MAX_COL, TPL_COLUMNS } from "./10-exporter.js";
 import { buildMsrTsv } from "./15-clipboard.js";
@@ -226,6 +226,42 @@ function updateConfigSummary() {
       : "Single file";
   $("cfgMapLabel").textContent = savedMapPresent ? "Custom map" : "Defaults";
   updateTplState();
+  updateSplitPreview();
+}
+
+function updateSplitPreview() {
+  const el_ = $("cfgSplitPreview");
+  const rows = currentRows();
+  if (!ciSplit.enabled || !ciSplit.groups.length || !rows.length) {
+    el_.classList.add("hidden");
+    el_.innerHTML = "";
+    return;
+  }
+  const groups = buildCiGroups(rows);
+  const total = rows.length;
+  const accounted = groups.reduce((n, g) => n + g.rows.length, 0);
+  const items = groups.map(g => ({
+    name: g.name,
+    count: g.rows.length,
+    zero: g.name !== "Others" && g.rows.length === 0
+  }));
+  if (items.some(x => x.zero)) {
+    items.push({ name: "(no matching rows)", count: total - accounted, zero: true });
+  }
+  el_.innerHTML = "";
+  const hint = el("div", "pvRow hint");
+  hint.textContent = `Will export ${total} row${total === 1 ? "" : "s"} as ${items.length} file${items.length === 1 ? "" : "s"}:`;
+  el_.appendChild(hint);
+  for (const it of items) {
+    const row = el("div", "pvRow");
+    const name = el("span", "pvName" + (it.zero ? " pvZero" : ""));
+    name.textContent = it.name;
+    const cnt = el("span", "pvCount" + (it.zero ? " pvZero" : ""));
+    cnt.textContent = String(it.count);
+    row.append(name, cnt);
+    el_.appendChild(row);
+  }
+  el_.classList.remove("hidden");
 }
 
 

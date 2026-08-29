@@ -376,3 +376,30 @@ test("buildCiGroups splits on contained keywords, not just start-prefixes", asyn
   assert.match(names, /Others:1/, "genuinely unmatched row falls back to Others");
   assert.equal(groups.length, 4, "three groups plus Others = four buckets, not one");
 });
+
+test("split preview in config popup shows per-group ticket counts", async () => {
+  const toolbar = await import("../viewer/js/20-toolbar.js");
+  const rows = grid.currentRows();
+  rows.forEach(r => { r.configItem = ""; });
+  rows[0].configItem = "Payment Gateway PRD";
+  rows[1].configItem = "Identity Platform";
+
+  toolbar.setCiSplit({
+    enabled: true,
+    groups: [
+      { name: "Payments", items: ["Payment Gateway"] },
+      { name: "Identity", items: ["Identity Platform"] }
+    ]
+  });
+  toolbar.updateConfigSummary();
+  await flush();
+
+  const preview = document.getElementById("cfgSplitPreview");
+  assert.ok(!preview.classList.contains("hidden"), "preview visible when split enabled");
+  const rowsText = [...preview.querySelectorAll(".pvRow")].map(r => r.textContent);
+  const joined = rowsText.join("|");
+  assert.match(joined, /Payments\s*1/, "Payments group shows its count");
+  assert.match(joined, /Identity\s*1/, "Identity group shows its count");
+  assert.match(joined, /Will export 2 rows as 2 files/, "header summarizes totals");
+  assert.doesNotMatch(joined, /no matching rows/, "no empty-group hint when both match");
+});

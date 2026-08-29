@@ -213,6 +213,7 @@ const SKELETON = `
       <label><input type="radio" name="splitMode" id="radSingle" checked> Single file</label>
       <label><input type="radio" name="splitMode" id="radSplit"> Separate files per CI group</label>
     </div>
+    <div id="cfgSplitPreview" class="hidden"></div>
     <div class="mapFoot">
       <button id="configCancel">Cancel</button>
       <span class="spacer"></span>

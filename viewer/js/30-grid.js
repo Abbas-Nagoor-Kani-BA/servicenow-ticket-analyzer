@@ -97,7 +97,7 @@ function buildHead() {
 
 function currentRows() {
   const { data, sortKey, sortDir } = st();
-  let rows = [...data.rows];
+  let rows = data ? [...data.rows] : [];
   const q = $("search").value.trim().toLowerCase();
   if (q) {
     rows = rows.filter(r =>
