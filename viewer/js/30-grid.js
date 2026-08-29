@@ -84,6 +84,7 @@ function buildHead() {
     rz.addEventListener("pointerdown", e => {
       e.preventDefault();
       e.stopPropagation();
+      rz.classList.add("active");
       resizeState = { key, colEl: colEls[i], startX: e.clientX, startW: colWidthOf(key, cols[i][3]) };
       try { rz.setPointerCapture(e.pointerId); } catch {}
     });
@@ -96,9 +97,14 @@ function buildHead() {
       if (!resizeState || resizeState.key !== key) return;
       const w = parseFloat(resizeState.colEl.style.width) || resizeState.startW;
       resizeState = null;
+      rz.classList.remove("active");
       const widths = { ...getColWidths(), [key]: w };
       setColWidths(widths);
       saveColWidths();
+    });
+    rz.addEventListener("pointercancel", () => {
+      if (resizeState && resizeState.key === key) resizeState = null;
+      rz.classList.remove("active");
     });
     rz.addEventListener("click", e => e.stopPropagation());
     th.appendChild(rz);
