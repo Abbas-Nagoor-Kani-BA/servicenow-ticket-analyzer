@@ -175,10 +175,22 @@ persistence/strict MSR pickers/ticket-popup timeline edits/Copy-for-MSR TSV).
 Manual test loop (user performs): reload extension at `chrome://extensions`
 → refresh the ServiceNow tab → Connect → Preview count → Run export.
 
-Release build: `npm run build` produces `dist/` (bundled, mirrors repo layout —
-load dist/ unpacked to smoke-test the built version). `npm run zip` packs dist/
-into `servicenow-ticket-analyzer-<version>.zip`. Dev workflow unchanged: load
-the repo root unpacked; esbuild output is only for release zips.
+### Builds (loading the repo root unpacked NO LONGER works)
+
+Sources include `.ts` files, which Chrome cannot execute as modules — `.ts` is
+served with a non-JavaScript MIME type and the type annotations are not valid
+JS. Always load a **built** folder:
+
+- `npm run watch` → rebuilds `dev/` on change. Load `dev/` unpacked. This is
+  the development loop.
+- `npm run build` → `dist/` (bundled, mirrors repo layout). Load `dist/`
+  unpacked to smoke-test the release shape.
+- `npm run zip` → packs `dist/`.
+
+`dev/` and `dist/` are both gitignored. Watch mode must never write into the
+repo root: the esbuild entries *are* the sources, so bundling to ROOT would
+overwrite `panel/panel.js` and friends with their own output. `build.mjs`
+refuses to build into ROOT, and watch mode targets `dev/`.
 
 ## Conventions
 
