@@ -21,28 +21,12 @@
     button { padding:7px 12px; border:none; border-radius:6px; background:#45475a; color:var(--text);
       cursor:pointer; font-weight:600; }
     button:hover { filter:brightness(1.15); }
-    #exportCluster { position:relative; display:inline-flex; }
-    #exportCluster #exportBtn { border-top-right-radius:0; border-bottom-right-radius:0; }
-    #exportMenuBtn { background:#89b4fa; color:#11111b; padding:7px 9px; font-size:11px; line-height:1;
-      border-top-left-radius:0; border-bottom-left-radius:0; margin-left:1px; }
-    #exportMenu { position:absolute; top:calc(100% + 6px); left:0; z-index:5; min-width:260px;
-      background:#181825; border:1px solid var(--line); border-radius:8px; padding:4px;
-      box-shadow:0 8px 24px rgba(17,17,27,.55); display:flex; flex-direction:column; gap:2px; }
-    #exportMenu.hidden { display:none; }
-    .exportMenuItem { display:flex; align-items:center; gap:9px; background:transparent;
-      text-align:left; padding:8px 10px; font-weight:400; font-size:12.5px; border-radius:6px;
-      overflow:hidden; }
-    .exportMenuItem:hover { filter:none; background:#313244; }
-    .exportMenuItem .lbl { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-    .menuSep { height:1px; background:var(--line); margin:3px 4px; }
-    .dot { width:7px; height:7px; border-radius:50%; background:transparent; flex-shrink:0; }
-    .dot.on { background:#fab387; }
+    #exportCluster { display:inline-flex; }
     .radioRow { display:flex; flex-direction:column; gap:3px; padding:6px 10px; }
     .radioRow label { display:flex; align-items:center; gap:8px; cursor:pointer; font-size:12.5px;
       color:var(--text); font-weight:400; }
     .radioRow label:hover { color:var(--accent); }
     .radioRow input[type="radio"] { accent-color:#89b4fa; margin:0; cursor:pointer; }
-    #menuTplClear { color:#f38ba8; }
     #wrap { flex:1; min-height:0; overflow:auto; position:relative; }
     table { border-collapse:collapse; table-layout:fixed; width:100%; }
     th, td { text-align:left; padding:6px 10px; border-bottom:1px solid var(--line); white-space:nowrap;
@@ -239,7 +223,7 @@
       white-space:nowrap; border-radius:4px; }
     #colList label:hover { background:#313244; }
     #colList input { accent-color:#89b4fa; }
-    #mapModal { position:fixed; inset:0; z-index:10; background:rgba(17,17,27,.62);
+    #mapModal { position:fixed; inset:0; z-index:18; background:rgba(17,17,27,.62);
       display:flex; align-items:center; justify-content:center; }
     #mapModal.hidden { display:none; }
     #mapCard { width:min(560px, 92vw); max-height:84vh; display:flex; flex-direction:column; gap:8px;
@@ -275,7 +259,7 @@
     .letterOpt .holder { color:var(--dim); font-family:system-ui,sans-serif; font-size:11px; }
     .mapFoot { display:flex; align-items:center; gap:8px; }
     .mapFoot .spacer { flex:1; }
-    #ciModal { position:fixed; inset:0; z-index:10; background:rgba(17,17,27,.62);
+    #ciModal { position:fixed; inset:0; z-index:18; background:rgba(17,17,27,.62);
       display:flex; align-items:center; justify-content:center; }
     #ciModal.hidden { display:none; }
     #ciCard { width:min(760px, 94vw); display:flex; flex-direction:column; gap:8px;
@@ -306,6 +290,22 @@
     .ciAddRow input:focus { border-color:#89b4fa; }
     .ciAddRow button { padding:3px 10px; font-size:12px; }
     #addGroupBtn { align-self:flex-start; }
+    #configModal { position:fixed; inset:0; z-index:10; background:rgba(17,17,27,.62);
+      display:flex; align-items:center; justify-content:center; }
+    #configModal.hidden { display:none; }
+    #configCard { width:min(520px, 92vw); max-height:84vh; display:flex; flex-direction:column; gap:10px;
+      background:#181825; border:1px solid var(--line); border-radius:10px; padding:14px 16px; }
+    .cfgRows { display:flex; flex-direction:column; }
+    .cfgRow { display:flex; align-items:center; gap:10px; padding:9px 2px; border-bottom:1px solid var(--line); }
+    .cfgRow:last-child { border-bottom:none; }
+    .cfgLabel { width:130px; color:var(--dim); font-size:12px; flex-shrink:0; }
+    .cfgValue { flex:1; font-size:12.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .cfgActions { display:inline-flex; gap:6px; flex-shrink:0; }
+    button.cfgEdit { padding:4px 10px; font-size:12px; font-weight:400; background:#11111b;
+      color:var(--text); border:1px solid var(--line); border-radius:5px; }
+    button.cfgEdit:hover { filter:none; background:#313244; }
+    #cfgTplClear { color:#f38ba8; }
+    #configCard .radioRow { border-top:1px solid var(--line); padding:10px 2px 4px; }
   </style>
 </head>
 <body>
@@ -325,20 +325,7 @@
       </div>
       <button id="clearBtn">Clear</button>
       <div id="exportCluster">
-        <button id="exportBtn" class="primary" data-tip="Fill the template with the current view">Export</button>
-        <button id="exportMenuBtn" data-tip="Export options">▼</button>
-        <div id="exportMenu" class="hidden">
-          <div class="radioRow" id="splitRadios">
-            <label><input type="radio" name="splitMode" id="radSingle" checked> Single file</label>
-            <label><input type="radio" name="splitMode" id="radSplit"> Separate files per CI group</label>
-          </div>
-          <div class="menuSep"></div>
-          <button class="exportMenuItem" id="menuMapBtn"><span class="dot" id="mapDot"></span><span class="lbl">Column mapping…</span></button>
-          <button class="exportMenuItem" id="menuCiBtn"><span class="dot" id="ciDot"></span><span class="lbl">Split by CI groups…</span></button>
-          <div class="menuSep"></div>
-          <button class="exportMenuItem" id="menuTplBtn"><span class="lbl" id="menuTplLabel">No template — pick on export</span></button>
-          <button class="exportMenuItem hidden" id="menuTplClear">Clear saved template</button>
-        </div>
+        <button id="exportBtn" class="primary" data-tip="Configure export settings and export the current view">Export</button>
       </div>
     </div>
     <input type="file" id="tplFile" accept=".xlsx" class="hidden">
@@ -410,6 +397,45 @@
         <span class="spacer"></span>
         <button id="ciCancel">Cancel</button>
         <button id="ciSave" class="primary">Save</button>
+      </div>
+    </div>
+  </div>
+  <div id="configModal" class="hidden">
+    <div id="configCard">
+      <div class="mapHead"><span>Export configuration</span><button id="configClose" data-tip="Close">✕</button></div>
+      <p class="mapHint">Exports use exactly what the data view shows — same rows, same order (search filter + sort), including your edits.</p>
+      <div class="cfgRows">
+        <div class="cfgRow">
+          <span class="cfgLabel">Template</span>
+          <span class="cfgValue" id="cfgTplLabel">No template</span>
+          <span class="cfgActions">
+            <button id="cfgTplBtn" class="cfgEdit">Choose template…</button>
+            <button id="cfgTplClear" class="cfgEdit hidden">Clear</button>
+          </span>
+        </div>
+        <div class="cfgRow">
+          <span class="cfgLabel">Files</span>
+          <span class="cfgValue" id="cfgSplitLabel">Single file</span>
+          <span class="cfgActions">
+            <button id="cfgCiBtn" class="cfgEdit">Edit groups…</button>
+          </span>
+        </div>
+        <div class="cfgRow">
+          <span class="cfgLabel">Column mapping</span>
+          <span class="cfgValue" id="cfgMapLabel">Defaults</span>
+          <span class="cfgActions">
+            <button id="cfgMapBtn" class="cfgEdit">Edit mapping…</button>
+          </span>
+        </div>
+      </div>
+      <div class="radioRow" id="splitRadios">
+        <label><input type="radio" name="splitMode" id="radSingle" checked> Single file</label>
+        <label><input type="radio" name="splitMode" id="radSplit"> Separate files per CI group</label>
+      </div>
+      <div class="mapFoot">
+        <button id="configCancel">Cancel</button>
+        <span class="spacer"></span>
+        <button id="configExport" class="primary">Export</button>
       </div>
     </div>
   </div>

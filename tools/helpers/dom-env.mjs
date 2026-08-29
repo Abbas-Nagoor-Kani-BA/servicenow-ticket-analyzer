@@ -118,19 +118,6 @@ const SKELETON = `
     <span id="status"></span>
     <div id="exportCluster">
       <button id="exportBtn" class="primary">Export</button>
-      <button id="exportMenuBtn">▼</button>
-      <div id="exportMenu" class="hidden">
-        <div class="radioRow">
-          <label><input type="radio" name="splitMode" id="radSingle" checked> Single file</label>
-          <label><input type="radio" name="splitMode" id="radSplit"> Separate files per CI group</label>
-        </div>
-        <div class="menuSep"></div>
-        <button class="exportMenuItem" id="menuMapBtn"><span class="dot" id="mapDot"></span><span class="lbl">Column mapping…</span></button>
-        <button class="exportMenuItem" id="menuCiBtn"><span class="dot" id="ciDot"></span><span class="lbl">Split by CI groups…</span></button>
-        <div class="menuSep"></div>
-        <button class="exportMenuItem" id="menuTplBtn"><span class="lbl" id="menuTplLabel">No template — pick on export</span></button>
-        <button class="exportMenuItem hidden" id="menuTplClear">Clear saved template</button>
-      </div>
     </div>
     <input type="file" id="tplFile" accept=".xlsx" class="hidden">
     <button id="copyMsrBtn">Copy for MSR</button>
@@ -145,8 +132,8 @@ const SKELETON = `
 </div>
 <div id="slaBar" class="hidden"></div>
 <div id="tabs">
-  <button id="tabTickets" class="tab on">Tickets</button>
-  <button id="tabSummary" class="tab">Summary SLA</button>
+  <button id="tabTickets" class="tab on" role="tab" aria-selected="true"><span class="g">☰</span> Tickets</button>
+  <button id="tabSummary" class="tab" role="tab" aria-selected="false"><span class="g">Σ</span> Summary SLA</button>
 </div>
   <div id="wrap">
     <table id="tbl"><thead></thead><tbody></tbody></table>
@@ -189,6 +176,41 @@ const SKELETON = `
     <button id="addGroupBtn">+ Add group</button>
     <div class="mapFoot"><button id="ciSave" class="primary">Save</button>
     <button id="ciDisable">Disable</button><button id="ciCancel">Cancel</button></div>
+  </div>
+</div>
+<div id="configModal" class="hidden">
+  <div id="configCard">
+    <div class="mapHead"><span>Export configuration</span><button id="configClose">✕</button></div>
+    <p class="mapHint"></p>
+    <div class="cfgRows">
+      <div class="cfgRow">
+        <span class="cfgLabel">Template</span>
+        <span class="cfgValue" id="cfgTplLabel"></span>
+        <span class="cfgActions">
+          <button id="cfgTplBtn">Choose template…</button>
+          <button id="cfgTplClear" class="hidden">Clear</button>
+        </span>
+      </div>
+      <div class="cfgRow">
+        <span class="cfgLabel">Files</span>
+        <span class="cfgValue" id="cfgSplitLabel"></span>
+        <span class="cfgActions"><button id="cfgCiBtn">Edit groups…</button></span>
+      </div>
+      <div class="cfgRow">
+        <span class="cfgLabel">Column mapping</span>
+        <span class="cfgValue" id="cfgMapLabel"></span>
+        <span class="cfgActions"><button id="cfgMapBtn">Edit mapping…</button></span>
+      </div>
+    </div>
+    <div class="radioRow">
+      <label><input type="radio" name="splitMode" id="radSingle" checked> Single file</label>
+      <label><input type="radio" name="splitMode" id="radSplit"> Separate files per CI group</label>
+    </div>
+    <div class="mapFoot">
+      <button id="configCancel">Cancel</button>
+      <span class="spacer"></span>
+      <button id="configExport" class="primary">Export</button>
+    </div>
   </div>
 </div>
 `;

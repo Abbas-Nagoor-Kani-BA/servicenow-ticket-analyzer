@@ -202,7 +202,7 @@ function copySelectedRange() {
 }
 
 function anyOverlayOpen() {
-  return ["colMenu", "exportMenu", "mapModal", "ciModal", "letterPop"]
+  return ["colMenu", "configModal", "mapModal", "ciModal", "letterPop"]
     .some(id => { const n = $(id); return n && !n.classList.contains("hidden"); }) ||
     !!document.querySelector("td.edit-input") ||
     !!document.querySelector(".msrPick");

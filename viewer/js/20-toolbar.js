@@ -151,19 +151,18 @@ async function loadTplInfo() {
 }
 
 function updateTplState() {
-  const lbl = $("menuTplLabel");
-  const clr = $("menuTplClear");
+  const lbl = $("cfgTplLabel");
+  const clr = $("cfgTplClear");
   if (tplInfo) {
     lbl.textContent = `Template: ${tplInfo.name}`;
     clr.classList.remove("hidden");
   } else {
-    lbl.textContent = "No template — pick on export";
+    lbl.textContent = "No template";
     clr.classList.add("hidden");
   }
 }
 
-$("menuTplBtn").addEventListener("click", async () => {
-  $("exportMenu").classList.add("hidden");
+$("cfgTplBtn").addEventListener("click", async () => {
   const f = await pickTemplateFile();
   if (!f) return;
   tplInfo = { name: f.name, dataB64: b64FromBuffer(await f.arrayBuffer()), savedAt: Date.now() };
@@ -172,8 +171,7 @@ $("menuTplBtn").addEventListener("click", async () => {
   showToast("Template set");
 });
 
-$("menuTplClear").addEventListener("click", async () => {
-  $("exportMenu").classList.add("hidden");
+$("cfgTplClear").addEventListener("click", async () => {
   await chrome.storage.local.remove(STORAGE.snXlsxTemplate);
   tplInfo = null;
   updateTplState();
@@ -185,31 +183,16 @@ function getSavedMapPresent() { return savedMapPresent; }
 function setSavedMapPresent(v) { savedMapPresent = v; }
 
 function updateExportDots() {
-  $("mapDot").classList.toggle("on", savedMapPresent);
-  $("ciDot").classList.toggle("on", ciSplit.enabled);
+  updateConfigSummary();
 }
 
 chrome.storage.local.get([STORAGE.exportColMap], ({ exportColMap }) => {
   savedMapPresent = !!(exportColMap && Object.keys(exportColMap).length);
-  updateExportDots();
+  updateConfigSummary();
 });
 
-$("menuMapBtn").addEventListener("click", e => {
-  e.stopPropagation();
-  $("exportMenu").classList.add("hidden");
-  openMapDialog();
-});
-
-$("menuCiBtn").addEventListener("click", e => {
-  e.stopPropagation();
-  $("exportMenu").classList.add("hidden");
-  openCiDialog();
-});
-
-$("exportMenuBtn").addEventListener("click", e => {
-  e.stopPropagation();
-  $("exportMenu").classList.toggle("hidden");
-});
+$("cfgMapBtn").addEventListener("click", () => openMapDialog());
+$("cfgCiBtn").addEventListener("click", () => openCiDialog());
 
 function pickTemplateFile() {
   return new Promise(resolve => {
@@ -221,6 +204,15 @@ function pickTemplateFile() {
     };
     inp.click();
   });
+}
+
+function updateConfigSummary() {
+  $("cfgSplitLabel").textContent =
+    ciSplit.enabled && ciSplit.groups.length
+      ? `Separate files \u2014 ${ciSplit.groups.length} group${ciSplit.groups.length === 1 ? "" : "s"}`
+      : "Single file";
+  $("cfgMapLabel").textContent = savedMapPresent ? "Custom map" : "Defaults";
+  updateTplState();
 }
 
 
@@ -262,20 +254,47 @@ function filledFilename(templateName, groupLabel) {
   return `${base}${mid}_filled_${stamp}.xlsx`;
 }
 
-$("exportBtn").addEventListener("click", async () => {
+function openConfigDialog() {
+  updateConfigSummary();
+  $("configModal").classList.remove("hidden");
+}
+
+function closeConfigDialog() {
+  $("configModal").classList.add("hidden");
+}
+
+$("configClose").addEventListener("click", closeConfigDialog);
+$("configCancel").addEventListener("click", closeConfigDialog);
+$("configModal").addEventListener("click", e => {
+  if (e.target === $("configModal")) closeConfigDialog();
+});
+
+$("configExport").addEventListener("click", runExport);
+
+$("exportBtn").addEventListener("click", () => {
   if (!hasDataRows()) {
     setStatus("Nothing to export", true);
     return;
   }
+  if (!currentRows().length) {
+    setStatus("Nothing to export — search filter matches no rows", true);
+    return;
+  }
+  openConfigDialog();
+});
+
+async function runExport() {
   // Export exactly what the data view shows: same rows, same order
   // (current search filter + current sort), including all edits.
   const rows = currentRows();
   if (!rows.length) {
     setStatus("Nothing to export — search filter matches no rows", true);
+    closeConfigDialog();
     return;
   }
   try {
     if (!tplInfo) {
+      closeConfigDialog();
       const f = await pickTemplateFile();
       if (!f) {
         setStatus("Export cancelled — no template selected", true);
@@ -309,6 +328,7 @@ $("exportBtn").addEventListener("click", async () => {
         total += g.rows.length;
       }
       showToast(`Export complete \u2014 ${groups.length} file(s), ${total} row(s)`);
+      closeConfigDialog();
       return;
     }
     const out = TemplateXml.fillTemplateBuffer(bufferFromB64(tplInfo.dataB64), rows, tplCols, undefined,
@@ -316,10 +336,12 @@ $("exportBtn").addEventListener("click", async () => {
     downloadOut(out, filledFilename(tplInfo.name));
     const filtered = rows.length !== getTotalRows() ? " (filtered)" : "";
     showToast(`Export complete \u2014 ${rows.length} row${rows.length === 1 ? "" : "s"}${filtered}`);
+    closeConfigDialog();
   } catch (err) {
     showToast(`Export failed: ${err.message}`, "error");
+    closeConfigDialog();
   }
-});
+}
 
 $("copyMsrBtn").addEventListener("click", () => {
   if (!hasDataRows()) {
@@ -341,11 +363,6 @@ document.addEventListener("click", e => {
   if (!menu.classList.contains("hidden") && !menu.contains(e.target)) {
     menu.classList.add("hidden");
   }
-  const em = $("exportMenu");
-  if (!em.classList.contains("hidden") && !em.contains(e.target) &&
-      !$("exportMenuBtn").contains(e.target)) {
-    em.classList.add("hidden");
-  }
   const pop = $("letterPop");
   if (!pop.classList.contains("hidden") && !pop.contains(e.target)) {
     hideLetterPop();
@@ -363,6 +380,10 @@ export {
   bufferFromB64,
   loadTplInfo,
   updateTplState,
+  updateConfigSummary,
+  openConfigDialog,
+  closeConfigDialog,
+  runExport,
   getSavedMapPresent,
   setSavedMapPresent,
   updateExportDots,

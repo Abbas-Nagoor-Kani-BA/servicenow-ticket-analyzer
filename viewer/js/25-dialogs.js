@@ -3,7 +3,7 @@ import { STORAGE } from "../../lib/keys.js";
 import { setTip } from "../../lib/tooltip.js";
 import { $, el, setStatus } from "./00-core.js";
 import { DEFAULT_EXPORT_MAP, EXPORT_FIELD_BY_ID, EXPORT_GROUPS, MAP_MAX_COL } from "./10-exporter.js";
-import { ciSplit, getCiSplit, setCiSplit, setSavedMapPresent, syncSplitRadio, updateCiBtn, updateExportDots } from "./20-toolbar.js";
+import { ciSplit, getCiSplit, setCiSplit, setSavedMapPresent, syncSplitRadio, updateCiBtn, updateExportDots, closeConfigDialog } from "./20-toolbar.js";
 import { clearSelection, hasSelection } from "./40-selection.js";
 
 
@@ -236,11 +236,6 @@ document.addEventListener("keydown", e => {
     hideLetterPop();
     return;
   }
-  if (!$("exportMenu").classList.contains("hidden")) {
-    e.preventDefault();
-    $("exportMenu").classList.add("hidden");
-    return;
-  }
   if (!$("ciModal").classList.contains("hidden")) {
     e.preventDefault();
     $("ciModal").classList.add("hidden");
@@ -251,6 +246,12 @@ document.addEventListener("keydown", e => {
       !document.querySelector("td.edit-input input")) {
     e.preventDefault();
     $("mapModal").classList.add("hidden");
+    return;
+  }
+  if (!$("configModal").classList.contains("hidden")) {
+    e.preventDefault();
+    closeConfigDialog();
+    return;
   }
   if (hasSelection() && !document.querySelector("td.edit-input") &&
       !document.querySelector(".msrPick")) {
