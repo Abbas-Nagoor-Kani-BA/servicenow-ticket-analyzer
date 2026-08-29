@@ -28,6 +28,9 @@
     "data/repositories/template-repository.ts",
     "data/repositories/filter-list-repository.ts",
     "data/repositories/ticket-repository.ts",
-    "data/repositories/timeline-repository.ts"
+    "data/repositories/timeline-repository.ts",
+    "services/queue-scope.ts",
+    "services/pull-service.ts",
+    "services/connection-service.ts"
   ]
 }

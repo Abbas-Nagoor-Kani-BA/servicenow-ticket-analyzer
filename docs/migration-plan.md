@@ -137,7 +137,37 @@ Verified by reintroducing the fix's inverse — 3 of the 8 new tests fail withou
 
 ---
 
-## Phase 2 — Services (background becomes a router)
+## Phase 2 — Services — COMPLETE
+
+**Result: gate green — typecheck 0 errors, lint 0 errors, 127/127 tests, build OK.**
+**`background.js` went from 358 lines to 129.**
+
+- [x] `services/pull-service.ts` — `resolveRunSettings`, `scopeGroups`, limit enforcement,
+      per-table `sys_id` union, timeline rules wiring, `mergeRows`, persist + broadcast
+- [x] `services/queue-scope.ts` — queue scoping shared by preview and pull
+- [x] `services/connection-service.ts` — preview count
+- [x] `background.js` reduced to a message router (PING / COUNT / RUN)
+- [x] `tools/pull-service-test.ts` — 8 tests driving the real `PullService` against fakes
+- [x] Closes: ARCH-002 (`globalThis.Analysis` is now confined to the router)
+
+### Notes
+
+- `SnRemoteFactory` / `RunScopeFactory` exist because `SN_REMOTE` is bound to one
+  instance URL and therefore belongs to a single run. `RUN_SCOPE_FACTORY` opens a
+  child container per run and returns the two repositories wired to it.
+- `scopeGroups` was extracted into `services/queue-scope.ts` rather than
+  duplicated: `handleCount` used to throw on missing/comma-bearing queue names
+  and the first cut of `ConnectionService` silently filtered them. A preview that
+  counts something different from what the pull fetches is worse than no preview,
+  so both now call the same function.
+- RUN is fire-and-forget, matching the old contract. Awaiting it would hold the
+  response channel open for minutes; progress reaches the panel by broadcast.
+- `services/remote-bridge.ts` (page-side proxies) is deferred to Phase 4, when the
+  panel and viewer actually get composition roots. Nothing needs it yet.
+
+---
+
+## Phase 2 — Services (background becomes a router) — see above
 
 - [ ] `services/pull-service.ts` — `resolveRunSettings`, `scopeGroups`, limit enforcement, per-table `sys_id` union, `mergeRows`, persist + broadcast
 - [ ] `services/timeline-service.ts` — the four timeline rules wiring, state-map selection
