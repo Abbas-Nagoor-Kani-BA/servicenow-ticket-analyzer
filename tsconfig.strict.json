@@ -41,6 +41,7 @@
     "components/chip-list.ts",
     "surfaces/settings/index.ts",
     "services/settings-service.ts",
-    "data/repositories/msr-lists-repository.ts"
+    "data/repositories/msr-lists-repository.ts",
+    "components/search-picker.ts"
   ]
 }

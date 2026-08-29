@@ -219,6 +219,46 @@ still the input after two input events.
 
 ---
 
+## Phase 4b — Viewer: shared search picker — COMPLETE
+
+**Result: gate green — typecheck 0 errors, lint 0 errors, 169/169 tests, build OK.**
+
+- [x] `components/search-picker.ts` — one picker replacing the two copies
+- [x] `viewer/js/70-editors.js` 223 → 128 lines; `viewer/js/50-ticketpop.js` 303 → 232
+- [x] `viewer/js/15-picker.js` → `lib/picklist.js`; `placePopupNear` moved from
+      `viewer/js/00-core.js` to `lib/markup.js`
+- [x] `tools/search-picker-test.ts` — 12 focused tests; the 31 viewer DOM tests
+      still pass unchanged
+
+Closes **DEDUP-005**. The two copies had already drifted: only one dismissed on
+an outside click, and they advanced the selection differently. Both differences
+are now expressed as a `PickIntent` (`enter` / `tab` / `tab-back` / `pointer`)
+handed to `onPick`.
+
+### A bug the viewer DOM test could not catch
+
+`build()` did not seed the item list — only `patch()` painted, and `items` stayed
+empty until the first keystroke. The 31 viewer DOM tests all passed, because
+every one of them types into the input before asserting, which triggers the
+filter as a side effect. The focused `search-picker-test.ts` caught it
+immediately.
+
+Lesson recorded: the viewer DOM test exercises the grid *through* the picker, so
+it validates integration but not the picker's own initial state. Components need
+their own tests, not just end-to-end coverage.
+
+### Layering fixes along the way
+
+Components were importing `placePopupNear` and the pick-list helpers from
+`viewer/js/*`. Both moved to `lib/`, so no component depends on a surface.
+
+### Deferred
+
+`components/data-grid.ts` and the dialogs are untouched. `30-grid.js` still owns
+rendering, `25-dialogs.js` the CI and column-mapping dialogs.
+
+---
+
 ## Phase 4a — Settings components — COMPLETE
 
 **Result: gate green — typecheck 0 errors, lint 0 errors, 157/157 tests, build OK.**

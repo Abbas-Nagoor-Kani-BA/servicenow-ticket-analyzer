@@ -1,7 +1,7 @@
 import * as MsrChoices from "../../lib/msrchoices.js";
-import { el, placePopupNear, setStatus } from "./00-core.js";
+import { el, setStatus } from "./00-core.js";
+import { SearchPicker } from "../../components/search-picker.ts";
 import { getMsrLists } from "./00-store.js";
-import { applyPickFilter, paintPickItems, pickCurNotInOptions, pickLabelOf } from "./15-picker.js";
 import { displayedValue, fmtInstant, parseLocalInput, render, scheduleSave } from "./30-grid.js";
 
 
@@ -25,97 +25,26 @@ let nestedPickState = null;
 
 function closeNestedPick() {
   if (!nestedPickState) return;
-  const { pop, cleanup } = nestedPickState;
+  const picker = nestedPickState;
   nestedPickState = null;
-  cleanup();
-  pop.remove();
+  picker.close();
 }
 
 function attachSearchPick(anchorInput, options, currentValue, onPick) {
   closeNestedPick();
-  const cur = String(currentValue ?? "");
-  const entries = ["", ...options];
-  if (cur && !options.some(x => x.toLowerCase() === cur.toLowerCase())) entries.push(cur);
-  const curNotInOptions = pickCurNotInOptions(options, cur);
-
-  const pop = el("div", "msrPick pickNested");
-  const sIn = document.createElement("input");
-  sIn.className = "msrPickSearch";
-  sIn.placeholder = "Search or type initials\u2026";
-  sIn.autocomplete = "off";
-  sIn.spellcheck = false;
-  const listEl = el("div", "msrPickList");
-  const foot = el("div", "msrPickFoot");
-  pop.append(sIn, listEl, foot);
-
-  let items = [];
-  let activeIdx = 0;
-
-  const renderItem = v => {
-    const d = document.createElement("div");
-    d.textContent = pickLabelOf(v, cur, curNotInOptions);
-    d.addEventListener("pointerdown", ev => {
-      ev.preventDefault();
-      closeNestedPick();
-      onPick(v);
-    });
-    return d;
-  };
-  const paint = () => paintPickItems(listEl, foot, items, activeIdx, renderItem);
-  const applyFilter = () => {
-    const q = firstOpen ? "" : sIn.value.trim().toLowerCase();
-    const res = applyPickFilter(entries, q, firstOpen ? cur : sIn.value, cur);
-    items = res.items;
-    activeIdx = res.activeIdx;
-  };
-  let firstOpen = true;
-  const renderList = () => {
-    applyFilter();
-    paint();
-  };
-  const place = () => {
-    if (!pop.isConnected) return;
-    placePopupNear(pop, anchorInput.getBoundingClientRect(), 300);
-  };
-  const onKey = e => {
-    if (e.key === "ArrowDown" && items.length) { e.preventDefault(); activeIdx = (activeIdx + 1) % items.length; paint(); }
-    else if (e.key === "ArrowUp" && items.length) { e.preventDefault(); activeIdx = (activeIdx - 1 + items.length) % items.length; paint(); }
-    else if (e.key === "Enter") {
-      e.preventDefault();
-      e.stopPropagation();
-      if (!items.length) return;
-      const v = items[activeIdx];
-      closeNestedPick();
-      onPick(v);
-    } else if (e.key === "Escape") {
-      e.preventDefault();
-      e.stopPropagation();
-      closeNestedPick();
+  nestedPickState = new SearchPicker(document.body, {}, {
+    anchor: anchorInput,
+    options,
+    current: String(currentValue ?? ""),
+    minWidth: 300,
+    onPick: (value) => {
+      nestedPickState = null;
+      onPick(value);
+    },
+    onDismiss: () => {
+      nestedPickState = null;
     }
-  };
-  const onBlur = () => { setTimeout(() => { if (!pickedFlag()) closeNestedPick(); }, 0); };
-  const pickedFlag = () => false;
-  const onDocDown = e => {
-    if (!pop.contains(e.target) && e.target !== anchorInput) closeNestedPick();
-  };
-  const cleanup = () => {
-    sIn.removeEventListener("keydown", onKey);
-    sIn.removeEventListener("blur", onBlur);
-    sIn.removeEventListener("input", onInput);
-    document.removeEventListener("mousedown", onDocDown, true);
-  };
-  const onInput = () => { firstOpen = false; renderList(); };
-
-  sIn.addEventListener("keydown", onKey);
-  sIn.addEventListener("blur", onBlur);
-  sIn.addEventListener("input", onInput);
-  document.addEventListener("mousedown", onDocDown, true);
-
-  document.body.appendChild(pop);
-  renderList();
-  place();
-  sIn.focus();
-  nestedPickState = { pop, cleanup };
+  });
 }
 
 function buildTicketLeftPane(row, placePop) {

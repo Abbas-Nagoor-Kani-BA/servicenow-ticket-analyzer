@@ -1,4 +1,5 @@
 import * as MsrChoices from "../../lib/msrchoices.js";
+import { placePopupNear } from "../../lib/markup.js";
 import { uiStore, setMsrLists, getMsrLists } from "./00-store.js";
 
 
@@ -81,16 +82,6 @@ function setStatus(text, isError = false) {
   el.textContent = text;
   el.style.color = isError ? "#f38ba8" : "#a6e3a1";
   setTimeout(() => { el.textContent = ""; }, 4000);
-}
-
-function placePopupNear(pop, rect, minW, gap = 4) {
-  const w = Math.max(rect.width, minW);
-  pop.style.width = `${w}px`;
-  const left = Math.max(8, Math.min(rect.left, window.innerWidth - w - 8));
-  let top = rect.bottom + gap;
-  if (top + pop.offsetHeight > window.innerHeight - 8) top = Math.max(8, rect.top - pop.offsetHeight - gap);
-  pop.style.left = `${left}px`;
-  pop.style.top = `${top}px`;
 }
 
 function el(tag, cls) {
