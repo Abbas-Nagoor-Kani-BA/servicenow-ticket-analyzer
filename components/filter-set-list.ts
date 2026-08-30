@@ -96,11 +96,11 @@ export class FilterSetList extends Component<FilterSetListState, ComponentProps,
   }
 
   protected renderItem(set: FilterSet, index: number): HTMLElement {
-    const row = el("div", "flitem");
+    const row = el("div", "flitem flex items-center gap-2 px-1 py-1.5 border-b border-line text-[11.5px] text-muted");
     const label = el("span");
     label.textContent = this.deps.describe(set);
 
-    const remove = el("button", undefined, "\u2715");
+    const remove = el("button", "bg-transparent border-0 text-bad cursor-pointer text-[13px] px-1", "\u2715");
     remove.type = "button";
     setTip(remove, "Remove");
     remove.addEventListener("click", () => {

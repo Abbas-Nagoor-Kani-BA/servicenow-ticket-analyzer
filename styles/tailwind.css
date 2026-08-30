@@ -1,0 +1,536 @@
+@import "tailwindcss";
+
+@source "../panel/";
+@source "../viewer/";
+@source "../settings/";
+@source "../styles/";
+@source "../components/";
+@source "../surfaces/";
+@source "../lib/";
+@source "../platform/";
+@source "../content/";
+
+@theme {
+  --color-bg: #1e1e2e;
+  --color-card: #181825;
+  --color-card2: #11111b;
+  --color-line: #313244;
+  --color-line2: #45475a;
+  --color-muted: #bac2de;
+  --color-faint: #6c7086;
+  --color-text: #cdd6f4;
+  --color-dim: #a6adc8;
+  --color-accent: #89b4fa;
+  --color-accent2: #9dc4ff;
+  --color-good: #a6e3a1;
+  --color-bad: #f38ba8;
+  --color-peach: #fab387;
+  --color-yellow: #f9e2af;
+  --color-red: #e03060;
+  --color-teal: #94e2d5;
+  --color-mauve: #cba6f7;
+  --color-pink: #f5c2e7;
+  --color-hover: #585b70;
+
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
+
+  --animate-snglow: snglow 1.4s ease-out infinite;
+  --animate-snflash: snflash 0.9s ease-out 1;
+  --animate-copyflash: copyflash 0.8s ease-out;
+  --animate-rowflash: rowflash 0.9s ease-out;
+
+  --breakpoint-none: 0px;
+}
+
+@keyframes snglow {
+  0% { box-shadow: 0 0 0 0 rgba(137, 180, 250, 0.65); }
+  70% { box-shadow: 0 0 0 10px rgba(137, 180, 250, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(137, 180, 250, 0); }
+}
+
+@keyframes snflash {
+  0% { background: #313244; box-shadow: inset 0 0 0 1px #89b4fa; }
+  100% { background: #181825; box-shadow: none; }
+}
+
+@keyframes copyflash {
+  0% { background: rgba(166, 227, 161, 0.25); color: #a6e3a1; }
+  100% { background: transparent; }
+}
+
+@keyframes rowflash {
+  0% { background: rgba(250, 179, 135, 0.18); }
+  100% { }
+}
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  [hidden] { display: none !important; }
+
+  ::-webkit-scrollbar { width: 12px; height: 12px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb {
+    background: #45475a;
+    border: 4px solid transparent;
+    border-radius: 10px;
+    background-clip: padding-box;
+  }
+  ::-webkit-scrollbar-thumb:hover { background: #89b4fa; border-width: 2px; }
+  ::-webkit-scrollbar-thumb:active { background: #89b4fa; border-width: 1px; }
+  ::-webkit-scrollbar-corner { background: transparent; }
+
+  button {
+    cursor: pointer;
+  }
+  button:disabled { opacity: 0.45; cursor: default; }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center rounded px-3.5 py-2 font-semibold text-text whitespace-nowrap bg-line2 cursor-pointer; 
+  }
+  .btn:hover { filter: brightness(1.15); }
+  .btn-primary {
+    @apply inline-flex items-center justify-center rounded px-3.5 py-2 font-semibold text-card2 whitespace-nowrap bg-accent cursor-pointer;
+  }
+  .btn-primary:hover { filter: brightness(1.15); }
+  .btn-ghost {
+    @apply inline-flex items-center justify-center rounded px-3.5 py-2 font-semibold text-text whitespace-nowrap bg-card2 border border-line cursor-pointer;
+  }
+  .btn-ghost:hover { filter: brightness(1.15); }
+  .input,
+  .select,
+  .textarea {
+    @apply w-full rounded bg-card2 text-text border border-line px-2 py-[7px] text-[13px] focus:outline focus:outline-1 focus:outline-accent;
+  }
+  .textarea { @apply min-h-[48px] font-mono text-[11.5px] resize-y; }
+  .card {
+    @apply bg-card rounded-lg border border-line px-3 py-2.5;
+  }
+  .hint { @apply text-dim text-[11.5px]; }
+  .mono { @apply font-mono text-[10.5px] text-good break-all bg-card2 p-[7px] rounded max-h-[90px] overflow-y-auto; }
+
+  .badge {
+    @apply text-[10.5px] px-2 py-0.5 rounded-full bg-bad/20 text-bad uppercase tracking-wide;
+  }
+  .badge.on { @apply bg-good/20 text-good; }
+  .linklike {
+    @apply bg-transparent border-0 py-0 mt-1.5 text-[11px] font-medium text-accent cursor-pointer;
+  }
+
+  .hidden { display: none !important; }
+
+  .secTitle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: var(--color-accent);
+    margin: 18px 0 0;
+    padding-top: 16px;
+    border-top: 1px solid var(--color-line);
+  }
+  .secTitle::before {
+    content: "";
+    flex: none;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--color-accent);
+  }
+
+  .cardTitle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--color-accent);
+    margin: 0 0 6px;
+    letter-spacing: 0.2px;
+  }
+  .cardTitle::before {
+    content: "";
+    flex: none;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--color-accent);
+    box-shadow: 0 0 8px rgba(137, 180, 250, 0.55);
+  }
+
+  .btn-danger {
+    @apply inline-flex items-center justify-center rounded px-3.5 py-2 font-semibold text-card2 whitespace-nowrap bg-bad cursor-pointer;
+  }
+  .btn-danger:hover { filter: brightness(1.15); }
+
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+    gap: 18px;
+    align-items: start;
+    grid-auto-flow: dense;
+  }
+
+  .card-settings {
+    min-width: 0;
+    position: relative;
+    background: linear-gradient(180deg, #1b1b2b 0%, #181825 100%);
+    border: 1px solid var(--color-line);
+    border-radius: 12px;
+    padding: 16px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.28);
+    transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+  }
+  .card-settings:hover {
+    transform: translateY(-2px);
+    border-color: #3d4158;
+    box-shadow: 0 8px 22px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(137, 180, 250, 0.08);
+  }
+
+  .msrStack {
+    column-width: 200px;
+    column-gap: 14px;
+  }
+
+  .msrTile {
+    display: inline-block;
+    width: 100%;
+    break-inside: avoid;
+    margin: 0 0 12px;
+    position: relative;
+    background: linear-gradient(180deg, #1b1b2b 0%, #16161f 100%);
+    border: 1px solid var(--color-line);
+    border-radius: 10px;
+    padding: 12px 12px 14px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+  }
+  .msrTile:hover {
+    transform: translateY(-2px);
+    border-color: #3d4158;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
+  }
+  .msrTile label { margin-top: 0; }
+
+  #viewBtn.attention {
+    animation: snglow 1.4s ease-out infinite;
+    border-color: #89b4fa;
+  }
+
+  .card.flash { animation: snflash 0.9s ease-out 1; }
+  tr.flash td { animation: rowflash 0.9s ease-out; }
+
+  .toastStack {
+    position: fixed;
+    top: 14px;
+    right: 14px;
+    z-index: 99999;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-width: min(320px, calc(100vw - 28px));
+  }
+  .toast {
+    padding: 10px 14px;
+    border-radius: 8px;
+    background: var(--color-card);
+    border: 1px solid var(--color-line);
+    border-left: 3px solid var(--color-good);
+    color: var(--color-text);
+    font-size: 13px;
+    line-height: 1.35;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+    opacity: 0;
+    transform: translateY(-8px);
+    transition: opacity 0.18s ease, transform 0.18s ease;
+    cursor: pointer;
+    user-select: none;
+  }
+  .toast.in { opacity: 1; transform: none; }
+  .toast.out { opacity: 0; transform: translateY(-8px); }
+  .toast.error { border-left-color: var(--color-bad); color: #f38ba8; }
+  .toast.info { border-left-color: var(--color-accent); }
+
+  .tip {
+    position: fixed;
+    z-index: 999999;
+    max-width: min(360px, calc(100vw - 20px));
+    padding: 7px 11px;
+    border-radius: 8px;
+    background: rgba(24, 24, 37, 0.86);
+    border: 1px solid rgba(49, 50, 68, 0.75);
+    backdrop-filter: blur(6px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(137, 180, 250, 0.08);
+    color: var(--color-text);
+    font-size: 12px;
+    line-height: 1.45;
+    white-space: pre-line;
+    word-break: break-word;
+    pointer-events: none;
+    opacity: 0;
+    transform: translateY(3px) scale(0.98);
+    transition: opacity 0.12s ease, transform 0.12s ease;
+    filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.3));
+  }
+  .tip.in { opacity: 1; transform: none; }
+  .tip::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 8px;
+    pointer-events: none;
+  }
+  .tip.warn {
+    border-color: rgba(250, 179, 135, 0.6);
+    color: #f9e2af;
+    background: rgba(40, 32, 24, 0.88);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(250, 179, 135, 0.25);
+  }
+}
+
+@layer components {
+  .toolbar {
+    @apply flex-none flex gap-3 items-center px-3.5 py-2 sticky top-0 bg-bg z-[2] border-b border-line;
+  }
+  .tbLeft { @apply flex gap-2.5 items-center min-w-0 flex-shrink; }
+  .tbRight { @apply flex gap-2 items-center ml-auto justify-end; }
+  #wrap { @apply flex-1 min-h-0 overflow-auto relative; }
+  table { @apply border-collapse table-fixed w-full; }
+  th, td {
+    @apply text-left px-2.5 py-1.5 border-b border-line whitespace-nowrap overflow-hidden text-ellipsis relative;
+  }
+  thead th {
+    @apply sticky top-0 bg-card cursor-pointer select-none text-[11.5px] uppercase tracking-wide text-muted z-[1];
+  }
+  thead th:hover { color: #b4befe; }
+  thead th.sorted::after { content: " ▾"; color: #cba6f7; }
+  thead th.sorted.desc::after { content: " ▴"; }
+  tbody tr:hover { background: #313244; }
+  th .colResize {
+    @apply absolute top-0 right-0 bottom-0 w-2 cursor-col-resize z-[3];
+  }
+  th .colResize::after {
+    content: "";
+    @apply absolute top-[20%] bottom-[20%] right-[3px] w-px bg-line2 transition-colors duration-100;
+  }
+  th .colResize:hover::after, th .colResize.active::after { @apply bg-pink w-0.5 right-0.5; }
+  th .colResize:hover, th .colResize.active { background: rgba(137, 180, 250, 0.14); }
+
+  td.num { @apply font-mono text-accent; }
+  td.time, td.inst { @apply font-mono text-[12px] text-teal; }
+  td.dur { @apply font-mono text-[12px] text-mauve; }
+  td.empty-time { @apply text-faint; }
+  td.editable { cursor: text; }
+  td.editable:hover { box-shadow: inset 0 0 0 1px #585b70; }
+  td:not(.editable):hover { box-shadow: inset 0 0 0 1px #585b70; }
+  td.edit-input { padding: 0 !important; }
+  td.edit-input input {
+    @apply w-full h-[calc(100%+1px)] border-0 bg-card2 text-yellow font-mono text-xs px-3 py-1.5 outline-2 outline-offset-[-2px] outline-accent;
+  }
+  td.edit-invalid input { outline-color: #f38ba8; }
+  td.offlist { box-shadow: inset 0 0 0 1px rgba(250, 179, 135, 0.55); }
+  td.sla-breach-r { @apply text-bad font-semibold; }
+  td.sla-breach-m { @apply text-peach font-semibold; }
+  td.sla-breach-rm { @apply text-red font-bold; }
+  td.selr { background: rgba(137, 180, 250, 0.13); }
+  #tbl.selecting, #tbl.selecting td { user-select: none; }
+  #fillHandle {
+    @apply absolute w-3.5 h-3.5 bg-accent border-2 border-card2 rounded-[2px] cursor-crosshair z-[5];
+  }
+  td.selFill { background: rgba(137, 180, 250, 0.28); }
+  td.review { box-shadow: inset 3px 0 0 #fab387; }
+  td.review::before { content: "⚠ "; color: #f9e2af; font-size: 11px; }
+  td.copied { animation: copyflash 0.8s ease-out; }
+
+  #slaBar { @apply flex-none px-4.5 py-1 text-[11px] text-dim flex items-center gap-2; }
+  .slaDot { @apply inline-block w-2 h-2 rounded-full; }
+  .slaDot.r { @apply bg-bad; }
+  .slaDot.m { @apply bg-peach; }
+  .slaDot.rm { @apply bg-red; }
+  #empty { @apply flex-1 pt-15 px-5 text-center text-dim text-sm; }
+
+  .radioRow { @apply flex flex-col gap-1 px-2.5 py-1.5; }
+  .radioRow label { @apply flex items-center gap-2 cursor-pointer text-[12.5px] text-text font-normal hover:text-accent; }
+  .radioRow input[type="radio"] { @apply accent-accent m-0 cursor-pointer; }
+
+  .msrPick {
+    @apply fixed z-30 bg-card border border-line rounded-lg p-1.5 flex flex-col gap-1.5 shadow-[0_8px_24px_rgba(17,17,27,.6)];
+  }
+  .msrPick.wide { @apply flex-row items-stretch gap-2.5; }
+  .msrPickMain { @apply flex flex-col gap-1.5 flex-none w-[270px]; }
+  .msrPick.wide .msrPickList { max-height: 400px; }
+  .ticketPop { @apply flex-row items-stretch gap-3 p-2; }
+  .msrPickSearch {
+    @apply bg-card2 text-text border border-line rounded px-2 py-1.5 text-[12.5px] outline-none focus:border-accent;
+  }
+  .msrPickSearch.invalid { outline: 2px solid #f38ba8; outline-offset: -1px; }
+  .msrPickList { @apply relative max-h-[240px] overflow-auto; }
+  .msrPickFoot { @apply text-faint text-[10.5px] tracking-wide px-0.5 pb-0.5; }
+  .msrPickItem { @apply px-2.5 py-1.25 rounded cursor-pointer text-[12.5px] leading-normal whitespace-nowrap overflow-hidden text-ellipsis; }
+  .msrPickItem:hover, .msrPickItem.active { @apply bg-accent text-card2 font-semibold; }
+  .msrPickItem.none { @apply text-faint cursor-default; }
+  .pickNested { z-index: 45; }
+  .msrPickNotes { @apply flex-1 min-w-[280px] max-h-[440px] overflow-auto border-l border-line pl-3; }
+  .msrPickNotesHead { @apply text-[11px] font-bold text-accent tracking-wide uppercase px-0.5 pb-2 sticky top-[-6px] bg-card; }
+
+  .noteItem { @apply relative bg-card2 rounded p-2 mb-2.5 overflow-hidden; }
+  .noteItem::after { content: ""; @apply absolute left-0 right-0 bottom-0 h-0.5 bg-line; }
+  .noteGroup { @apply bg-card2 rounded p-2 mb-2.5; }
+  .noteSub, .noteMeta { @apply flex items-center gap-2 mb-1 min-w-0; }
+  .noteAvatar {
+    @apply flex-none w-[22px] h-[22px] rounded-full bg-line2 text-text text-[9.5px] font-bold inline-flex items-center justify-center tracking-wide;
+  }
+  .noteAuthor { @apply text-xs font-semibold text-text whitespace-nowrap overflow-hidden text-ellipsis; }
+  .noteLabel { @apply text-[10.5px] font-bold uppercase tracking-wide text-muted whitespace-nowrap; }
+  .noteDot { @apply text-faint text-[10px]; }
+  .noteTime { @apply text-[10.5px] text-faint whitespace-nowrap; }
+  .noteBody { @apply whitespace-pre-wrap break-words text-[12.5px] leading-relaxed text-text; }
+  .noteEmpty { @apply text-faint text-xs px-0.5 py-1.5; }
+  .noteEntry { @apply relative py-1.5; }
+  .noteEntry + .noteEntry { border-top: 1px dashed var(--color-line); }
+  .noteEntry::after { content: ""; @apply absolute left-0 right-0 bottom-0 h-0.5 bg-line; }
+  .noteEntry.wn::after { background: #f5c518; }
+  .noteEntry.cm::after { background: #89b4fa; }
+  .noteEntry.rn::after { background: #a6e3a1; }
+  .noteEntry.fc::after { background: #585b70; }
+  .noteEntry.sum::after { background: #cba6f7; }
+  .noteItem.sum::after { background: #cba6f7; }
+
+  .ticketCol { @apply flex flex-col min-w-0 flex-1 gap-0.5 max-h-[440px] overflow-auto; }
+  .ticketPop .ticketCol:first-child { @apply flex-none w-[260px] border-r border-line pr-3; }
+  .paneHead { @apply text-[11px] font-bold text-accent uppercase tracking-wide px-0.5 pb-2 sticky top-[-8px] bg-card; }
+  .fieldLine { @apply flex flex-col gap-1 py-1.75 border-b border-line; }
+  .fieldLine .fl { @apply text-faint text-[11px] uppercase tracking-wide; }
+  .fieldLine .fv { @apply flex-1 break-words text-[12.5px] leading-relaxed text-text; }
+  .fieldLine .fvWrap { @apply flex-1 min-w-0; }
+  .fieldLine .fvEdit {
+    @apply w-full bg-card2 text-yellow border border-line rounded px-2 py-1 text-xs outline-none focus:border-accent;
+    font-family: inherit;
+    font-size: inherit;
+  }
+  .fieldLine .fvEdit.invalid { outline: 2px solid #f38ba8; outline-offset: -1px; }
+  .tlDate { @apply font-mono text-[11.5px]; }
+  .trRow { @apply p-2 bg-card2 rounded mb-1.75; }
+  .trDate { @apply block text-accent font-mono text-[11.5px] mb-1; }
+  .trText { @apply break-words text-[12.5px] leading-relaxed text-text; }
+
+  #tabs { @apply flex-none inline-flex gap-0.5 pt-1.5 px-4.5; }
+  #tabs button.tab {
+    @apply bg-card text-dim border border-line px-4 py-1.5 text-xs rounded-none font-semibold cursor-pointer inline-flex items-center gap-2;
+  }
+  #tabs button.tab .g { @apply text-[13px] leading-none; }
+  #tabs button.tab:first-child { @apply rounded-tl-lg rounded-bl-lg; }
+  #tabs button.tab:last-child { @apply rounded-tr-lg rounded-br-lg; }
+  #tabs button.tab:hover { filter: none; @apply bg-line text-text; }
+  #tabs button.tab.on, #tabs button.tab[aria-selected="true"] { @apply bg-accent text-card2 border-accent; }
+  #tabs button.tab.on:hover { @apply bg-accent2 text-card2; }
+  #tabs button.tab:focus-visible { outline: none; z-index: 1; box-shadow: inset 0 0 0 2px #89b4fa; }
+  #tabs button.tab.on:focus-visible { box-shadow: inset 0 0 0 2px #11111b; }
+
+  #summaryWrap { @apply flex-1 min-h-0 overflow-auto px-4.5 pb-4.5; }
+  #sumMeta { @apply text-dim text-xs py-1 pb-2; }
+  .table-wrapper { @apply mb-5; }
+  .sum-table { @apply w-full max-w-[1100px] border-collapse table-fixed text-[12.5px]; }
+  .sum-table th {
+    @apply bg-card text-text border border-line px-2.5 py-3 text-left font-medium h-auto min-h-[46px] leading-relaxed break-words;
+  }
+  .sum-table td {
+    @apply border border-line px-2.5 py-2 text-center align-middle bg-bg text-text h-auto min-h-[34px] leading-relaxed;
+  }
+  .sum-table td.spanned, .sum-table td.slaMetric, .sum-table td.slaCat { @apply font-medium; }
+  .sum-table td.actual, .sum-table td.count, .sum-table td.total { @apply bg-line text-text; }
+  .sum-table td.target { @apply text-accent; }
+  .sum-table td.target.green-target { @apply text-good; }
+  .sum-table td.status { @apply font-semibold; }
+  .sum-table td.status.green { @apply text-good; }
+  .sum-table td.status.amber { @apply text-yellow; }
+  .sum-table td.status.red { @apply text-bad; }
+  .problem-table td { @apply h-16 align-top p-2.5; }
+  .incident-table td.sla { @apply text-left pl-3; }
+
+  #colMenu {
+    @apply absolute top-[calc(100%+6px)] right-2.5 z-[5] bg-card border border-line rounded-lg p-2 min-w-[250px] max-h-[70vh] overflow-auto shadow-[0_8px_24px_rgba(17,17,27,.55)];
+  }
+  #colMenu .menuHead { @apply flex justify-between items-center gap-3 pb-1.5 mb-1 border-b border-line text-[11.5px] uppercase tracking-wide text-muted; }
+  #colMenu .menuHead button { @apply text-[11px] px-2 py-0.5 font-normal; }
+  #colMenu .menuHead.sub { @apply justify-end border-0 pb-0 mb-0; }
+  #colMenu .menuHead.sub button { @apply normal-case tracking-normal text-accent border border-line rounded; }
+  #colSearch, #mapSearch {
+    @apply w-full bg-card2 text-text border border-line rounded px-2 py-1.5 text-xs outline-none focus:border-accent;
+  }
+  #colList { @apply flex flex-col; }
+  #colList label { @apply flex items-center gap-2 px-1 py-0.75 cursor-pointer whitespace-nowrap rounded hover:bg-line; }
+  #colList input { @apply accent-accent; }
+
+  #mapModal, #ciModal, #configModal { @apply fixed inset-0 z-[18] bg-card2/60 flex items-center justify-center; }
+  #mapCard, #ciCard { @apply flex flex-col gap-2 bg-card border border-line rounded-xl p-3.5; }
+  #configCard { @apply flex flex-col gap-2.5 bg-card border border-line rounded-xl p-3.5 max-h-[84vh]; }
+  #mapCard { @apply w-[min(560px,92vw)] max-h-[84vh]; }
+  #ciCard { @apply w-[min(760px,94vw)]; }
+  #configCard { @apply w-[min(520px,92vw)]; }
+  .mapHead { @apply flex justify-between items-center text-sm font-bold text-accent; }
+  .mapHint { @apply m-0 text-dim text-xs; }
+  #mapList { @apply overflow-auto min-h-[120px] bg-card2 border border-line rounded py-0; }
+  .mapRow { @apply flex items-center justify-between gap-3 px-2.5 py-1 hover:bg-line; }
+  .mapRow > span { @apply overflow-hidden text-ellipsis whitespace-nowrap; }
+  .mapNone { @apply px-2.5 py-2 text-peach text-xs; }
+  button.mapPick {
+    @apply min-w-[150px] text-left font-normal text-xs bg-card2 text-dim border border-line rounded px-2.5 py-1 whitespace-nowrap overflow-hidden text-ellipsis hover:bg-line hover:filter-none;
+  }
+  button.mapPick.set { @apply text-accent border-accent/50 font-semibold; }
+
+  #letterPop { @apply fixed z-20 w-[230px] flex flex-col gap-1.5 bg-card border border-line rounded-lg p-1.5 shadow-[0_8px_24px_rgba(17,17,27,.6)]; }
+  #letterSearch { @apply bg-card2 text-text border border-line rounded px-2 py-1.25 text-xs outline-none focus:border-accent; }
+  #letterList { @apply max-h-[240px] overflow-auto; }
+  .letterOpt { @apply px-2 py-1 rounded cursor-pointer text-xs font-mono whitespace-nowrap overflow-hidden text-ellipsis hover:bg-line; }
+  .letterOpt.none { @apply text-dim font-sans; }
+  .letterOpt.taken { @apply text-mauve; }
+  .letterOpt .holder { @apply text-dim font-sans text-[11px]; }
+
+  .mapFoot { @apply flex items-center gap-2; }
+  .mapFoot .spacer { @apply flex-1; }
+
+  #ciEnabled { @apply accent-accent; }
+  .ciToggle { @apply flex items-center gap-2 cursor-pointer text-[13px]; }
+  #groupBoard { @apply flex gap-2.5 overflow-x-auto p-0.5 min-h-[150px]; }
+  .ciGroupCard { @apply min-w-[200px] w-[220px] flex-none flex flex-col gap-1.5 bg-card2 border border-line rounded-lg p-2; }
+  .ciGroupHead { @apply flex items-center gap-1; }
+  .ciGroupName {
+    @apply flex-1 min-w-0 bg-transparent border-0 outline-none text-mauve font-bold text-[13px] px-1 py-0.5 border-b border-dashed border-transparent hover:border-line focus:border-accent;
+  }
+  .ciDelGroup { @apply bg-transparent text-dim text-xs cursor-pointer px-1 py-0.25; }
+  .ciItems { @apply flex-1 min-h-[60px] max-h-[268px] overflow-y-auto flex flex-col gap-1 p-0.75 rounded; }
+  .ciItems.dragOver { outline: 2px dashed #89b4fa; outline-offset: -2px; }
+  .ciChip { @apply flex items-center justify-between gap-1.5 bg-line border border-line rounded px-1.75 py-0.75 text-[11.5px] cursor-grab; }
+  .ciChip .lbl { @apply overflow-hidden text-ellipsis whitespace-nowrap; }
+  .ciChip .rm { @apply bg-transparent text-dim text-[11px] cursor-pointer px-1; }
+  .ciAddRow { @apply flex gap-1; }
+  .ciAddRow input { @apply flex-1 min-w-0 bg-card2 text-text border border-line rounded px-1.75 py-1 text-[11.5px] outline-none focus:border-accent; }
+  .ciAddRow button { @apply px-2.5 py-0.75 text-xs; }
+  #addGroupBtn { @apply self-start; }
+
+  .cfgRows { @apply flex flex-col; }
+  .cfgRow { @apply flex items-center gap-2.5 py-2 border-b border-line last:border-0; }
+  .cfgLabel { @apply w-[130px] text-dim text-xs flex-shrink-0; }
+  .cfgValue { @apply flex-1 text-[12.5px] overflow-hidden text-ellipsis whitespace-nowrap; }
+  .cfgActions { @apply inline-flex gap-1.5 flex-shrink-0; }
+  button.cfgEdit { @apply px-2.5 py-1 text-xs font-normal bg-card2 text-text border border-line rounded hover:bg-line hover:filter-none; }
+  #cfgTplClear { @apply text-bad; }
+  #configCard .radioRow { @apply border-t border-line px-0.5 py-2.5; }
+  #cfgSplitPreview { @apply px-0.5 pb-2 text-[12.5px] leading-relaxed; }
+  #cfgSplitPreview .pvRow { @apply flex justify-between gap-2.5 px-1 py-0.5 rounded; }
+  #cfgSplitPreview .pvRow:nth-child(odd) { background: rgba(137, 180, 250, 0.06); }
+  #cfgSplitPreview .pvRow.hint { @apply text-dim bg-transparent pt-1.5; }
+  #cfgSplitPreview .pvCount { @apply font-semibold text-accent; }
+  #cfgSplitPreview .pvZero { @apply text-bad; }
+
+  input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.8); }
+}

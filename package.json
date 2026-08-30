@@ -7,20 +7,24 @@
   "scripts": {
     "lint": "eslint .",
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.strict.json",
-    "build": "node build.mjs",
-    "dev": "node build.mjs --watch",
-    "watch": "node build.mjs --watch",
+    "css": "tailwindcss -i styles/tailwind.css -o styles/output.css --minify",
+    "css:watch": "tailwindcss -i styles/tailwind.css -o styles/output.css --watch",
+    "build": "npm run css && node build.mjs",
+    "dev": "npm run css && node build.mjs --watch",
+    "watch": "npm run css && node build.mjs --watch",
     "test": "node --test \"tools/*-test.*\"",
     "test:dom": "node --test tools/viewer-dom-test.js",
     "release": "npm run typecheck && npm run lint && npm test && npm run build",
     "zip": "node tools/zip-dist.mjs"
   },
   "devDependencies": {
+    "@tailwindcss/cli": "^4.3.3",
     "@types/chrome": "^0.0.270",
     "esbuild": "^0.23.1",
     "eslint": "^9.10.0",
     "fake-indexeddb": "^6.2.5",
     "happy-dom": "^15.7.4",
+    "tailwindcss": "^4.3.3",
     "typescript": "^5.6.2",
     "typescript-eslint": "^8.68.0"
   }

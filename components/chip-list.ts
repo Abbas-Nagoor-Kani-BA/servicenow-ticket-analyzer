@@ -45,7 +45,7 @@ export class ChipList extends Component<ChipListState, ComponentProps, ChipListD
   }
 
   protected build(): void {
-    this.root.classList.add("chipField");
+    this.root.classList.add("flex", "flex-col", "gap-1.5");
 
     if (this.deps.collapsible) this.buildCollapsible();
     else this.buildInline();
@@ -56,32 +56,32 @@ export class ChipList extends Component<ChipListState, ComponentProps, ChipListD
   protected buildCollapsible(): void {
     const refs = this.refs;
 
-    refs.count = el("span", "chipCount");
-    refs.editBtn = el("button", "chipEditBtn", "Edit");
+    refs.count = el("span", "chipCount text-dim text-[11px]");
+    refs.editBtn = el("button", "chipEditBtn bg-transparent text-accent text-xs font-semibold px-1.5 underline underline-offset-[3px] cursor-pointer hover:brightness-125", "Edit");
     refs.editBtn.type = "button";
     setTip(refs.editBtn, "Edit these values");
 
-    const head = el("div", "chipCardHead");
+    const head = el("div", "flex items-center justify-between gap-2 mb-1.5");
     head.append(refs.count, refs.editBtn);
 
-    refs.stack = el("div", "chipStack");
-    refs.emptyHint = el("div", "chipEmpty", "None — Edit to add");
+    refs.stack = el("div", "chipStack flex flex-col gap-1 min-h-0 max-h-[170px] overflow-y-auto pr-1");
+    refs.emptyHint = el("div", "chipEmpty text-dim text-xs italic py-0.5", "None — Edit to add");
 
-    refs.textarea = el("textarea", "chipTextarea");
+    refs.textarea = el("textarea", "chipTextarea w-full min-h-[150px] resize-y font-mono");
     refs.textarea.placeholder = this.deps.placeholder || "One value per line — commas/semicolons also split";
 
-    refs.saveBtn = el("button", "primary", "Save");
+    refs.saveBtn = el("button", "primary btn-primary py-1.5 px-3 text-xs", "Save");
     refs.saveBtn.type = "button";
-    refs.cancelBtn = el("button", undefined, "Cancel");
+    refs.cancelBtn = el("button", "btn py-1.5 px-3 text-xs", "Cancel");
     refs.cancelBtn.type = "button";
 
-    const actions = el("div", "chipActions");
+    const actions = el("div", "chipActions flex gap-2 justify-end mt-2");
     actions.append(refs.saveBtn, refs.cancelBtn);
 
-    refs.editor = el("div", "chipEditor");
+    refs.editor = el("div", "chipEditor flex flex-col gap-1.5");
     refs.editor.append(refs.textarea, actions);
 
-    const card = el("div", "chipCard");
+    const card = el("div", "chipCard min-h-0 bg-card2 border border-line rounded-lg p-2.5");
     card.append(head, refs.stack, refs.emptyHint, refs.editor);
     this.root.appendChild(card);
 
@@ -99,8 +99,8 @@ export class ChipList extends Component<ChipListState, ComponentProps, ChipListD
 
   protected buildInline(): void {
     const refs = this.refs;
-    refs.list = el("div", "chipList");
-    refs.input = el("input", "chipInput");
+    refs.list = el("div", "chipList flex flex-wrap gap-[5px]");
+    refs.input = el("input", "chipInput flex-1 min-w-[180px] border border-line bg-card2 text-text rounded px-2.5 py-1.5 text-[13px] font-sans focus:outline-none focus:border-accent");
     refs.input.placeholder = this.deps.placeholder || "Type a value and press Enter";
     this.root.append(refs.list, refs.input);
   }
@@ -149,7 +149,7 @@ export class ChipList extends Component<ChipListState, ComponentProps, ChipListD
 
     stack.innerHTML = "";
     for (const value of state.values) {
-      stack.appendChild(el("div", "chipRow", value));
+      stack.appendChild(el("div", "chipRow bg-bg border border-line rounded px-2.5 py-[5px] text-[12.5px] text-text whitespace-normal break-words hover:border-dim", value));
     }
 
     stack.hidden = state.editing;
@@ -170,10 +170,10 @@ export class ChipList extends Component<ChipListState, ComponentProps, ChipListD
   }
 
   protected renderChip(value: string): HTMLElement {
-    const chip = el("div", "chip");
-    const label = el("span", "lbl", value);
+    const chip = el("div", "chip flex items-center gap-1.5 bg-line border border-line rounded px-[7px] py-0.5 text-xs text-text max-w-full");
+    const label = el("span", "truncate", value);
 
-    const remove = el("button", "rm", "\u2715");
+    const remove = el("button", "rm bg-transparent text-dim text-[11px] px-1 cursor-pointer hover:text-text", "\u2715");
     remove.type = "button";
     setTip(remove, "Remove");
     remove.addEventListener("click", () => {

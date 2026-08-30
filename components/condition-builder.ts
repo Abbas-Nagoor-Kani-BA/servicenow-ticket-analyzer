@@ -201,7 +201,7 @@ export class ConditionBuilder extends Component<ConditionBuilderState, Component
     const def = this.deps.fields.find((f) => f.key === row.field);
     if (!def) throw new Error(`Condition ${index + 1}: unknown column`);
 
-    const wrap = el("div", "crow");
+    const wrap = el("div", "crow flex gap-1 mt-1.5 items-center");
     if (index > 0) wrap.appendChild(this.joinSelector(row, index));
     wrap.appendChild(this.fieldSelector(row, index, table));
     wrap.appendChild(this.opSelector(row, def, index));
@@ -223,7 +223,7 @@ export class ConditionBuilder extends Component<ConditionBuilderState, Component
   }
 
   protected joinSelector(row: ConditionRow, index: number): HTMLElement {
-    const select = el("select", "cjoin");
+    const select = el("select", "cjoin flex-none w-[62px] font-semibold text-accent text-xs px-1.5 py-1 min-w-0 bg-card2 text-text border border-line rounded");
     for (const [value, label] of [
       ["AND", "AND"],
       ["OR", "OR"]
@@ -241,7 +241,7 @@ export class ConditionBuilder extends Component<ConditionBuilderState, Component
   }
 
   protected fieldSelector(row: ConditionRow, index: number, table: string): HTMLElement {
-    const select = el("select", "cfield");
+    const select = el("select", "cfield flex-[1.3] min-w-0 text-xs px-1.5 py-1 bg-card2 text-text border border-line rounded");
     for (const f of this.allowedFields(table)) {
       const option = el("option");
       option.value = f.key;
@@ -258,7 +258,7 @@ export class ConditionBuilder extends Component<ConditionBuilderState, Component
   }
 
   protected opSelector(row: ConditionRow, def: CondFieldDef, index: number): HTMLElement {
-    const select = el("select", "cop");
+    const select = el("select", "cop flex-1 min-w-0 text-xs px-1.5 py-1 bg-card2 text-text border border-line rounded");
     for (const [value, label] of COND_OPS[def.type] || []) {
       const option = el("option");
       option.value = value;
@@ -274,7 +274,7 @@ export class ConditionBuilder extends Component<ConditionBuilderState, Component
 
   protected valueWidget(row: ConditionRow, def: CondFieldDef, index: number): HTMLElement {
     if (def.type === "choice") {
-      const select = el("select", "cval");
+      const select = el("select", "cval flex-[1.2] min-w-0 text-xs px-1.5 py-1 bg-card2 text-text border border-line rounded");
       const list = this.deps.choiceList(def.choicesKey || "");
       for (const choice of list) {
         const option = el("option");
@@ -293,7 +293,7 @@ export class ConditionBuilder extends Component<ConditionBuilderState, Component
       return select;
     }
 
-    const input = el("input", "cval") as HTMLInputElement;
+    const input = el("input", "cval flex-[1.2] min-w-0 text-xs px-1.5 py-1 bg-card2 text-text border border-line rounded") as HTMLInputElement;
     input.type = def.type === "date" ? "date" : "text";
     input.placeholder = def.type === "date" ? "" : "value";
     input.value = row.value || "";
@@ -303,7 +303,7 @@ export class ConditionBuilder extends Component<ConditionBuilderState, Component
     });
 
     if (def.type === "date" && row.op === "between") {
-      const second = el("input", "cval") as HTMLInputElement;
+      const second = el("input", "cval flex-[1.2] min-w-0 text-xs px-1.5 py-1 bg-card2 text-text border border-line rounded") as HTMLInputElement;
       second.type = "date";
       second.value = row.value2 || "";
       second.addEventListener("input", () => this.update(index, { value2: second.value }));
@@ -316,7 +316,7 @@ export class ConditionBuilder extends Component<ConditionBuilderState, Component
   }
 
   protected deleteButton(index: number): HTMLElement {
-    const button = el("button", "cdel", "\u2715");
+    const button = el("button", "cdel flex-none bg-transparent border-0 text-bad cursor-pointer px-1 py-0.5 text-[13px]", "\u2715");
     button.type = "button";
     setTip(button, "Remove condition");
     button.addEventListener("click", () => {

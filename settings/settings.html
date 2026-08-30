@@ -3,97 +3,21 @@
 <head>
   <meta charset="utf-8">
   <title>ServiceNow Analyzer — Settings</title>
-  <link href="../styles/base.css" rel="stylesheet">
-  <style>
-
-    :root { --bg:#1e1e2e; --card:#181825; --line:#313244; --text:#cdd6f4; --dim:#a6adc8; }
-    * { box-sizing:border-box; }
-    body { margin:0 auto; font-family:system-ui,sans-serif; font-size:13px; background:var(--bg); color:var(--text); padding:24px; max-width:1280px; }
-    h1 { font-size:18px; color:#89b4fa; margin:0 0 4px; }
-    .sub { color:var(--dim); font-size:12px; margin-bottom:16px; }
-    .cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(340px,1fr)); gap:18px;
-      align-items:start; grid-auto-flow:dense; }
-    .cards > .card { display:block; width:100%; margin:0; }
-    .msrCard { grid-column:1/-1; }
-    .secTitle { display:flex; align-items:center; gap:8px; font-size:12px; font-weight:700;
-      text-transform:uppercase; letter-spacing:.4px; color:#89b4fa; margin:18px 0 0;
-      padding-top:16px; border-top:1px solid var(--line); }
-    .secTitle::before { content:""; flex:none; width:6px; height:6px; border-radius:50%; background:#89b4fa; }
-    .card { min-width:0; position:relative; background:linear-gradient(180deg,#1b1b2b 0%,#181825 100%);
-      border:1px solid var(--line); border-radius:12px; padding:16px;
-      box-shadow:0 4px 14px rgba(0,0,0,.28);
-      transition:transform .15s ease, box-shadow .15s ease, border-color .15s ease; }
-    .card:hover { transform:translateY(-2px); border-color:#3d4158;
-      box-shadow:0 8px 22px rgba(0,0,0,.35), 0 0 0 1px rgba(137,180,250,.08); }
-    .cardTitle { display:flex; align-items:center; gap:8px; font-size:14px; font-weight:700;
-      color:#89b4fa; margin:0 0 6px; letter-spacing:.2px; }
-    .cardTitle::before { content:""; flex:none; width:8px; height:8px; border-radius:50%;
-      background:#89b4fa; box-shadow:0 0 8px rgba(137,180,250,.55); }
-    .saveBar { margin-top:18px; justify-content:flex-end; }
-    label { display:block; font-size:11.5px; text-transform:uppercase; letter-spacing:.4px; color:#bac2de; margin:12px 0 5px; }
-    label:first-child { margin-top:0; }
-    input, select, textarea { width:100%; background:#11111b; color:var(--text); border:1px solid var(--line);
-      border-radius:6px; padding:7px 10px; font-size:13px; font-family:inherit; }
-    textarea { min-height:110px; resize:vertical; font-family:monospace; }
-    .hint { color:var(--dim); font-size:11px; margin-top:4px; }
-    .btns { display:flex; gap:8px; flex-wrap:wrap; margin-top:14px; align-items:center; }
-    button { padding:8px 14px; border:none; border-radius:6px; background:#45475a; color:var(--text); cursor:pointer; font-weight:600; }
-    button:hover { filter:brightness(1.15); }
-    button.primary { background:#89b4fa; color:#11111b; }
-    button.danger { background:#f38ba8; color:#11111b; }
-    .msrStack { column-width:200px; column-gap:14px; }
-    .msrTile { display:inline-block; width:100%; break-inside:avoid; margin:0 0 12px;
-      position:relative; background:linear-gradient(180deg,#1b1b2b 0%,#16161f 100%);
-      border:1px solid var(--line); border-radius:10px; padding:12px 12px 14px;
-      box-shadow:0 2px 8px rgba(0,0,0,.2);
-      transition:transform .15s ease, box-shadow .15s ease, border-color .15s ease; }
-    .msrTile:hover { transform:translateY(-2px); border-color:#3d4158; box-shadow:0 6px 16px rgba(0,0,0,.3); }
-    .msrTile label { margin-top:0; }
-    .chipField { display:flex; flex-direction:column; gap:6px; }
-    .chipCard { min-height:0; background:#11111b; border:1px solid var(--line); border-radius:8px; padding:10px; }
-    .chipCardHead { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:6px; }
-    .chipCount { color:var(--dim); font-size:11px; }
-    .chipEditBtn { background:transparent; color:#89b4fa; font-size:12px; font-weight:600;
-      padding:1px 6px; text-decoration:underline; text-underline-offset:3px; }
-    .chipEditBtn:hover { filter:brightness(1.2); }
-    .chipStack { display:flex; flex-direction:column; gap:4px; min-height:0; max-height:170px;
-      overflow-y:auto; padding-right:4px; }
-    .chipStack:empty { display:none; }
-    .chipStack[hidden] { display:none; }
-    .chipRow { background:#1e1e2e; border:1px solid var(--line); border-radius:5px;
-      padding:5px 9px; font-size:12.5px; color:var(--text); white-space:normal;
-      overflow-wrap:anywhere; }
-    .chipRow:hover { border-color:var(--dim); }
-    .chipEmpty { color:var(--dim); font-size:12px; font-style:italic; padding:2px 0; }
-    .chipTextarea { width:100%; min-height:150px; resize:vertical; font-family:monospace; }
-    .chipActions { display:flex; gap:8px; justify-content:flex-end; margin-top:8px; }
-    .chipActions button { padding:6px 12px; font-size:12px; }
-    .chipList { display:flex; flex-wrap:wrap; gap:5px; }
-    .chip { display:flex; align-items:center; gap:6px; background:#313244; border:1px solid var(--line);
-      border-radius:5px; padding:2px 7px; font-size:12px; color:var(--text); max-width:100%; }
-    .chip .lbl { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-    .chip .rm { background:transparent; color:var(--dim); font-size:11px; padding:0 4px; }
-    .chip .rm:hover { color:var(--text); }
-    .chipInput { flex:1; min-width:180px; border:1px solid var(--line); background:#11111b;
-      color:var(--text); border-radius:6px; padding:6px 10px; font-size:13px; font-family:inherit; }
-    .chipInput:focus { outline:none; border-color:#89b4fa; }
-
-    
-  </style>
+  <link href="../styles/output.css" rel="stylesheet">
 </head>
-<body>
-  <h1>Plugin Settings</h1>
-  <div class="sub">Stored locally in the extension (chrome.storage.local)</div>
+<body class="m-0 mx-auto font-sans text-[13px] bg-bg text-text p-6 max-w-[1280px]">
+  <h1 class="text-lg text-accent m-0 mb-1">Plugin Settings</h1>
+  <div class="text-dim text-xs mb-4">Stored locally in the extension (chrome.storage.local)</div>
 
   <div class="cards">
 
-  <div class="card generalCard">
+  <div class="card-settings msrCard" style="grid-column:1/-1">
     <h2 class="cardTitle">General</h2>
-    <label>Instance URL</label>
-    <input id="instanceUrl" type="url" placeholder="https://devXXXXX.service-now.com">
+    <label class="block text-[11.5px] uppercase tracking-wider text-muted mt-3 mb-1.25">Instance URL</label>
+    <input id="instanceUrl" type="url" placeholder="https://devXXXXX.service-now.com" class="input">
 
-    <label>Default ticket type</label>
-    <select id="ticketType">
+    <label class="block text-[11.5px] uppercase tracking-wider text-muted mt-3 mb-1.25">Default ticket type</label>
+    <select id="ticketType" class="select">
       <option value="incident">Incident</option>
       <option value="change_request">Change Request</option>
       <option value="problem">Problem</option>
@@ -102,117 +26,117 @@
     </select>
 
     <h3 class="secTitle">Queues</h3>
-    <label>Queues (one assignment group name per chip)</label>
+    <label class="block text-[11.5px] uppercase tracking-wider text-muted mt-3 mb-1.25">Queues (one assignment group name per chip)</label>
     <div id="queuesChips"></div>
-    <div class="hint">Every pull is scoped to these assignment groups by name. Names must match the group's display name in ServiceNow. Type a name and press Enter — paste several separated by commas or new lines.</div>
+    <div class="hint mt-1">Every pull is scoped to these assignment groups by name. Names must match the group's display name in ServiceNow. Type a name and press Enter — paste several separated by commas or new lines.</div>
 
     <h3 class="secTitle">Team members</h3>
-    <label>Team members (one full name per chip)</label>
+    <label class="block text-[11.5px] uppercase tracking-wider text-muted mt-3 mb-1.25">Team members (one full name per chip)</label>
     <div id="teamMembersChips"></div>
-    <div class="hint">Used ONLY to detect acknowledgement dates (when a ticket gets assigned to one of these people). Names must match how ServiceNow displays the user. Type a name and press Enter — paste several separated by commas or new lines. Leave empty to skip acknowledgement detection.</div>
+    <div class="hint mt-1">Used ONLY to detect acknowledgement dates (when a ticket gets assigned to one of these people). Names must match how ServiceNow displays the user. Type a name and press Enter — paste several separated by commas or new lines. Leave empty to skip acknowledgement detection.</div>
   </div>
 
-  <div class="card paramsCard">
+  <div class="card-settings paramsCard">
     <h2 class="cardTitle">Pull parameters</h2>
-    <label>Table page size</label>
-    <input id="tablePageSize" type="number" min="100" max="5000">
-    <div class="hint">Rows per Table API page during pulls (100–5000, default 1000).</div>
+    <label class="block text-[11.5px] uppercase tracking-wider text-muted mt-3 mb-1.25">Table page size</label>
+    <input id="tablePageSize" type="number" min="100" max="5000" class="input">
+    <div class="hint mt-1">Rows per Table API page during pulls (100–5000, default 1000).</div>
 
-    <label style="margin-top:8px;">Query cache TTL (minutes)</label>
-    <input id="cacheTtlMinutes" type="number" min="0" max="10080">
-    <div class="hint">How long a pulled ticket list is reused without re-fetching (0–10080, default 15). A pull re-uses cached results only if the same query ran within this window; 0 disables caching so every pull hits the API. Timeline cache is unaffected.</div>
+    <label class="block text-[11.5px] uppercase tracking-wider text-muted mt-2 mb-1.25">Query cache TTL (minutes)</label>
+    <input id="cacheTtlMinutes" type="number" min="0" max="10080" class="input">
+    <div class="hint mt-1">How long a pulled ticket list is reused without re-fetching (0–10080, default 15). A pull re-uses cached results only if the same query ran within this window; 0 disables caching so every pull hits the API. Timeline cache is unaffected.</div>
 
-    <label style="margin-top:8px;">Max tickets per filter set</label>
-    <input id="maxTicketsPerPull" type="number" min="0" max="100000">
-    <div class="hint">Safety cap: if a filter matches MORE tickets than this, the set is skipped and you are warned instead of pulling (0–100000, default 500; 0 = unlimited). Preview shows the same warning before you run.</div>
+    <label class="block text-[11.5px] uppercase tracking-wider text-muted mt-2 mb-1.25">Max tickets per filter set</label>
+    <input id="maxTicketsPerPull" type="number" min="0" max="100000" class="input">
+    <div class="hint mt-1">Safety cap: if a filter matches MORE tickets than this, the set is skipped and you are warned instead of pulling (0–100000, default 500; 0 = unlimited). Preview shows the same warning before you run.</div>
 
-    <label style="display:flex;align-items:center;gap:6px;margin-top:8px;">
-      <input id="debugResponses" type="checkbox" style="width:auto;">
+    <label class="flex items-center gap-1.5 mt-2">
+      <input id="debugResponses" type="checkbox" class="w-auto">
       Log response data in panel log (debug)
     </label>
-    <div class="hint">Adds a truncated body preview and row count for every API call to the log. Verbose — enable only while troubleshooting.</div>
+    <div class="hint mt-1">Adds a truncated body preview and row count for every API call to the log. Verbose — enable only while troubleshooting.</div>
 
-    <div class="btns" style="margin-top:10px;">
-      <button id="clearCacheBtn">Clear pull cache</button>
+    <div class="flex gap-2 flex-wrap mt-2.5 items-center">
+      <button id="clearCacheBtn" class="btn">Clear pull cache</button>
       <span class="hint">Query results are reused for 15 min; timelines until the ticket changes (max 7 days).</span>
     </div>
   </div>
 
-  <div class="card msrCard">
+  <div class="card-settings msrCard" style="grid-column:1/-1">
     <h2 class="cardTitle">MSR option lists</h2>
-    <div class="hint">Allowed values for the MSR report dropdown columns (BA AO sheet). The data view
+    <div class="hint mt-1">Allowed values for the MSR report dropdown columns (BA AO sheet). The data view
       restricts these columns to the lists below, and exports/copy-for-MSR use exactly these labels.
       One value per chip — type and press Enter, or paste several separated by commas/new lines.
       Emptying a list falls back to nothing — use "Restore defaults" for the original msr.xlsx values.</div>
     <div class="msrStack">
       <div class="msrTile">
-        <label>Op Co</label>
+        <label class="block text-[11.5px] uppercase tracking-wider text-muted mt-3 mb-1.25">Op Co</label>
         <div id="msrOpCo"></div>
       </div>
       <div class="msrTile">
-        <label>Domain</label>
+        <label class="block text-[11.5px] uppercase tracking-wider text-muted mt-3 mb-1.25">Domain</label>
         <div id="msrDomain"></div>
       </div>
       <div class="msrTile">
-        <label>Type</label>
+        <label class="block text-[11.5px] uppercase tracking-wider text-muted mt-3 mb-1.25">Type</label>
         <div id="msrType"></div>
       </div>
       <div class="msrTile">
-        <label>Status</label>
+        <label class="block text-[11.5px] uppercase tracking-wider text-muted mt-3 mb-1.25">Status</label>
         <div id="msrStatus"></div>
       </div>
       <div class="msrTile">
-        <label>Resolution type</label>
+        <label class="block text-[11.5px] uppercase tracking-wider text-muted mt-3 mb-1.25">Resolution type</label>
         <div id="msrResolution"></div>
       </div>
       <div class="msrTile">
-        <label>Duplicate incident</label>
+        <label class="block text-[11.5px] uppercase tracking-wider text-muted mt-3 mb-1.25">Duplicate incident</label>
         <div id="msrDuplicate"></div>
       </div>
       <div class="msrTile">
-        <label>Queue names</label>
+        <label class="block text-[11.5px] uppercase tracking-wider text-muted mt-3 mb-1.25">Queue names</label>
         <div id="msrQueue"></div>
       </div>
       <div class="msrTile">
-        <label>Sub category</label>
+        <label class="block text-[11.5px] uppercase tracking-wider text-muted mt-3 mb-1.25">Sub category</label>
         <div id="msrSubCategory"></div>
       </div>
       <div class="msrTile">
-        <label>Root cause category — Incident</label>
+        <label class="block text-[11.5px] uppercase tracking-wider text-muted mt-3 mb-1.25">Root cause category — Incident</label>
         <div id="msrRcIncident"></div>
       </div>
       <div class="msrTile">
-        <label>Root cause category — RFS</label>
+        <label class="block text-[11.5px] uppercase tracking-wider text-muted mt-3 mb-1.25">Root cause category — RFS</label>
         <div id="msrRcRfs"></div>
       </div>
       <div class="msrTile">
-        <label>Root cause category — P Ticket</label>
+        <label class="block text-[11.5px] uppercase tracking-wider text-muted mt-3 mb-1.25">Root cause category — P Ticket</label>
         <div id="msrRcPTicket"></div>
       </div>
     </div>
-    <div class="btns">
-      <button id="msrResetBtn">Restore MSR defaults</button>
+    <div class="flex gap-2 flex-wrap mt-3.5 items-center">
+      <button id="msrResetBtn" class="btn">Restore MSR defaults</button>
       <span class="hint">The RFS root-cause list is empty in the source msr.xlsx — add values here if you raise RFS tickets.</span>
     </div>
   </div>
 
-  <div class="card backupCard">
+  <div class="card-settings backupCard">
     <h2 class="cardTitle">Backup / transfer</h2>
-    <div class="hint">Exports one JSON file with instance URL, queues, team members, pull params, saved
+    <div class="hint mt-1">Exports one JSON file with instance URL, queues, team members, pull params, saved
       filters, column mapping, CI split groups, hidden view columns, MSR option lists and the cached
       Excel template. Import replaces all of those with the file's values.</div>
-    <div class="btns">
-      <button id="exportCfgBtn">Export settings (.json)</button>
-      <button id="importCfgBtn">Import settings</button>
+    <div class="flex gap-2 flex-wrap mt-3.5 items-center">
+      <button id="exportCfgBtn" class="btn">Export settings (.json)</button>
+      <button id="importCfgBtn" class="btn">Import settings</button>
       <input type="file" id="cfgFile" accept=".json,application/json" style="display:none;">
     </div>
   </div>
 
   </div><!-- /cards -->
 
-  <div class="btns saveBar">
-    <button id="saveBtn" class="primary">Save</button>
-    <button id="resetBtn" class="danger">Reset</button>
+  <div class="flex gap-2 flex-wrap mt-4.5 items-center justify-end">
+    <button id="saveBtn" class="btn-primary">Save</button>
+    <button id="resetBtn" class="btn-danger">Reset</button>
   </div>
 
   <script type="module" src="settings.js"></script>

@@ -23,8 +23,8 @@ export type ProgressCardRefs = {
 const TONE_COLOUR: Record<ProgressTone, string> = {
   pending: "#fab387",
   busy: "#fab387",
-  good: "var(--good)",
-  bad: "var(--bad)"
+  good: "#a6e3a1",
+  bad: "#f38ba8"
 };
 
 const STAGE_PCT: Record<string, number | null> = {

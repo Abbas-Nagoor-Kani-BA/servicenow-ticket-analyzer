@@ -27,11 +27,9 @@ const ENTRIES = [
 const STATIC_COPY = [
   "manifest.json",
   "viewer/viewer.html",
-  "viewer/viewer.css",
   "panel/panel.html",
-  "panel/panel.css",
   "settings/settings.html",
-  "styles/base.css",
+  "styles/output.css",
   ["lib/vendor/fflate.min.js", "lib/vendor/fflate.min.js"]
 ];
 

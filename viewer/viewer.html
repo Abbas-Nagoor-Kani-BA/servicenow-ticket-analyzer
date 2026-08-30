@@ -3,8 +3,7 @@
 <head>
   <meta charset="utf-8">
   <title>ServiceNow Analyzer — Data</title>
-  <link href="../styles/base.css" rel="stylesheet">
-  <link href="viewer.css" rel="stylesheet">
+  <link href="../styles/output.css" rel="stylesheet">
 </head>
 <body>
   <div class="toolbar">
@@ -14,17 +13,17 @@
     </div>
     <div class="tbRight">
       <span id="status"></span>
-      <button id="copyMsrBtn" data-tip="Copy the current view as MSR 'BA AO' input columns (A–U) — paste onto rows whose formulas in V–AJ stay intact">Copy for MSR</button>
-      <button id="colsBtn" data-tip="Choose which columns are shown">Columns</button>
+      <button id="copyMsrBtn" class="btn" data-tip="Copy the current view as MSR 'BA AO' input columns (A–U) — paste onto rows whose formulas in V–AJ stay intact">Copy for MSR</button>
+      <button id="colsBtn" class="btn" data-tip="Choose which columns are shown">Columns</button>
       <div id="colMenu" class="hidden">
-        <div class="menuHead"><span>Visible columns</span><button id="showAllCols">Show all</button></div>
-        <div class="menuHead sub"><button id="resetColWidthsBtn">Reset widths</button></div>
+        <div class="menuHead"><span>Visible columns</span><button id="showAllCols" class="btn">Show all</button></div>
+        <div class="menuHead sub"><button id="resetColWidthsBtn" class="btn">Reset widths</button></div>
         <input id="colSearch" placeholder="Search columns…">
         <div id="colList"></div>
       </div>
-      <button id="clearBtn">Clear</button>
+      <button id="clearBtn" class="btn">Clear</button>
       <div id="exportCluster">
-        <button id="exportBtn" class="primary" data-tip="Configure export settings and export the current view">Export</button>
+        <button id="exportBtn" class="btn-primary exportBtn" data-tip="Configure export settings and export the current view">Export</button>
       </div>
     </div>
     <input type="file" id="tplFile" accept=".xlsx" class="hidden">
@@ -69,62 +68,62 @@
       <div id="letterList"></div>
     </div>
     <div id="mapCard">
-      <div class="mapHead"><span>Export column mapping</span><button id="mapClose" data-tip="Close">✕</button></div>
+      <div class="mapHead"><span>Export column mapping</span><button id="mapClose" class="btn" data-tip="Close">✕</button></div>
       <p class="mapHint">Pick the Excel column (A–AN) each field is written to. A field exports to one
         column; unmapped fields are skipped and unmapped columns stay as the template has them.</p>
       <input id="mapSearch" placeholder="Search fields…">
       <div id="mapList"></div>
       <div class="mapFoot">
-        <button id="mapReset">Reset to template default</button>
+        <button id="mapReset" class="btn">Reset to template default</button>
         <span class="spacer"></span>
-        <button id="mapCancel">Cancel</button>
-        <button id="mapSave" class="primary">Save mapping</button>
+        <button id="mapCancel" class="btn">Cancel</button>
+        <button id="mapSave" class="btn-primary mapSave">Save mapping</button>
       </div>
     </div>
   </div>
   <div id="ciModal" class="hidden">
     <div id="ciCard">
-      <div class="mapHead"><span>Split export by configuration item</span><button id="ciClose" data-tip="Close">✕</button></div>
+      <div class="mapHead"><span>Split export by configuration item</span><button id="ciClose" class="btn" data-tip="Close">✕</button></div>
       <label class="ciToggle"><input type="checkbox" id="ciEnabled"> Split each export into separate files</label>
       <p class="mapHint">Groups become the file names. Drag configuration items between groups.
         An item matches every configuration item that contains it (anywhere in the name) — e.g. "Payment Gateway" also
         matches "Payment Gateway PRD / PreLive / DEV / TEST" and "Web Payment Gateway". Longest match wins; the rest go to Others.
         Add one item per box, or paste/type several separated by commas or new lines.</p>
       <div id="groupBoard"></div>
-      <button id="addGroupBtn">+ Add group</button>
+      <button id="addGroupBtn" class="btn">+ Add group</button>
       <div class="mapFoot">
-        <button id="ciDisable">Disable split</button>
+        <button id="ciDisable" class="btn">Disable split</button>
         <span class="spacer"></span>
-        <button id="ciCancel">Cancel</button>
-        <button id="ciSave" class="primary">Save</button>
+        <button id="ciCancel" class="btn">Cancel</button>
+        <button id="ciSave" class="btn-primary ciSave">Save</button>
       </div>
     </div>
   </div>
   <div id="configModal" class="hidden">
     <div id="configCard">
-      <div class="mapHead"><span>Export configuration</span><button id="configClose" data-tip="Close">✕</button></div>
+      <div class="mapHead"><span>Export configuration</span><button id="configClose" class="btn" data-tip="Close">✕</button></div>
       <p class="mapHint">Exports use exactly what the data view shows — same rows, same order (search filter + sort), including your edits.</p>
       <div class="cfgRows">
         <div class="cfgRow">
           <span class="cfgLabel">Template</span>
           <span class="cfgValue" id="cfgTplLabel">No template</span>
           <span class="cfgActions">
-            <button id="cfgTplBtn" class="cfgEdit">Choose template…</button>
-            <button id="cfgTplClear" class="cfgEdit hidden">Clear</button>
+            <button id="cfgTplBtn" class="btn cfgEdit cfgTplBtn">Choose template…</button>
+            <button id="cfgTplClear" class="btn cfgEdit cfgTplClear">Clear</button>
           </span>
         </div>
         <div class="cfgRow">
           <span class="cfgLabel">Files</span>
           <span class="cfgValue" id="cfgSplitLabel">Single file</span>
           <span class="cfgActions">
-            <button id="cfgCiBtn" class="cfgEdit">Edit groups…</button>
+            <button id="cfgCiBtn" class="btn cfgEdit cfgCiBtn">Edit groups…</button>
           </span>
         </div>
         <div class="cfgRow">
           <span class="cfgLabel">Column mapping</span>
           <span class="cfgValue" id="cfgMapLabel">Defaults</span>
           <span class="cfgActions">
-            <button id="cfgMapBtn" class="cfgEdit">Edit mapping…</button>
+            <button id="cfgMapBtn" class="btn cfgEdit cfgMapBtn">Edit mapping…</button>
           </span>
         </div>
       </div>
@@ -134,9 +133,9 @@
       </div>
       <div id="cfgSplitPreview" class="hidden"></div>
       <div class="mapFoot">
-        <button id="configCancel">Cancel</button>
+        <button id="configCancel" class="btn">Cancel</button>
         <span class="spacer"></span>
-        <button id="configExport" class="primary">Export</button>
+        <button id="configExport" class="btn-primary configExport">Export</button>
       </div>
     </div>
   </div>
