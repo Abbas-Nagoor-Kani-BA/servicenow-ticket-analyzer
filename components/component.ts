@@ -42,7 +42,8 @@ export abstract class Component<
   protected readonly root: HTMLElement;
   protected readonly props: P;
   protected readonly deps: D;
-  protected readonly refs: Record<string, HTMLElement> = {};
+  /** Re-declared with a precise shape by subclasses via `declare refs`. */
+  protected readonly refs: Record<string, any> = {};
 
   #state: S;
   #destroyed = false;

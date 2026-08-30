@@ -45,6 +45,7 @@
     "components/search-picker.ts",
     "components/data-grid.ts",
     "components/modal.ts",
-    "components/ci-dialog.ts"
+    "components/ci-dialog.ts",
+    "components/map-dialog.ts"
   ]
 }

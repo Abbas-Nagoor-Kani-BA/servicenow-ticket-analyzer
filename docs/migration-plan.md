@@ -219,6 +219,41 @@ still the input after two input events.
 
 ---
 
+## Phase 4e — Viewer: map dialog component — COMPLETE
+
+**Result: gate green — typecheck 0 errors, lint 0 errors, 222/222 tests, build OK.**
+
+- [x] `components/map-dialog.ts` — export column mapping plus the nested column picker
+- [x] `viewer/js/25-dialogs.js` is now a 138-line composition root: four Modals,
+      two dialog components, and the Escape fallback. All inline UI code is gone
+      (502 lines at the start of Phase 4)
+- [x] `tools/map-dialog-test.ts` — 17 tests
+
+**The map dialog had zero coverage.** `tools/viewer-dom-test.js` contains no
+reference to `#mapModal`, `#mapList`, `#letterPop` or `exportColMap`, so the
+first pass of this refactor was completely unverified. It is now covered by 17
+component tests, including the two invariants the component exists to enforce:
+one column per field, and no saving while two fields share a column.
+
+Also fixed while extracting: `save()` did not report its own success — only the
+caller did, inside its persistence callback. The component now emits the
+confirmation itself, so the outcome is testable and the caller only persists.
+
+### Base-class change
+
+`Component.refs` is now `Record<string, any>`. `MapDialog` keeps a `Map` of row
+nodes rather than individual elements, which the previous
+`Record<string, HTMLElement>` did not allow. Subclasses still re-declare
+`refs` with a precise shape via `declare`.
+
+### Phase 4 complete
+
+Every viewer UI concern now lives in a component: `DataGrid`, `SearchPicker`,
+`MapDialog`, `CiDialog` and the `Modal` stack. Remaining viewer work is the
+composition root and, in Phase 5, moving `core/`.
+
+---
+
 ## Phase 4d — Viewer: modal stack and CI dialog — COMPLETE
 
 **Result: gate green — typecheck 0 errors, lint 0 errors, 205/205 tests, build OK.**
