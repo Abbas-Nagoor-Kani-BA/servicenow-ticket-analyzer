@@ -158,7 +158,7 @@ test("number popup opens on click even when pointer capture retargets the event 
     .find(td => td.classList.contains("numLink"));
   assert.ok(numTd, "numLink cell exists");
   const originalEqp = document.elementFromPoint;
-  let hitTest = numTd;
+  const hitTest = numTd;
   document.elementFromPoint = (x, y) => {
     assert.equal(x, 42);
     return hitTest;

@@ -464,7 +464,7 @@ Chosen first: highest confusion, lowest risk, no hard-won invariants live there.
 - [ ] `components/dialog.ts` + `ci-dialog` + `map-dialog` — from `viewer/js/25-dialogs.js`
 - [ ] `components/data-grid.ts` — from `viewer/js/30-grid.js`; **keep the imperative fast paths**
 - [ ] `components/summary-table.ts`, `components/activity-pane.ts`
-- [ ] `tools/viewer-dom-test.js` → `.ts`; must stay green throughout
+- [x] `tools/viewer-dom-test.js` → `.ts`; must stay green throughout
 - [ ] Drop numeric `NN-` module prefixes once imports are one-directional
 
 ---
