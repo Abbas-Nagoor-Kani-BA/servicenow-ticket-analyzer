@@ -2,8 +2,33 @@ import { createStore } from "../../lib/store.ts";
 import { onStorageChange, loadOnce, saveValue, removeValue } from "../../lib/storage.ts";
 import { STORAGE } from "../../lib/keys.ts";
 import * as MsrChoices from "../../core/msrchoices.ts";
+import type { ViewerData, MsrLists } from "./core.ts";
 
-export const dataStore = createStore({
+export type SelPoint = { sysId: string; key: string };
+
+type DataState = {
+  data: ViewerData | null;
+  sortKey: string | null;
+  sortDir: number;
+  snOffsetMs: number;
+  selfPush: boolean;
+  saveTimer: ReturnType<typeof setTimeout> | null;
+};
+
+type SelState = {
+  anchor: SelPoint | null;
+  focus: SelPoint | null;
+  prev: HTMLElement[];
+  pending: { a: SelPoint; f: SelPoint } | null;
+};
+
+type UiState = {
+  hiddenCols: Set<string>;
+  colWidths: Record<string, number>;
+  msrLists: MsrLists;
+};
+
+export const dataStore = createStore<DataState>({
   data: null,
   sortKey: null,
   sortDir: 1,
@@ -12,37 +37,37 @@ export const dataStore = createStore({
   saveTimer: null
 });
 
-export const selStore = createStore({
+export const selStore = createStore<SelState>({
   anchor: null,
   focus: null,
   prev: [],
   pending: null
 });
 
-export const uiStore = createStore({
+export const uiStore = createStore<UiState>({
   hiddenCols: new Set(),
   colWidths: {},
-  msrLists: null
+  msrLists: MsrChoices.mergeMsrLists(null)
 });
 
 export function getSelfPush() { return dataStore.getState().selfPush; }
-export function setSelfPush(v) { dataStore.setState({ selfPush: v }); }
+export function setSelfPush(v: boolean) { dataStore.setState({ selfPush: v }); }
 
-export function setHiddenCols(set) { uiStore.setState({ hiddenCols: set }); }
+export function setHiddenCols(set: Set<string>) { uiStore.setState({ hiddenCols: set }); }
 export function getColWidths() { return uiStore.getState().colWidths; }
-export function setColWidths(widths) { uiStore.setState({ colWidths: widths || {} }); }
-export function getMsrLists() { return uiStore.getState().msrLists; }
-export function setMsrLists(lists) {
-  uiStore.setState({ msrLists: MsrChoices.mergeMsrLists(lists ?? null) });
+export function setColWidths(widths: Record<string, number>) { uiStore.setState({ colWidths: widths || {} }); }
+export function getMsrLists(): MsrLists { return uiStore.getState().msrLists; }
+export function setMsrLists(lists: unknown) {
+  uiStore.setState({ msrLists: MsrChoices.mergeMsrLists(lists as MsrChoices.MsrListOverrides | null | undefined) });
 }
 
 export async function hydrateStores() {
   const [lastData, viewerSel, hiddenCols, colWidths, storedLists] = await Promise.all([
-    loadOnce(STORAGE.lastData, null),
-    loadOnce(STORAGE.viewerSel, null),
-    loadOnce(STORAGE.viewerHiddenCols, []),
-    loadOnce(STORAGE.viewerColWidths, {}),
-    loadOnce(STORAGE.msrLists, null)
+    loadOnce<ViewerData>(STORAGE.lastData, null),
+    loadOnce<{ a: SelPoint; f: SelPoint }>(STORAGE.viewerSel, null),
+    loadOnce<string[]>(STORAGE.viewerHiddenCols, []),
+    loadOnce<Record<string, number>>(STORAGE.viewerColWidths, {}),
+    loadOnce<{ lists?: Record<string, unknown> }>(STORAGE.msrLists, null)
   ]);
   const hc = new Set(Array.isArray(hiddenCols) ? hiddenCols : []);
   dataStore.setState({ data: lastData || null });
@@ -64,11 +89,16 @@ export async function saveSel() {
   }
 }
 
-export function wireViewer(handlers) {
+export type ViewerHandlers = {
+  onData(data: ViewerData | null): void;
+  onLists(lists: unknown): void;
+};
+
+export function wireViewer(handlers: ViewerHandlers) {
   const unData = onStorageChange([STORAGE.lastData], () => {
     if (dataStore.getState().selfPush) return;
     if (document.querySelector("td.edit-input")) return;
-    loadOnce(STORAGE.lastData, null).then((d) => handlers.onData(d || null));
+    loadOnce<ViewerData>(STORAGE.lastData, null).then((d) => handlers.onData(d || null));
   });
   const unLists = onStorageChange([STORAGE.msrLists], (hit) => {
     const lists = hit.msrLists && hit.msrLists.lists ? hit.msrLists.lists : null;

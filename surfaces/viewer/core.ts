@@ -1,13 +1,26 @@
 import * as MsrChoices from "../../core/msrchoices.ts";
 import { CELL_MAX, cellShort, placePopupNear } from "../../lib/markup.ts";
-import { uiStore, setMsrLists, getMsrLists } from "./store.js";
+import { buildReport as buildReportCore } from "../../core/report.ts";
+import {
+  buildSlaSummary as buildSlaSummaryCore,
+  buildSlaSummaryRows as buildSlaSummaryRowsCore
+} from "../../core/slasummary.ts";
+import { uiStore, setMsrLists, getMsrLists } from "./store.ts";
 
+/** Rows are deserialized JSON from the pull pipeline; treat their fields as opaque. */
+export type ViewerRow = Record<string, any>;
+/** [key, label, cell class, width] — the grid-column descriptor. */
+export type ViewerCol = readonly [string, string, string, number];
+export type ViewerData = { rows: ViewerRow[]; debug?: { ticketsWithAudit?: number }; [k: string]: any };
+export type MsrLists = ReturnType<typeof MsrChoices.mergeMsrLists>;
 
-/** @param {string} id @returns {any} */
-const $ = id => document.getElementById(id);
+/** Instance-clock formatter used across the viewer and threaded into core reports. */
+export type InstantFn = (utcIso: string, row: ViewerRow) => string;
 
-/** @type {Array<[string, string, string, number]>} key, label, cell-class, width */
-const COLUMNS = [
+/** @returns the element cast to any — DOM id lookups are inherently unsafe. */
+const $ = (id: string): any => document.getElementById(id);
+
+const COLUMNS: ViewerCol[] = [
   ["number", "Number", "num", 120],
   ["shortDescription", "Short description", "", 150],
   ["assignedTo", "Assigned to", "", 130],
@@ -40,13 +53,13 @@ const COLUMNS = [
   ["rep:analysedDate", "Analysed date", "rep", 105]
 ];
 
-function hideStore() { return uiStore.getState().hiddenCols; }
+function hideStore(): Set<string> { return uiStore.getState().hiddenCols; }
 
-function visibleCols() {
+function visibleCols(): ViewerCol[] {
   return COLUMNS.filter(([key]) => !hideStore().has(key));
 }
 
-function columnOptionList(key, row) {
+function columnOptionList(key: string, row: ViewerRow): string[] | null {
   if (!row) return null;
   const lists = getMsrLists();
   switch (key) {
@@ -59,7 +72,7 @@ function columnOptionList(key, row) {
   }
 }
 
-function migrateLegacyResolutions(rows) {
+function migrateLegacyResolutions(rows: ViewerRow[] | null | undefined): number {
   let changed = 0;
   for (const r of rows || []) {
     const n = MsrChoices.normResolution(r.solutionType);
@@ -71,21 +84,47 @@ function migrateLegacyResolutions(rows) {
   return changed;
 }
 
-function setStatus(text, isError = false) {
+function setStatus(text: string, isError = false): void {
   const el = $("status");
   el.textContent = text;
   el.style.color = isError ? "#f38ba8" : "#a6e3a1";
   setTimeout(() => { el.textContent = ""; }, 4000);
 }
 
-function el(tag, cls) {
+function el(tag: string, cls?: string): HTMLElement {
   const d = document.createElement(tag);
   if (cls) d.className = cls;
   return d;
 }
 
-function syncMsrLists(lists) {
+function syncMsrLists(lists: unknown): void {
   setMsrLists(lists);
+}
+
+/**
+ * The core report builder wants a one-arg formatter; the viewer's instants need
+ * the row for per-row instance offsets. This is the single place that adapts
+ * the two — a non-identity fmt also changes derived SLA results, not just text.
+ */
+function buildRep(row: ViewerRow, fmt: InstantFn): Record<string, any> {
+  return buildReportCore(
+    row as Parameters<typeof buildReportCore>[0],
+    fmt as unknown as NonNullable<Parameters<typeof buildReportCore>[1]>
+  ) as Record<string, any>;
+}
+
+function buildSlaSummaryFor(rows: ViewerRow[] | null | undefined, fmt: InstantFn) {
+  return buildSlaSummaryCore(
+    (rows || null) as unknown as Parameters<typeof buildSlaSummaryCore>[0],
+    fmt as unknown as Parameters<typeof buildSlaSummaryCore>[1]
+  );
+}
+
+function buildSlaSummaryRowsFor(rows: ViewerRow[] | null | undefined, fmt: InstantFn) {
+  return buildSlaSummaryRowsCore(
+    (rows || null) as unknown as Parameters<typeof buildSlaSummaryRowsCore>[0],
+    fmt as unknown as Parameters<typeof buildSlaSummaryRowsCore>[1]
+  );
 }
 
 export {
@@ -100,5 +139,8 @@ export {
   syncMsrLists,
   $,
   COLUMNS,
-  CELL_MAX
+  CELL_MAX,
+  buildRep,
+  buildSlaSummaryFor,
+  buildSlaSummaryRowsFor
 };

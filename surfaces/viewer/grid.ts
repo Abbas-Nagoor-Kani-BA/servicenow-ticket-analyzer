@@ -3,24 +3,34 @@ import { extractHeuristic } from "../../core/aiextract.ts";
 import { STORAGE } from "../../lib/keys.ts";
 import { pad2 } from "../../lib/format.ts";
 import { showToast } from "../../lib/toast.ts";
-import { $, columnOptionList, migrateLegacyResolutions, setStatus, visibleCols } from "./core.js";
+import { $, columnOptionList, migrateLegacyResolutions, setStatus, visibleCols } from "./core.ts";
+import type { ViewerData, ViewerRow } from "./core.ts";
+import type { InstantFn } from "./core.ts";
 import { DataGrid } from "../../components/data-grid.ts";
-import { currentRows, hasDataRows, parseLocalInput } from "./grid-data.js";
-import { dataStore, getColWidths, saveColWidths, setColWidths, setSelfPush } from "./store.js";
-import { attachSummaryToData, renderSummary, setRowsProvider } from "./summary.js";
+import type { DataGridState } from "../../components/data-grid.ts";
+import { currentRows, hasDataRows, parseLocalInput } from "./grid-data.ts";
+import { dataStore, getColWidths, saveColWidths, setColWidths, setSelfPush } from "./store.ts";
+import { attachSummaryToData, renderSummary, setRowsProvider } from "./summary.ts";
 
 function st() { return dataStore.getState(); }
 
-let selHooks = {
+type SelHooks = {
+  highlight: () => void;
+  clearUndo: () => void;
+  restorePending: () => void;
+  ensureDefault: () => void;
+};
+
+let selHooks: SelHooks = {
   highlight: () => {},
   clearUndo: () => {},
   restorePending: () => {},
   ensureDefault: () => {}
 };
 
-function setSelectionHooks(h) { selHooks = { ...selHooks, ...h }; }
+function setSelectionHooks(h: Partial<SelHooks>) { selHooks = { ...selHooks, ...h }; }
 
-function load(d) {
+function load(d: ViewerData | null | undefined) {
   selHooks.clearUndo();
   const data = d && Array.isArray(d.rows) ? d : null;
   dataStore.setState({ data, sortKey: null, sortDir: 1, snOffsetMs: data ? detectSnOffsetMs(data.rows) : 0 });
@@ -32,7 +42,8 @@ function load(d) {
   }
   if (!data || !data.rows.length) {
     $("wrap").classList.add("hidden");
-    document.querySelector(".toolbar").classList.add("hidden");
+    const toolbar = document.querySelector<HTMLElement>(".toolbar");
+    if (toolbar) toolbar.classList.add("hidden");
     $("tabs").classList.add("hidden");
     $("summaryWrap").classList.add("hidden");
     $("empty").classList.remove("hidden");
@@ -53,21 +64,21 @@ function load(d) {
   renderSummary();
 }
 
-function formatWallClock(d) {
+function formatWallClock(d: Date): string {
   return `${pad2(d.getUTCDate())}-${pad2(d.getUTCMonth() + 1)}-${d.getUTCFullYear()} ` +
     `${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}:${pad2(d.getUTCSeconds())}`;
 }
 
-function fmtInstant(utcIso, row) {
+const fmtInstant: InstantFn = (utcIso, row) => {
   if (!utcIso) return "";
   const d = new Date(utcIso);
   if (isNaN(d.getTime())) return String(utcIso);
   const offsetMs = rowOffsetMs(row, st().snOffsetMs);
   const local = new Date(d.getTime() + offsetMs);
   return formatWallClock(local);
-}
+};
 
-let grid = null;
+let grid: DataGrid | null = null;
 
 export function initGrid() {
   setRowsProvider(() => currentRows());
@@ -75,8 +86,8 @@ export function initGrid() {
     table: $("tbl"),
     count: $("count"),
     slaBar: $("slaBar"),
-    fmtInstant,
-    columnOptions: (key, row) => columnOptionList(key, row),
+    fmtInstant: fmtInstant as InstantFn,
+    columnOptions: (key: string, row: ViewerRow) => columnOptionList(key, row),
     onSort: (key) => {
       const { sortKey, sortDir } = st();
       if (sortKey === key) dataStore.setState({ sortDir: -sortDir });
@@ -94,10 +105,10 @@ export function initGrid() {
   });
 }
 
-function gridState(rows) {
+function gridState(rows: ViewerRow[]): DataGridState {
   const { data, sortKey, sortDir } = st();
   return {
-    cols: visibleCols(),
+    cols: visibleCols() as DataGridState["cols"],
     rows,
     total: data ? data.rows.length : 0,
     sortKey,
@@ -109,7 +120,7 @@ function gridState(rows) {
 /** Rebuilds only the header. render() does this too; this is for callers that
  *  change column visibility and then render separately. */
 function buildHead() {
-  grid.refreshHead(getColWidths());
+  if (grid) grid.refreshHead(getColWidths());
 }
 
 function resetColWidths() {
@@ -119,17 +130,18 @@ function resetColWidths() {
 }
 
 function render() {
-  grid.render(gridState(currentRows()));
+  if (grid) grid.render(gridState(currentRows()));
 }
 
 function scheduleSave() {
-  clearTimeout(st().saveTimer);
+  const t = st().saveTimer;
+  if (t !== null) clearTimeout(t);
   dataStore.setState({ saveTimer: setTimeout(saveData, 350) });
 }
 
 async function saveData() {
   const { data, saveTimer } = st();
-  if (saveTimer) { clearTimeout(saveTimer); dataStore.setState({ saveTimer: null }); }
+  if (saveTimer !== null) { clearTimeout(saveTimer); dataStore.setState({ saveTimer: null }); }
   if (!data) return;
   attachSummaryToData(data);
   setSelfPush(true);
@@ -146,33 +158,33 @@ async function persistEdits() {
   try {
     await chrome.storage.local.set({ [STORAGE.lastData]: data });
   } catch (err) {
-    setStatus(`Save failed: ${err.message}`, true);
+    setStatus(`Save failed: ${(err as Error).message}`, true);
   }
   setTimeout(() => setSelfPush(false), 300);
   renderSummary();
 }
 
-function getData() {
+function getData(): ViewerData | null {
   return st().data;
 }
 
-function getTotalRows() {
+function getTotalRows(): number {
   const data = st().data;
   return data ? data.rows.length : 0;
 }
 
-function findRowBySysId(sysId) {
+function findRowBySysId(sysId: unknown): ViewerRow | undefined {
   const data = st().data;
-  return data.rows.find(r => String(r.sysId ?? "") === String(sysId ?? ""));
+  return data ? data.rows.find(r => String(r.sysId ?? "") === String(sysId ?? "")) : undefined;
 }
 
-function displayedValue(row, key, cls) {
+function displayedValue(row: ViewerRow, key: string, cls?: string): string {
   const v = row[key];
-  if (cls === "inst") return fmtInstant(v, row);
+  if (cls === "inst") return fmtInstant(v as string, row);
   return v === null || v === undefined ? "" : String(v);
 }
 
-function autoParse() {
+function autoParse(): number {
   const data = st().data;
   if (!data || !Array.isArray(data.rows)) return 0;
   let filled = 0, withNotes = 0;
@@ -185,7 +197,7 @@ function autoParse() {
       row.solutionType = row.solutionType || h.solutionType;
       row.rootCause = row.rootCause || h.rootCause;
       const conf = h.confidence;
-      if ((h.solutionType && conf?.solutionType !== "high") || (h.rootCause && conf?.rootCause !== "high")) {
+      if ((h.solutionType && conf && conf.solutionType !== "high") || (h.rootCause && conf && conf.rootCause !== "high")) {
         row.parseReview = true;
       }
       filled++;

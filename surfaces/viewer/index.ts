@@ -14,27 +14,27 @@
  * interactions), which run in registration order on a shared target.
  */
 
-import { dataStore, hydrateStores, wireViewer } from "./store.js";
-import { syncMsrLists } from "./core.js";
-import { initSummary } from "./summary.js";
-import { initGrid, load } from "./grid.js";
-import { initCols } from "./cols.js";
-import { initDialogs } from "./dialogs.js";
-import { initToolbar, loadTplInfo } from "./toolbar.js";
-import { initInteractions } from "./interactions.js";
-import { anyOverlayOpen } from "./selection.js";
+import { dataStore, hydrateStores, wireViewer } from "./store.ts";
+import { syncMsrLists } from "./core.ts";
+import { initSummary } from "./summary.ts";
+import { initGrid, load } from "./grid.ts";
+import { initCols } from "./cols.ts";
+import { initDialogs } from "./dialogs.ts";
+import { initToolbar, loadTplInfo } from "./toolbar.ts";
+import { initInteractions } from "./interactions.ts";
+import { anyOverlayOpen } from "./selection.ts";
 import { initTooltips } from "../../lib/tooltip.ts";
 
 // Modules that carry no wiring of their own. They are imported for their
 // registrations and for module state that the modules above depend on.
-import "./config-state.js";
-import "./exporter.js";
-import "./clipboard.js";
-import "./paste.js";
-import "./ticketpop.js";
-import "./activity.js";
-import "./editors.js";
-import "./shared.js";
+import "./config-state.ts";
+import "./exporter.ts";
+import "./clipboard.ts";
+import "./paste.ts";
+import "./ticketpop.ts";
+import "./activity.ts";
+import "./editors.ts";
+import "./shared.ts";
 
 async function boot() {
   initSummary();

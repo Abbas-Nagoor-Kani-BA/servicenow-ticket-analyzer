@@ -4,7 +4,7 @@ import { installSkeleton } from "./helpers/dom-env.mjs";
 
 installSkeleton();
 
-const { buildCiGroups, setCiSplit, getCiSplit, ciSplitDiagnostics } = await import("../surfaces/viewer/toolbar.js");
+const { buildCiGroups, setCiSplit, getCiSplit, ciSplitDiagnostics } = await import("../surfaces/viewer/toolbar.ts");
 
 function rows(...cis) {
   return cis.map(configItem => ({ configItem }));

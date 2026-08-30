@@ -43,9 +43,9 @@ before(async () => {
   installSkeleton();
   seedAll(FIXTURE);
   await import("../surfaces/viewer/index.ts");
-  grid = await import("../surfaces/viewer/grid.js");
-  clipboard = await import("../surfaces/viewer/clipboard.js");
-  ticketpop = await import("../surfaces/viewer/ticketpop.js");
+  grid = await import("../surfaces/viewer/grid.ts");
+  clipboard = await import("../surfaces/viewer/clipboard.ts");
+  ticketpop = await import("../surfaces/viewer/ticketpop.ts");
   await flush();
 });
 
@@ -267,7 +267,7 @@ test("split radios default to single file when split is off", async () => {
 });
 
 test("selecting 'Separate files' with groups persists enabled and flips radios", async () => {
-  const toolbar = await import("../surfaces/viewer/toolbar.js");
+  const toolbar = await import("../surfaces/viewer/toolbar.ts");
   toolbar.setCiSplit({ enabled: false, groups: [{ name: "Appsupp", items: ["App"] }] });
   toolbar.syncSplitRadio();
   const radSingle = document.getElementById("radSingle");
@@ -281,7 +281,7 @@ test("selecting 'Separate files' with groups persists enabled and flips radios",
 });
 
 test("selecting 'Single file' while split is active disables and persists", async () => {
-  const toolbar = await import("../surfaces/viewer/toolbar.js");
+  const toolbar = await import("../surfaces/viewer/toolbar.ts");
   toolbar.setCiSplit({ enabled: true, groups: [{ name: "Appsupp", items: ["App"] }] });
   toolbar.syncSplitRadio();
   const radSingle = document.getElementById("radSingle");
@@ -293,7 +293,7 @@ test("selecting 'Single file' while split is active disables and persists", asyn
 });
 
 test("selecting 'Separate files' with no groups opens the CI dialog and reverts", async () => {
-  const toolbar = await import("../surfaces/viewer/toolbar.js");
+  const toolbar = await import("../surfaces/viewer/toolbar.ts");
   toolbar.setCiSplit({ enabled: false, groups: [] });
   toolbar.syncSplitRadio();
   const radSplit = document.getElementById("radSplit");
@@ -357,7 +357,7 @@ test("split export writes one file per CI group (serialized downloads)", { timeo
   await flush();
   seed("snXlsxTemplate", { name: "report-template.xlsx", dataB64: b64, savedAt: Date.now() });
 
-  const toolbar = await import("../surfaces/viewer/toolbar.js");
+  const toolbar = await import("../surfaces/viewer/toolbar.ts");
   toolbar.setCiSplit({
     enabled: true,
     groups: [
@@ -379,7 +379,7 @@ test("split export writes one file per CI group (serialized downloads)", { timeo
 });
 
 test("buildCiGroups splits on contained keywords, not just start-prefixes", async () => {
-  const toolbar = await import("../surfaces/viewer/toolbar.js");
+  const toolbar = await import("../surfaces/viewer/toolbar.ts");
   toolbar.setCiSplit({
     enabled: true,
     groups: [
@@ -405,7 +405,7 @@ test("buildCiGroups splits on contained keywords, not just start-prefixes", asyn
 });
 
 test("split preview in config popup shows per-group ticket counts", async () => {
-  const toolbar = await import("../surfaces/viewer/toolbar.js");
+  const toolbar = await import("../surfaces/viewer/toolbar.ts");
   const rows = grid.currentRows();
   rows.forEach(r => { r.configItem = ""; });
   rows[0].configItem = "Payment Gateway PRD";
@@ -433,13 +433,13 @@ test("split preview in config popup shows per-group ticket counts", async () => 
 
 let selModule = null;
 async function selectRect(keys, sysIds) {
-  if (!selModule) selModule = await import("../surfaces/viewer/selection.js");
+  if (!selModule) selModule = await import("../surfaces/viewer/selection.ts");
   await selModule.setSelPoint(sysIds[0], keys[0], false);
   await selModule.setSelPoint(sysIds[sysIds.length - 1], keys[keys.length - 1], true);
 }
 
 test("paste fills a selected 1x2 range with a 1x1 value and persists", { timeout: 8000 }, async () => {
-  if (!selModule) selModule = await import("../surfaces/viewer/selection.js");
+  if (!selModule) selModule = await import("../surfaces/viewer/selection.ts");
   await selectRect(["shortDescription"], ["aaa", "bbb"]);
   selModule.pasteIntoSelection([["hello"]]);
   await flush();
@@ -450,7 +450,7 @@ test("paste fills a selected 1x2 range with a 1x1 value and persists", { timeout
 });
 
 test("Ctrl+V pastes from the clipboard into the selected range", { timeout: 8000 }, async () => {
-  if (!selModule) selModule = await import("../surfaces/viewer/selection.js");
+  if (!selModule) selModule = await import("../surfaces/viewer/selection.ts");
   await selectRect(["shortDescription"], ["aaa", "bbb"]);
   setClipboardText("clip-paste");
   document.body.dispatchEvent(new window.KeyboardEvent("keydown", { key: "v", ctrlKey: true, bubbles: true }));
@@ -461,7 +461,7 @@ test("Ctrl+V pastes from the clipboard into the selected range", { timeout: 8000
 });
 
 test("copy a block then paste tiles it vertically into a larger selection", { timeout: 8000 }, async () => {
-  if (!selModule) selModule = await import("../surfaces/viewer/selection.js");
+  if (!selModule) selModule = await import("../surfaces/viewer/selection.ts");
   grid.findRowBySysId("aaa").shortDescription = "srcA";
   grid.findRowBySysId("bbb").shortDescription = "srcB";
   grid.render();
@@ -476,7 +476,7 @@ test("copy a block then paste tiles it vertically into a larger selection", { ti
 });
 
 test("picker-column paste stores the canonical option value", { timeout: 8000 }, async () => {
-  if (!selModule) selModule = await import("../surfaces/viewer/selection.js");
+  if (!selModule) selModule = await import("../surfaces/viewer/selection.ts");
   await selectRect(["solutionType"], ["aaa", "bbb"]);
   selModule.pasteIntoSelection([["workaround solution"]]);
   await flush();
@@ -485,7 +485,7 @@ test("picker-column paste stores the canonical option value", { timeout: 8000 },
 });
 
 test("paste skips non-editable number column and reports the skip", { timeout: 8000 }, async () => {
-  if (!selModule) selModule = await import("../surfaces/viewer/selection.js");
+  if (!selModule) selModule = await import("../surfaces/viewer/selection.ts");
   const before = grid.findRowBySysId("aaa").number;
   await selectRect(["number", "shortDescription"], ["aaa"]);
   const res = selModule.pasteIntoSelection([["X", "Y"]]);
@@ -497,7 +497,7 @@ test("paste skips non-editable number column and reports the skip", { timeout: 8
 });
 
 test("fill handle becomes visible when a selection exists and hides without one", async () => {
-  if (!selModule) selModule = await import("../surfaces/viewer/selection.js");
+  if (!selModule) selModule = await import("../surfaces/viewer/selection.ts");
   await selectRect(["shortDescription"], ["aaa"]);
   await flush();
   const h = document.getElementById("fillHandle");
@@ -509,7 +509,7 @@ test("fill handle becomes visible when a selection exists and hides without one"
 });
 
 test("undo restores the pre-paste value after a paste", { timeout: 8000 }, async () => {
-  if (!selModule) selModule = await import("../surfaces/viewer/selection.js");
+  if (!selModule) selModule = await import("../surfaces/viewer/selection.ts");
   grid.findRowBySysId("aaa").shortDescription = "original";
   grid.findRowBySysId("bbb").shortDescription = "orig-b";
   grid.render();
@@ -525,7 +525,7 @@ test("undo restores the pre-paste value after a paste", { timeout: 8000 }, async
 });
 
 test("Ctrl+Z undoes the last paste", { timeout: 8000 }, async () => {
-  if (!selModule) selModule = await import("../surfaces/viewer/selection.js");
+  if (!selModule) selModule = await import("../surfaces/viewer/selection.ts");
   grid.findRowBySysId("aaa").shortDescription = "z-original";
   grid.render();
   await selectRect(["shortDescription"], ["aaa", "bbb"]);
@@ -545,7 +545,7 @@ test("column-copy button removed from headers", async () => {
 });
 
 test("persisted column width is applied by buildHead", async () => {
-  const store = await import("../surfaces/viewer/store.js");
+  const store = await import("../surfaces/viewer/store.ts");
   store.setColWidths({ shortDescription: 300 });
   grid.buildHead();
   const ths = document.querySelectorAll("#tbl thead th");
@@ -555,7 +555,7 @@ test("persisted column width is applied by buildHead", async () => {
 });
 
 test("dragging a column resize handle updates and persists the width", { timeout: 8000 }, async () => {
-  const store = await import("../surfaces/viewer/store.js");
+  const store = await import("../surfaces/viewer/store.ts");
   store.setColWidths({});
   grid.buildHead();
   const ths = document.querySelectorAll("#tbl thead th");
@@ -586,7 +586,7 @@ test("clicking the resize handle does not trigger header sort", { timeout: 8000 
 });
 
 test("reset widths clears persisted widths and reverts the column", async () => {
-  const store = await import("../surfaces/viewer/store.js");
+  const store = await import("../surfaces/viewer/store.ts");
   store.setColWidths({ shortDescription: 320 });
   grid.buildHead();
   grid.resetColWidths();

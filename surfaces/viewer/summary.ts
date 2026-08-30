@@ -1,11 +1,13 @@
-import { buildSlaSummary } from "../../core/slasummary.ts";
 import { rowOffsetMs } from "../../core/sntime.ts";
 import { pad2 } from "../../lib/format.ts";
-import { dataStore } from "./store.js";
+import type { SlaSummaryItem } from "../../core/slasummary.ts";
+import { buildSlaSummaryFor } from "./core.ts";
+import type { ViewerRow, ViewerData } from "./core.ts";
+import { dataStore } from "./store.ts";
 
-const $ = id => document.getElementById(id);
+const $ = (id: string): any => document.getElementById(id);
 
-function panelFmt(utcIso, row) {
+function panelFmt(utcIso: string, row: ViewerRow): string {
   if (!utcIso) return "";
   const d = new Date(utcIso);
   if (isNaN(d.getTime())) return String(utcIso);
@@ -15,32 +17,32 @@ function panelFmt(utcIso, row) {
     `${pad2(local.getUTCHours())}:${pad2(local.getUTCMinutes())}:${pad2(local.getUTCSeconds())}`;
 }
 
-function attachSummaryToData(data) {
+function attachSummaryToData(data: ViewerData | null | undefined): boolean {
   if (!data || !Array.isArray(data.rows)) return false;
-  data.summarySla = buildSlaSummary(data.rows, panelFmt);
+  data.summarySla = buildSlaSummaryFor(data.rows, panelFmt);
   return true;
 }
 
-function pct(v) {
+function pct(v: number): string {
   return `${Math.round((v || 0) * 100)}%`;
 }
 
-let rowsProvider = null;
+let rowsProvider: (() => ViewerRow[]) | null = null;
 
-function setRowsProvider(fn) {
+function setRowsProvider(fn: () => ViewerRow[]) {
   rowsProvider = fn;
 }
 
-function addCell(tr, text, cls, span) {
+function addCell(tr: HTMLTableRowElement, text: unknown, cls?: string, span = 1): HTMLTableCellElement {
   const td = document.createElement("td");
   if (cls) td.className = cls;
   if (span > 1) td.rowSpan = span;
-  if (text) td.textContent = text;
+  if (text) td.textContent = String(text);
   tr.appendChild(td);
   return td;
 }
 
-function addStackedCell(tr, lines, cls, span) {
+function addStackedCell(tr: HTMLTableRowElement, lines: string[], cls?: string, span = 1): HTMLTableCellElement {
   const td = document.createElement("td");
   if (cls) td.className = cls;
   if (span > 1) td.rowSpan = span;
@@ -52,7 +54,7 @@ function addStackedCell(tr, lines, cls, span) {
   return td;
 }
 
-function addTokenCell(tr, tokens, cls) {
+function addTokenCell(tr: HTMLTableRowElement, tokens: Array<{ text: string; bold?: boolean }>, cls?: string): HTMLTableCellElement {
   const td = document.createElement("td");
   if (cls) td.className = cls;
   let first = true;
@@ -71,31 +73,31 @@ function addTokenCell(tr, tokens, cls) {
   return td;
 }
 
-function statusCls(status) {
+function statusCls(status: string): string {
   return "status " + (status === "GREEN" ? "green" : status === "AMBER" ? "amber" : "red");
 }
 
-function targetCls(item) {
+function targetCls(item: SlaSummaryItem): string {
   if (item.metric !== "Time to Resolve") return "";
   if (item.category.startsWith("Severity 1")) return "target";
   if (item.category.startsWith("Severity 2")) return "target green-target";
   return "";
 }
 
-function incidentRowCount(items, item) {
+function incidentRowCount(items: SlaSummaryItem[], item: SlaSummaryItem): number {
   return items.filter(x => x.metric === item.metric).length;
 }
 
-function categoryRunCount(items, item) {
+function categoryRunCount(items: SlaSummaryItem[], item: SlaSummaryItem): number {
   return items.filter(x => x.metric === item.metric && x.category === item.category).length;
 }
 
-function buildIncidentTable(tbody, incident) {
-  let prevMetric = null;
-  let prevCat = null;
+function buildIncidentTable(tbody: HTMLTableSectionElement, incident: SlaSummaryItem[]): void {
+  let prevMetric: string | null = null;
+  let prevCat: string | null = null;
   for (const it of incident) {
     const tr = document.createElement("tr");
-    tr.dataset.sla = it.sla;
+    tr.dataset.sla = String(it.sla ?? "");
     if (it.metric !== prevMetric) {
       addCell(tr, it.metric, "spanned", incidentRowCount(incident, it));
       addCell(tr, it.ticketType, "spanned", incidentRowCount(incident, it));
@@ -115,19 +117,19 @@ function buildIncidentTable(tbody, incident) {
   }
 }
 
-function stackedMetric(item) {
+function stackedMetric(item: SlaSummaryItem): string[] {
   if (item.metric === "Known Error Logging") return ["Known Error", "Logging"];
   if (item.metric.startsWith("Reoccuring")) return ["Reoccuring", "Incident -", "Problem creation"];
   return [item.metric];
 }
 
-function stackedCategory(item) {
+function stackedCategory(item: SlaSummaryItem): string[] {
   if (item.category === "All other priorities except High") return ["All other priorities except", "High"];
   return [item.category];
 }
 
-function probSlaTokens(item) {
-  const days = (item.sla.match(/within (\d+) working days/i) || [])[1];
+function probSlaTokens(item: SlaSummaryItem): Array<{ text: string; bold?: boolean }> {
+  const days = (String(item.sla).match(/within (\d+) working days/i) || [])[1];
   if (item.metric === "Known Error Logging") {
     return [
       { text: "Plan of action detailing options," },
@@ -139,10 +141,10 @@ function probSlaTokens(item) {
   return [{ text: "Problem creation for reoccuring problems" }];
 }
 
-function buildProblemTable(tbody, problems) {
+function buildProblemTable(tbody: HTMLTableSectionElement, problems: SlaSummaryItem[]): void {
   for (const it of problems) {
     const tr = document.createElement("tr");
-    tr.dataset.sla = it.sla;
+    tr.dataset.sla = String(it.sla ?? "");
     addStackedCell(tr, stackedMetric(it), "slaMetric");
     addCell(tr, it.ticketType);
     addStackedCell(tr, stackedCategory(it), "slaCat");
@@ -156,7 +158,8 @@ function buildProblemTable(tbody, problems) {
   }
 }
 
-function buildTableHead(thead, headers) {
+function buildTableHead(thead: HTMLTableSectionElement | null, headers: string[]): void {
+  if (!thead) return;
   thead.innerHTML = "";
   const headTr = document.createElement("tr");
   for (const h of headers) {
@@ -167,7 +170,7 @@ function buildTableHead(thead, headers) {
   thead.appendChild(headTr);
 }
 
-function renderSummary() {
+function renderSummary(): void {
   if ($("summaryWrap").classList.contains("hidden")) return;
   const { data } = dataStore.getState();
   if (!data || !data.rows || !data.rows.length) {
@@ -175,15 +178,15 @@ function renderSummary() {
     return;
   }
   const rows = rowsProvider ? rowsProvider() : data.rows;
-  const s = buildSlaSummary(rows, panelFmt);
+  const s = buildSlaSummaryFor(rows, panelFmt);
   let meta = `Computed ${s.computedAt.slice(0, 16).replace("T", " ")} · incidents by severity — ` +
     `P1 ${s.incidentTotals[1]}, P2 ${s.incidentTotals[2]}, P3 ${s.incidentTotals[3]}, P4 ${s.incidentTotals[4]}`;
   if (rows.length !== data.rows.length) {
     meta += ` · showing ${rows.length} of ${data.rows.length} tickets (search filter)`;
   }
   $("sumMeta").textContent = meta;
-  const incTbl = /** @type {HTMLTableElement} */ ($("sumIncTbl"));
-  const probTbl = /** @type {HTMLTableElement} */ ($("sumProbTbl"));
+  const incTbl = $("sumIncTbl") as HTMLTableElement;
+  const probTbl = $("sumProbTbl") as HTMLTableElement;
   buildTableHead(incTbl.tHead, [
     "Service Metric", "Ticket Type", "Category", "SLA", "Target", "Actual",
     "Count of<br>Incidents", "Total<br>Incidents", "Actual<br>Status"
@@ -198,27 +201,27 @@ function renderSummary() {
   buildProblemTable(probTbl.tBodies[0], s.items.filter(i => i.ticketType === "Problem"));
 }
 
-function setTab(ticketsOn) {
+function setTab(ticketsOn: boolean): void {
   $("tabTickets").classList.toggle("on", ticketsOn);
   $("tabSummary").classList.toggle("on", !ticketsOn);
   $("tabTickets").setAttribute("aria-selected", ticketsOn ? "true" : "false");
   $("tabSummary").setAttribute("aria-selected", ticketsOn ? "false" : "true");
 }
 
-function showTickets() {
+function showTickets(): void {
   setTab(true);
   $("wrap").classList.remove("hidden");
   $("summaryWrap").classList.add("hidden");
 }
 
-function showSummary() {
+function showSummary(): void {
   setTab(false);
   $("wrap").classList.add("hidden");
   $("summaryWrap").classList.remove("hidden");
   renderSummary();
 }
 
-export function initSummary() {
+export function initSummary(): void {
   $("tabTickets").addEventListener("click", () => showTickets());
   $("tabSummary").addEventListener("click", () => showSummary());
 

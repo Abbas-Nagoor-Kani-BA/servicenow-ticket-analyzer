@@ -1,11 +1,11 @@
 import { STORAGE } from "../../lib/keys.ts";
-import { $, setStatus } from "./core.js";
+import { $, setStatus } from "./core.ts";
 import { Modal, hasOpenModal } from "../../components/modal.ts";
 import { CiDialog } from "../../components/ci-dialog.ts";
 import { MapDialog } from "../../components/map-dialog.ts";
-import { DEFAULT_EXPORT_MAP, EXPORT_FIELD_BY_ID, EXPORT_GROUPS } from "./exporter.js";
-import { getCiSplit, setCiSplit, setSavedMapPresent, syncSplitRadio, updateCiBtn, updateExportDots, closeConfigDialog } from "./config-state.js";
-import { clearSelection, hasSelection } from "./selection.js";
+import { DEFAULT_EXPORT_MAP, EXPORT_FIELD_BY_ID, EXPORT_GROUPS } from "./exporter.ts";
+import { getCiSplit, setCiSplit, setSavedMapPresent, syncSplitRadio, updateCiBtn, updateExportDots, closeConfigDialog } from "./config-state.ts";
+import { clearSelection, hasSelection } from "./selection.ts";
 
 /*
  * Composition root for the viewer's dialogs.
@@ -21,14 +21,14 @@ import { clearSelection, hasSelection } from "./selection.js";
 // These are module-level bindings rather than consts because they are built by
 // initDialogs(). ES module exports are live, so importers that reference
 // configModal see the instance once it exists.
-let mapModal = null;
-let letterPop = null;
-let ciModal = null;
-let configModal = null;
-let mapEditor = null;
-let ciEditor = null;
+let mapModal: Modal | null = null;
+let letterPop: Modal | null = null;
+let ciModal: Modal | null = null;
+let configModal: Modal | null = null;
+let mapEditor: MapDialog | null = null;
+let ciEditor: CiDialog | null = null;
 
-export function initDialogs() {
+export function initDialogs(): void {
   mapModal = new Modal($("mapModal"), {}, {
     // A cell editor inside the grid must keep its own Escape.
     escapeGuard: () => !!document.querySelector("td.edit-input input")
@@ -57,17 +57,17 @@ export function initDialogs() {
       try {
         await chrome.storage.local.set({ [STORAGE.exportColMap]: mapping });
       } catch (err) {
-        setStatus(`Save failed: ${err.message}`, true);
+        setStatus(`Save failed: ${(err as Error).message}`, true);
         throw err;
       }
       setSavedMapPresent(true);
       updateExportDots();
-      mapModal.close();
+      if (mapModal) mapModal.close();
     },
     onReset: async () => {
       try {
         await chrome.storage.local.remove(STORAGE.exportColMap);
-      } catch {}
+      } catch { /* ignored */ }
       setSavedMapPresent(false);
       updateExportDots();
     }
@@ -79,25 +79,26 @@ export function initDialogs() {
     onSave: async (value) => {
       setCiSplit(value);
       await chrome.storage.local.set({ [STORAGE.ciSplit]: getCiSplit() });
-      ciModal.close();
+      if (ciModal) ciModal.close();
       updateCiBtn();
     },
     onDisable: async () => {
       setCiSplit({ enabled: false, groups: [] });
       try {
         await chrome.storage.local.remove(STORAGE.ciSplit);
-      } catch {}
-      ciModal.close();
+      } catch { /* ignored */ }
+      if (ciModal) ciModal.close();
       updateCiBtn();
     }
   });
 
   $("mapSave").addEventListener("click", () => {
-    void mapEditor.save();
+    void (mapEditor && mapEditor.save());
   });
-  $("mapCancel").addEventListener("click", () => mapModal.close());
-  $("mapClose").addEventListener("click", () => mapModal.close());
+  $("mapCancel").addEventListener("click", () => mapModal && mapModal.close());
+  $("mapClose").addEventListener("click", () => mapModal && mapModal.close());
   $("mapReset").addEventListener("click", async () => {
+    if (!mapEditor) return;
     await mapEditor.reset(DEFAULT_EXPORT_MAP);
     setStatus("Mapping reset — exports use the template's default layout until saved again");
   });
@@ -105,7 +106,7 @@ export function initDialogs() {
   // Close and cancel are plain dismissals; Save and Disable close themselves only
   // after their own persistence succeeds.
   for (const id of ["ciClose", "ciCancel"]) {
-    $(id).addEventListener("click", () => ciModal.close());
+    $(id).addEventListener("click", () => ciModal && ciModal.close());
   }
 
   document.addEventListener("keydown", e => {
@@ -120,24 +121,24 @@ export function initDialogs() {
   });
 }
 
-async function openMapDialog() {
-  let stored = null;
+async function openMapDialog(): Promise<void> {
+  let stored: Record<string, string> | null = null;
   try {
     ({ exportColMap: stored } = await chrome.storage.local.get(STORAGE.exportColMap));
-  } catch {}
+  } catch { /* ignored */ }
   setSavedMapPresent(!!(stored && Object.keys(stored).length));
   updateExportDots();
-  mapEditor.show(stored, DEFAULT_EXPORT_MAP);
-  mapModal.open();
+  if (mapEditor) mapEditor.show(stored, DEFAULT_EXPORT_MAP);
+  if (mapModal) mapModal.open();
 }
 
-function openCiDialog() {
-  ciEditor.show(getCiSplit());
-  ciModal.open();
+function openCiDialog(): void {
+  if (ciEditor) ciEditor.show(getCiSplit());
+  if (ciModal) ciModal.open();
 }
 
-function hideLetterPop() {
-  letterPop.close();
+function hideLetterPop(): void {
+  if (letterPop) letterPop.close();
 }
 
 export {

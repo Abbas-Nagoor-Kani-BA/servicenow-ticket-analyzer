@@ -1,21 +1,23 @@
-import { $, columnOptionList, visibleCols } from "./core.js";
+import { $, columnOptionList, visibleCols } from "./core.ts";
+import type { ViewerRow } from "./core.ts";
 import { SearchPicker } from "../../components/search-picker.ts";
-import { displayedValue, findRowBySysId, parseLocalInput, render, scheduleSave } from "./grid.js";
-import { applySelHighlight, moveSel } from "./selection.js";
+import type { PickIntent } from "../../components/search-picker.ts";
+import { displayedValue, findRowBySysId, parseLocalInput, render, scheduleSave } from "./grid.ts";
+import { applySelHighlight, moveSel } from "./selection.ts";
+import { activityPaneEl } from "./activity.ts";
 
-let activeFinish = null;
+type FinishFn = ((commit: boolean, move?: { r: number; c: number }) => boolean) & { done?: boolean };
 
-import { activityPaneEl } from "./activity.js";
+let activeFinish: FinishFn | null = null;
 
-
-function createOptionPicker(td, row, key) {
-  const options = columnOptionList(key, row);
+function createOptionPicker(td: HTMLElement, row: ViewerRow, key: string): FinishFn {
+  const options = columnOptionList(key, row) || [];
   const cur = String(row[key] ?? "");
   const withNotes = key === "rootCause" || key === "solutionType";
 
-  const commitValue = (value, intent) => {
+  const commitValue: (value: string, intent: PickIntent) => void = (value, intent) => {
     row[key] = value;
-    td.parentElement.classList.add("flash");
+    if (td.parentElement) td.parentElement.classList.add("flash");
     scheduleSave();
     render();
     applySelHighlight();
@@ -38,8 +40,7 @@ function createOptionPicker(td, row, key) {
     }
   });
 
-  /** @type {((commit: boolean, move?: object) => boolean) & { done?: boolean }} */
-  const finish = (commit, move) => {
+  const finish: FinishFn = (commit, move?) => {
     if (finish.done) return true;
     let ok = true;
     if (commit) ok = picker.commitNow();
@@ -51,7 +52,7 @@ function createOptionPicker(td, row, key) {
   return finish;
 }
 
-function createTextInput(td, row, key, cls) {
+function createTextInput(td: HTMLElement, row: ViewerRow, key: string, cls: string): FinishFn {
   td.classList.add("edit-input");
   const editor = document.createElement("input");
   editor.value = displayedValue(row, key, cls);
@@ -60,8 +61,7 @@ function createTextInput(td, row, key, cls) {
   editor.focus();
   editor.select();
 
-  /** @type {((commit: boolean, move: object | undefined) => boolean) & { done?: boolean, reparsed?: string }} */
-  const finish = (commit, move) => {
+  const finish: FinishFn = (commit, move?) => {
     if (finish.done) return true;
     let parsed = editor.value;
     if (commit && cls === "inst") {
@@ -81,7 +81,7 @@ function createTextInput(td, row, key, cls) {
     editor.remove();
     if (commit) {
       row[key] = parsed;
-      td.parentElement.classList.add("flash");
+      if (td.parentElement) td.parentElement.classList.add("flash");
       scheduleSave();
     }
     render();
@@ -90,29 +90,30 @@ function createTextInput(td, row, key, cls) {
     return true;
   };
 
-  const onKey = e => {
+  const onKey = (e: KeyboardEvent): void => {
     if (e.key === "Enter") { e.preventDefault(); finish(true, { r: 1, c: 0 }); }
     else if (e.key === "Tab") { e.preventDefault(); finish(true, { r: 0, c: e.shiftKey ? -1 : 1 }); }
     else if (e.key === "Escape") { e.preventDefault(); finish(false); }
   };
-  const onBlur = () => { finish(true); };
+  const onBlur = (): void => { finish(true); };
 
   editor.addEventListener("keydown", onKey);
   editor.addEventListener("blur", onBlur);
   return finish;
 }
 
-function startEdit(td) {
+function startEdit(td: HTMLElement): void {
   if (!td.classList.contains("editable")) return;
   if (activeFinish && !activeFinish(true)) return;
   const tr = td.parentElement;
+  if (!tr) return;
   const sysId = tr.dataset.sysId;
   const row = findRowBySysId(sysId);
   if (!row) return;
   const cols = visibleCols();
   const idx = [...tr.children].indexOf(td);
   if (idx < 0 || idx >= cols.length) return;
-  const [key,, cls] = cols[idx];
+  const [key, , cls] = cols[idx];
   if (!key || key === "number") return;
 
   const options = columnOptionList(key, row);

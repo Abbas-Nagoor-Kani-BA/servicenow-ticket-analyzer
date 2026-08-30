@@ -1,4 +1,4 @@
-function copyText(text) {
+function copyText(text: string): Promise<void> {
   if (navigator.clipboard && window.isSecureContext) {
     return navigator.clipboard.writeText(text);
   }
@@ -10,9 +10,10 @@ function copyText(text) {
     ta.focus();
     ta.select();
     let ok = false;
-    try { ok = document.execCommand("copy"); } catch {}
+    try { ok = document.execCommand("copy"); } catch { /* ignored */ }
     ta.remove();
-    ok ? resolve() : reject(new Error("copy blocked by browser"));
+    if (ok) resolve();
+    else reject(new Error("copy blocked by browser"));
   });
 }
 

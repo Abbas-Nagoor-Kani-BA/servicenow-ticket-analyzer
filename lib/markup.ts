@@ -32,7 +32,7 @@ function letterToColNum(s: string): number {
 /**
  * Position a floating popup under `rect`, clamping it to the viewport.
  *
- * Moved here from surfaces/viewer/core.js so components do not have to import
+ * Moved here from surfaces/viewer/core.ts so components do not have to import
  * from a surface.
  */
 export type RectLike = { left: number; top: number; bottom: number; width: number };

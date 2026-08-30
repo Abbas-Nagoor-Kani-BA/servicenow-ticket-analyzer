@@ -1,9 +1,10 @@
-import { $, COLUMNS } from "./core.js";
-import { dataStore } from "./store.js";
+import { $, COLUMNS } from "./core.ts";
+import type { ViewerRow } from "./core.ts";
+import { dataStore } from "./store.ts";
 
 function st() { return dataStore.getState(); }
 
-function currentRows() {
+function currentRows(): ViewerRow[] {
   const { data, sortKey, sortDir } = st();
   let rows = data ? [...data.rows] : [];
   const q = $("search").value.trim().toLowerCase();
@@ -25,12 +26,12 @@ function currentRows() {
   return rows;
 }
 
-function hasDataRows() {
+function hasDataRows(): boolean {
   const data = st().data;
   return !!(data && data.rows.length);
 }
 
-function parseLocalInput(text) {
+function parseLocalInput(text: string): Date | null {
   const t = text.trim();
   if (!t) return null;
   const m = t.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?$/);

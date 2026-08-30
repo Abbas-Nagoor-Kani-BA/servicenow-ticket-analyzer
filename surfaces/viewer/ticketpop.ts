@@ -1,13 +1,15 @@
 import * as MsrChoices from "../../core/msrchoices.ts";
-import { el, setStatus } from "./core.js";
+import { el, setStatus } from "./core.ts";
+import type { ViewerRow } from "./core.ts";
 import { SearchPicker } from "../../components/search-picker.ts";
-import { getMsrLists } from "./store.js";
-import { displayedValue, fmtInstant, parseLocalInput, render, scheduleSave } from "./grid.js";
+import { getMsrLists } from "./store.ts";
+import { displayedValue, fmtInstant, parseLocalInput, render, scheduleSave } from "./grid.ts";
 
+type TrEv = { f?: unknown; o?: unknown; n?: unknown; at?: unknown; atEpoch?: unknown };
 
-let ticketPopState = null;
+let ticketPopState: { pop: HTMLElement; cleanup: () => void } | null = null;
 
-function closeTicketPopup() {
+function closeTicketPopup(): void {
   if (!ticketPopState) return;
   const { pop, cleanup } = ticketPopState;
   ticketPopState = null;
@@ -15,22 +17,22 @@ function closeTicketPopup() {
   pop.remove();
 }
 
-function paneHead(text) {
+function paneHead(text: string): HTMLElement {
   const h = el("div", "paneHead");
   h.textContent = text;
   return h;
 }
 
-let nestedPickState = null;
+let nestedPickState: SearchPicker | null = null;
 
-function closeNestedPick() {
+function closeNestedPick(): void {
   if (!nestedPickState) return;
   const picker = nestedPickState;
   nestedPickState = null;
   picker.close();
 }
 
-function attachSearchPick(anchorInput, options, currentValue, onPick) {
+function attachSearchPick(anchorInput: HTMLElement, options: string[], currentValue: unknown, onPick: (v: string) => void): void {
   closeNestedPick();
   nestedPickState = new SearchPicker(document.body, {}, {
     anchor: anchorInput,
@@ -47,7 +49,7 @@ function attachSearchPick(anchorInput, options, currentValue, onPick) {
   });
 }
 
-function buildTicketLeftPane(row, placePop) {
+function buildTicketLeftPane(row: ViewerRow, placePop: () => void): HTMLElement {
   const left = el("div", "ticketCol");
   left.appendChild(paneHead("Incident"));
   const numberLine = el("div", "fieldLine");
@@ -57,7 +59,7 @@ function buildTicketLeftPane(row, placePop) {
   numVal.textContent = String(row.number ?? "");
   numberLine.append(numLab, numVal);
   left.appendChild(numberLine);
-  const EDIT_FIELDS = [
+  const EDIT_FIELDS: Array<[string, string]> = [
     ["solutionType", "Solution type"], ["rootCause", "Root cause category"]
   ];
   for (const [k, lab] of EDIT_FIELDS) {
@@ -92,7 +94,7 @@ function buildTicketLeftPane(row, placePop) {
     left.appendChild(line);
   }
 
-  const TL = [
+  const TL: Array<[string, string]> = [
     ["assignTimeUtcIso", "Assigned"], ["acknTimeUtcIso", "Acknowledged"],
     ["suspendTimeUtcIso", "Suspended"], ["resumeTimeUtcIso", "Resumed"]
   ];
@@ -106,7 +108,7 @@ function buildTicketLeftPane(row, placePop) {
     input.value = displayedValue(row, k, "inst");
     input.spellcheck = false;
     input.autocomplete = "off";
-    const commit = () => {
+    const commit = (): boolean => {
       const v = input.value.trim();
       const d = parseLocalInput(v);
       if (!d && v) {
@@ -142,7 +144,7 @@ function buildTicketLeftPane(row, placePop) {
   return left;
 }
 
-function buildTicketRightPane(row) {
+function buildTicketRightPane(row: ViewerRow): HTMLElement {
   const right = el("div", "ticketCol");
   const summary = String(row.shortDescription || "").trim();
   if (summary) {
@@ -154,10 +156,11 @@ function buildTicketRightPane(row) {
     right.appendChild(s);
   }
   right.appendChild(paneHead("Transitions \xB7 queue / assigned to / state"));
-  const TRIO = { assignment_group: "Queue", assigned_to: "Assigned to", state: "State" };
-  const evs = (row.activity || [])
-    .filter(e => TRIO[e.f])
-    .sort((a, b) => (b.atEpoch ?? b.at ?? 0) - (a.atEpoch ?? a.at ?? 0));
+  const TRIO: Record<string, string> = { assignment_group: "Queue", assigned_to: "Assigned to", state: "State" };
+  const evs = ((row.activity as TrEv[] | undefined) || [])
+    .filter(e => TRIO[String(e.f)] !== undefined)
+    .sort((a, b) =>
+      Number(b.atEpoch ?? b.at ?? 0) - Number(a.atEpoch ?? a.at ?? 0));
   if (!Array.isArray(row.activity)) {
     const d = el("div", "noteEmpty");
     d.textContent = "Transitions load on the next pull \u2014 this data was fetched before activity tracking was added.";
@@ -170,23 +173,23 @@ function buildTicketRightPane(row) {
   for (const e of evs) {
     const r = el("div", "trRow");
     const dt = el("span", "trDate");
-    const eAt = Number.isFinite(e.atEpoch) ? e.atEpoch : e.at;
-    const iso = eAt !== undefined && eAt !== null && eAt !== "" && !Number.isNaN(eAt)
-      ? new Date(eAt).toISOString() : "";
+    const eAt: number | unknown = Number.isFinite(e.atEpoch as number) ? (e.atEpoch as number) : e.at;
+    const iso = eAt !== undefined && eAt !== null && eAt !== "" && !Number.isNaN(eAt as number)
+      ? new Date(eAt as number).toISOString() : "";
     dt.textContent = iso ? fmtInstant(iso, row) : "";
     const txt = el("div", "trText");
-    txt.textContent = TRIO[e.f] + ": " + (e.o || "(empty)") + " \u2192 " + (e.n || "(empty)");
+    txt.textContent = TRIO[String(e.f)] + ": " + (e.o || "(empty)") + " \u2192 " + (e.n || "(empty)");
     r.append(dt, txt);
     right.appendChild(r);
   }
   return right;
 }
 
-function openTicketPopup(row) {
+function openTicketPopup(row: ViewerRow): void {
   closeTicketPopup();
   const pop = el("div", "msrPick ticketPop");
 
-  const placePop = () => {
+  const placePop = (): void => {
     if (!pop.isConnected) return;
     const w = Math.min(760, window.innerWidth - 24);
     pop.style.width = w + "px";
@@ -197,19 +200,21 @@ function openTicketPopup(row) {
 
   pop.append(buildTicketLeftPane(row, placePop), buildTicketRightPane(row));
 
-  const onDocDown = e => {
-    if (!pop.contains(e.target) && !(e.target.closest && e.target.closest(".msrPick"))) closeTicketPopup();
+  const onDocDown = (e: MouseEvent): void => {
+    const t = e.target as HTMLElement | null;
+    if (t && !pop.contains(t) && !(t.closest && t.closest(".msrPick"))) closeTicketPopup();
   };
-  const onDocKey = e => {
+  const onDocKey = (e: KeyboardEvent): void => {
     if (e.key === "Escape") {
-      if (e.target && e.target.closest && e.target.closest(".msrPick")) return;
-      if (e.target && pop.contains(e.target) && e.target.tagName === "INPUT") return;
+      const t = e.target as HTMLElement | null;
+      if (t && t.closest && t.closest(".msrPick")) return;
+      if (t && pop.contains(t) && t.tagName === "INPUT") return;
       e.preventDefault();
       e.stopPropagation();
       closeTicketPopup();
     }
   };
-  const cleanup = () => {
+  const cleanup = (): void => {
     document.removeEventListener("mousedown", onDocDown, true);
     document.removeEventListener("keydown", onDocKey, true);
   };

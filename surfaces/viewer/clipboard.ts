@@ -1,20 +1,23 @@
 import * as MsrChoices from "../../core/msrchoices.ts";
-import { buildReport } from "../../core/report.ts";
-import { expStr } from "./exporter.js";
-import { fmtInstant } from "./grid.js";
+import { buildRep } from "./core.ts";
+import type { ViewerRow } from "./core.ts";
+import { expStr } from "./exporter.ts";
+import { fmtInstant } from "./grid.ts";
 
 
-const msrWallSerial = wall => {
+const msrWallSerial = (wall: unknown): string => {
   const s = MsrChoices.displayToSerial(wall);
-  return s === null ? "" : s;
+  return s === null ? "" : String(s);
 };
-const msrInstSerial = (row, key) => row[key] ? msrWallSerial(fmtInstant(row[key], row)) : "";
-const msrDispSerial = v => v ? msrWallSerial(String(v)) : "";
+const msrInstSerial = (row: ViewerRow, key: string): string => row[key] ? msrWallSerial(fmtInstant(row[key], row)) : "";
+const msrDispSerial = (v: unknown): string => v ? msrWallSerial(String(v)) : "";
 
-const MSR_COLUMNS = [
+type MsrCol = { letter: string; get: (r: ViewerRow, i: number) => unknown };
+
+const MSR_COLUMNS: MsrCol[] = [
   { letter: "A", get: (r, i) => i + 1 },
-  { letter: "B", get: r => buildReport(r, fmtInstant).opCo },
-  { letter: "C", get: r => buildReport(r, fmtInstant).domain },
+  { letter: "B", get: r => buildRep(r, fmtInstant).opCo },
+  { letter: "C", get: r => buildRep(r, fmtInstant).domain },
   { letter: "D", get: r => MsrChoices.msrType(r.number) },
   { letter: "E", get: r => expStr(r.number) },
   { letter: "F", get: r => expStr(r.assignmentGroup) },
@@ -35,21 +38,21 @@ const MSR_COLUMNS = [
   { letter: "U", get: r => expStr(r.duplicateIncident) }
 ];
 
-function tsvCell(v) {
+function tsvCell(v: unknown): string {
   const s = v === null || v === undefined ? "" : String(v);
   return s.replace(/\s*[\r\n]+\s*/g, " ").replace(/[\t\v\f]+/g, " ").trim();
 }
 
-function buildMsrTsv(rows) {
+function buildMsrTsv(rows: ViewerRow[]): string {
   return rows.map((row, i) =>
     MSR_COLUMNS.map(c => tsvCell(c.get(row, i))).join("\t")
   ).join("\n");
 }
 
 
-function cellValue(row, key, cls) {
+function cellValue(row: ViewerRow, key: string, cls: string): string {
   if (key.startsWith("rep:")) {
-    return String(buildReport(row, fmtInstant)[key.slice(4)] ?? "");
+    return String(buildRep(row, fmtInstant)[key.slice(4)] ?? "");
   }
   let v = row[key];
   if (cls === "inst") v = fmtInstant(v, row);

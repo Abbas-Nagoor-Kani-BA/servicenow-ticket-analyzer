@@ -1,7 +1,10 @@
-export function parseClipboardBlock(text) {
+import type { ViewerRow } from "./core.ts";
+import type { ViewerCol } from "./core.ts";
+
+export function parseClipboardBlock(text: string): string[][] | null {
   if (!text) return null;
   const lines = text.replace(/\r\n?/g, "\n").split("\n");
-  const rows = lines.map(line => {
+  const rows: string[][] = lines.map(line => {
     if (line.includes("\t")) return line.split("\t").map(cell => trimCell(cell));
     if (line.includes(",")) return line.split(",").map(cell => trimCell(cell));
     return [trimCell(line)];
@@ -16,14 +19,14 @@ export function parseClipboardBlock(text) {
   });
 }
 
-function trimCell(v) {
-  return v === null || v === undefined ? "" : String(v).trim();
+function trimCell(v: string): string {
+  return String(v).trim();
 }
 
-export function buildFillGrid(source, targetRows, targetCols) {
+export function buildFillGrid(source: string[][], targetRows: number, targetCols: number): string[][] {
   const fs = source.length;
   const fc = fs && source[0] ? source[0].length : 0;
-  const out = [];
+  const out: string[][] = [];
   for (let r = 0; r < targetRows; r++) {
     const srcR = fs ? r % fs : 0;
     out[r] = [];
@@ -35,7 +38,12 @@ export function buildFillGrid(source, targetRows, targetCols) {
   return out;
 }
 
-export function storedValue(value, key, cls, row, deps) {
+export type PasteDeps = {
+  parseLocal?: (text: string) => Date | null;
+  listFor?: (key: string, row: ViewerRow) => string[] | null;
+};
+
+export function storedValue(value: unknown, key: string, cls: string, row: ViewerRow, deps?: PasteDeps): unknown {
   const s = value === null || value === undefined ? "" : String(value);
   if (cls === "inst") {
     const t = s.trim();
@@ -51,8 +59,8 @@ export function storedValue(value, key, cls, row, deps) {
   return s;
 }
 
-export function originRowValues(rows, cols, lo, lc, hc) {
-  const out = [];
+export function originRowValues(rows: ViewerRow[], cols: ViewerCol[], lo: number, lc: number, hc: number): unknown[] {
+  const out: unknown[] = [];
   for (let c = lc; c <= hc; c++) {
     const [key] = cols[c];
     out.push(rows[lo][key]);

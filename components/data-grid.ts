@@ -4,7 +4,7 @@ import { cellShort } from "../lib/markup.ts";
 import { setTip } from "../lib/tooltip.ts";
 import { buildReport } from "../core/report.ts";
 
-/** [key, label, cell class, default width] — matches COLUMNS in surfaces/viewer/core.js. */
+/** [key, label, cell class, default width] — matches COLUMNS in surfaces/viewer/core.ts. */
 export type GridColumn = readonly [string, string, string, number];
 
 export type GridRow = Record<string, any>;
@@ -60,7 +60,7 @@ let resizeState: { key: string; colEl: HTMLElement; startX: number; startW: numb
  *
  * Owns the table DOM and the per-row cell decorations — SLA breach markers,
  * low-confidence parse flags, off-list MSR values — which were previously built
- * inline in surfaces/viewer/grid.js alongside the save pipeline and the data
+ * inline in surfaces/viewer/grid.ts alongside the save pipeline and the data
  * store. That module now owns the data and delegates the DOM here.
  *
  * `patch()` rebuilds the header, rows and footer together because all three

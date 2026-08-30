@@ -1,23 +1,22 @@
 import { removeValue, saveValue } from "../../lib/storage.ts";
 import { STORAGE } from "../../lib/keys.ts";
 import { showToast } from "../../lib/toast.ts";
-import { setHiddenCols } from "./store.js";
-import { buildHead, load, render, resetColWidths } from "./grid.js";
-import { $, COLUMNS, hideStore, setStatus } from "./core.js";
+import { setHiddenCols } from "./store.ts";
+import { buildHead, load, render, resetColWidths } from "./grid.ts";
+import { $, COLUMNS, hideStore, setStatus } from "./core.ts";
 
-
-function updateColsBtn() {
+function updateColsBtn(): void {
   $("colsBtn").textContent = hideStore().size ? `Columns (${hideStore().size} hidden)` : "Columns";
 }
 
-export function initCols() {
+export function initCols(): void {
   $("clearBtn").addEventListener("click", async () => {
     await removeValue(STORAGE.lastData);
     load(null);
     showToast("Pull data cleared");
   });
 
-  $("colsBtn").addEventListener("click", e => {
+  $("colsBtn").addEventListener("click", (e: Event) => {
     e.stopPropagation();
     const menu = $("colMenu");
     if (menu.classList.contains("hidden")) {
@@ -28,8 +27,8 @@ export function initCols() {
     menu.classList.toggle("hidden");
   });
 
-  $("colSearch").addEventListener("input", e => {
-    const q = e.target.value.trim().toLowerCase();
+  $("colSearch").addEventListener("input", (e: Event) => {
+    const q = (e.target as HTMLInputElement).value.trim().toLowerCase();
     for (const lab of $("colList").children) {
       lab.style.display = !q || lab.textContent.toLowerCase().includes(q) ? "" : "none";
     }
@@ -39,7 +38,7 @@ export function initCols() {
     setHiddenCols(new Set());
     try {
       await saveValue(STORAGE.viewerHiddenCols, []);
-    } catch {}
+    } catch { /* ignored */ }
     $("colMenu").classList.add("hidden");
     buildHead();
     render();
@@ -53,7 +52,7 @@ export function initCols() {
   });
 }
 
-function buildColMenu() {
+function buildColMenu(): void {
   const list = $("colList");
   list.innerHTML = "";
   for (const [key, label] of COLUMNS) {
@@ -69,7 +68,7 @@ function buildColMenu() {
   }
 }
 
-async function toggleCol(key, show) {
+async function toggleCol(key: string, show: boolean): Promise<void> {
   const hc = hideStore();
   if (!show && COLUMNS.length - hc.size <= 1) {
     setStatus("At least one column must stay visible", true);
@@ -82,7 +81,7 @@ async function toggleCol(key, show) {
   try {
     await saveValue(STORAGE.viewerHiddenCols, [...hc]);
   } catch (err) {
-    setStatus(`Save failed: ${err.message}`, true);
+    setStatus(`Save failed: ${(err as Error).message}`, true);
   }
   buildHead();
   render();

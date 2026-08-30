@@ -1,11 +1,16 @@
-import { $, columnOptionList, visibleCols } from "./core.js";
+import { $, columnOptionList, visibleCols } from "./core.ts";
+import type { ViewerRow, ViewerCol } from "./core.ts";
 import { showToast } from "../../lib/toast.ts";
-import { currentRows, hasDataRows, parseLocalInput } from "./grid-data.js";
-import { cellValue, tsvCell } from "./clipboard.js";
-import { render, scheduleSave, setSelectionHooks } from "./grid.js";
-import { copyText } from "./shared.js";
-import { selStore, saveSel } from "./store.js";
-import { buildFillGrid, originRowValues, parseClipboardBlock, storedValue } from "./paste.js";
+import { currentRows, hasDataRows, parseLocalInput } from "./grid-data.ts";
+import { cellValue, tsvCell } from "./clipboard.ts";
+import { render, scheduleSave, setSelectionHooks } from "./grid.ts";
+import { copyText } from "./shared.ts";
+import { selStore, saveSel } from "./store.ts";
+import { buildFillGrid, originRowValues, parseClipboardBlock, storedValue } from "./paste.ts";
+
+type Bounds = { rows: ViewerRow[]; cols: ViewerCol[]; lo: number; hi: number; lc: number; hc: number };
+type UndoEntry = { row: ViewerRow; key: string; old: unknown };
+let lastCopy: { values: unknown[][]; rowCount: number; colCount: number } | null = null;
 
 setSelectionHooks({
   highlight: applySelHighlight,
@@ -16,7 +21,7 @@ setSelectionHooks({
 
 function sel() { return selStore.getState(); }
 
-function restorePendingSel() {
+function restorePendingSel(): void {
   const { pending } = sel();
   if (!pending || !hasDataRows()) return;
   const rows = currentRows();
@@ -36,28 +41,28 @@ function restorePendingSel() {
   scrollSelIntoView();
 }
 
-function ensureDefaultSelection() {
+function ensureDefaultSelection(): void {
   if (hasDataRows() && !sel().focus && !sel().pending) moveSel(0, 0, false);
 }
 
-function rowIdxOf(sysId, rows) {
+function rowIdxOf(sysId: unknown, rows: ViewerRow[]): number {
   return rows.findIndex(r => String(r.sysId ?? "") === String(sysId ?? ""));
 }
-function colIdxOf(key, cols) {
+function colIdxOf(key: string, cols: ViewerCol[]): number {
   return cols.findIndex(c => c[0] === key);
 }
 
-function hasSelection() {
+function hasSelection(): boolean {
   return !!(sel().anchor || sel().focus);
 }
 
-async function clearSelection() {
+async function clearSelection(): Promise<void> {
   selStore.setState({ anchor: null, focus: null });
   await saveSel();
   applySelHighlight();
 }
 
-function selectionBounds() {
+function selectionBounds(): Bounds | null {
   const { anchor, focus } = sel();
   if (!anchor || !focus || !hasDataRows()) return null;
   const rows = currentRows();
@@ -74,18 +79,18 @@ function selectionBounds() {
   };
 }
 
-async function setSelPoint(sysId, key, extend) {
+async function setSelPoint(sysId: string, key: string, extend: boolean): Promise<void> {
   const { anchor } = sel();
   const next = {
     anchor: (!extend || !anchor) ? { sysId, key } : anchor,
-    focus: { sysId, key }
+    focus: { sysId, key } as { sysId: string; key: string }
   };
   selStore.setState(next);
   await saveSel();
   applySelHighlight();
 }
 
-function moveSel(dr, dc, extend) {
+function moveSel(dr: number, dc: number, extend: boolean): void {
   const rows = currentRows();
   const cols = visibleCols();
   if (!rows.length || !cols.length) return;
@@ -101,7 +106,7 @@ function moveSel(dr, dc, extend) {
   setSelPoint(String(rows[ri].sysId ?? ""), cols[ci][0], extend).then(() => scrollSelIntoView());
 }
 
-function moveToRowFirstLast(extend, which) {
+function moveToRowFirstLast(extend: boolean, which: "first" | "last"): void {
   const rows = currentRows();
   const cols = visibleCols();
   if (!rows.length || !cols.length) return;
@@ -115,7 +120,7 @@ function moveToRowFirstLast(extend, which) {
   setSelPoint(String(rows[ri].sysId ?? ""), cols[ci][0], extend).then(() => scrollSelIntoView());
 }
 
-function movePage(dr, extend) {
+function movePage(dr: number, extend: boolean): void {
   const rows = currentRows();
   const cols = visibleCols();
   if (!rows.length || !cols.length) return;
@@ -135,7 +140,7 @@ function movePage(dr, extend) {
   setSelPoint(String(rows[ri].sysId ?? ""), cols[ci][0], extend).then(() => scrollSelIntoView());
 }
 
-function applySelHighlight() {
+function applySelHighlight(): void {
   for (const tdEl of sel().prev) {
     tdEl.classList.remove("sel", "selr");
     tdEl.style.boxShadow = "";
@@ -144,26 +149,28 @@ function applySelHighlight() {
   const b = selectionBounds();
   positionFillHandle();
   if (!b) return;
+  const focus = sel().focus;
   const want = new Set(b.rows.slice(b.lo, b.hi + 1).map(r => String(r.sysId ?? "")));
   const topSysId = String(b.rows[b.lo].sysId ?? "");
   const bottomSysId = String(b.rows[b.hi].sysId ?? "");
-  const focusSysId = String(sel().focus.sysId);
+  const focusSysId = focus ? String(focus.sysId) : "";
+  const focusKey = focus ? focus.key : "";
   const EDGE = "inset 0 0 0 1px #89b4fa";
   const tbody = $("tbl").tBodies[0];
-  const prev = [];
+  const prev: HTMLElement[] = [];
   for (const tr of tbody.rows) {
-    if (!want.has(tr.dataset.sysId)) continue;
-    const isTop = tr.dataset.sysId === topSysId;
-    const isBottom = tr.dataset.sysId === bottomSysId;
-    [...tr.children].forEach((tdEl, ci) => {
+    if (!want.has(String(tr.dataset.sysId ?? ""))) continue;
+    const isTop = String(tr.dataset.sysId ?? "") === topSysId;
+    const isBottom = String(tr.dataset.sysId ?? "") === bottomSysId;
+    [...tr.children as HTMLCollectionOf<HTMLElement>].forEach((tdEl: HTMLElement, ci: number) => {
       if (ci < b.lc || ci > b.hc) return;
       tdEl.classList.add("selr");
-      const edges = [];
+      const edges: string[] = [];
       if (isTop) edges.push("inset 0 2px 0 #89b4fa");
       if (isBottom) edges.push("inset 0 -2px 0 #89b4fa");
       if (ci === b.lc) edges.push("inset 2px 0 0 #89b4fa");
       if (ci === b.hc) edges.push("inset -2px 0 0 #89b4fa");
-      const isFocus = tr.dataset.sysId === focusSysId && b.cols[ci][0] === sel().focus.key;
+      const isFocus = String(tr.dataset.sysId ?? "") === focusSysId && b.cols[ci][0] === focusKey;
       tdEl.style.boxShadow = isFocus
         ? "inset 0 0 0 2px #89b4fa"
         : (edges.length ? [...edges, EDGE].join(", ") : "");
@@ -173,7 +180,7 @@ function applySelHighlight() {
   selStore.setState({ prev });
 }
 
-function positionFillHandle() {
+function positionFillHandle(): void {
   const h = $("fillHandle");
   if (!h) return;
   const focus = sel().focus;
@@ -186,7 +193,7 @@ function positionFillHandle() {
   h.classList.remove("hidden");
 }
 
-function scrollSelIntoView() {
+function scrollSelIntoView(): void {
   const focus = sel().focus;
   if (!focus) return;
   const tr = $("tbl").tBodies[0].querySelector(`tr[data-sys-id="${CSS.escape(focus.sysId)}"]`);
@@ -197,16 +204,16 @@ function scrollSelIntoView() {
   if (td) td.scrollIntoView({ block: "nearest", inline: "nearest" });
 }
 
-function selectedTd() {
+function selectedTd(): HTMLElement | null {
   const focus = sel().focus;
   if (!focus) return null;
   const tr = $("tbl").tBodies[0].querySelector(`tr[data-sys-id="${CSS.escape(focus.sysId)}"]`);
   if (!tr) return null;
   const ci = colIdxOf(focus.key, visibleCols());
-  return ci >= 0 ? tr.children[ci] : null;
+  return ci >= 0 ? tr.children[ci] as HTMLElement : null;
 }
 
-function rangeTsv() {
+function rangeTsv(): { text: string; rowCount: number; colCount: number } | null {
   const b = selectionBounds();
   if (!b) return null;
   const lines = b.rows.slice(b.lo, b.hi + 1).map(row =>
@@ -215,20 +222,19 @@ function rangeTsv() {
   return { text: lines.join("\n"), rowCount: b.hi - b.lo + 1, colCount: b.hc - b.lc + 1 };
 }
 
-let lastCopy = null;
 const UNDO_MAX = 20;
-let undoStack = [];
+let undoStack: UndoEntry[][] = [];
 
-function pushUndo(snapshot) {
+function pushUndo(snapshot: UndoEntry[]): void {
   undoStack.push(snapshot);
   if (undoStack.length > UNDO_MAX) undoStack.shift();
 }
 
-function clearUndo() {
+function clearUndo(): void {
   undoStack = [];
 }
 
-function undoLast() {
+function undoLast(): void {
   const op = undoStack.pop();
   if (!op) { showToast("Nothing to undo", "info"); return; }
   for (const { row, key, old } of op) row[key] = old;
@@ -238,7 +244,7 @@ function undoLast() {
   showToast(`Undid paste (${op.length} cell${op.length === 1 ? "" : "s"})`);
 }
 
-function copySelectedRange() {
+function copySelectedRange(): void {
   const b = selectionBounds();
   if (!b) return;
   const out = rangeTsv();
@@ -252,7 +258,7 @@ function copySelectedRange() {
     .catch(() => showToast("Copy failed", "error"));
 }
 
-function readClipboardText() {
+function readClipboardText(): Promise<string | null> {
   return new Promise(resolve => {
     if (typeof navigator !== "undefined" && navigator.clipboard &&
         typeof navigator.clipboard.readText === "function") {
@@ -263,28 +269,28 @@ function readClipboardText() {
   });
 }
 
-async function handlePaste() {
+async function handlePaste(): Promise<void> {
   if (!hasSelection() || !selectionBounds()) return;
-  let fill = null;
-  let text = null;
+  let fill: string[][] | null = null;
+  let text: string | null = null;
   try { text = await readClipboardText(); } catch { text = null; }
   if (text) {
     const grid = parseClipboardBlock(text);
     if (grid && grid.length) fill = grid;
   }
-  if (!fill && lastCopy && lastCopy.values) fill = lastCopy.values;
+  if (!fill && lastCopy && lastCopy.values) fill = lastCopy.values as string[][];
   if (!fill && text !== null && text !== "") fill = [[text]];
   if (!fill) { showToast("Clipboard empty", "info"); return; }
   pasteIntoSelection(fill);
 }
 
-function writeFill(rows, cols, lo, hi, lc, hc, fillSource) {
+function writeFill(rows: ViewerRow[], cols: ViewerCol[], lo: number, hi: number, lc: number, hc: number, fillSource: string[][]): { touched: number; skipped: number } {
   const tr = hi - lo + 1;
   const tc = hc - lc + 1;
   const fill = buildFillGrid(fillSource, tr, tc);
   const deps = { parseLocal: parseLocalInput, listFor: columnOptionList };
   let touched = 0, skipped = 0;
-  const snapshot = [];
+  const snapshot: UndoEntry[] = [];
   for (let r = 0; r < tr; r++) {
     for (let c = 0; c < tc; c++) {
       const key = cols[lc + c][0];
@@ -307,20 +313,20 @@ function writeFill(rows, cols, lo, hi, lc, hc, fillSource) {
   return { touched, skipped };
 }
 
-function pasteIntoSelection(fillSource) {
+function pasteIntoSelection(fillSource: string[][]): { touched: number; skipped: number } {
   const b = selectionBounds();
   if (!b) return { touched: 0, skipped: 0 };
   return writeFill(b.rows, b.cols, b.lo, b.hi, b.lc, b.hc, fillSource);
 }
 
-function fillFromSelectionOrigin(dragBounds) {
+function fillFromSelectionOrigin(dragBounds: Bounds): void {
   const b = dragBounds;
   if (!b) return;
   const srcRow = originRowValues(b.rows, b.cols, b.lo, b.lc, b.hc);
-  writeFill(b.rows, b.cols, b.lo, b.hi, b.lc, b.hc, [srcRow]);
+  writeFill(b.rows, b.cols, b.lo, b.hi, b.lc, b.hc, [srcRow as string[]]);
 }
 
-function anyOverlayOpen() {
+function anyOverlayOpen(): boolean {
   return ["colMenu", "configModal", "mapModal", "ciModal", "letterPop"]
     .some(id => { const n = $(id); return n && !n.classList.contains("hidden"); }) ||
     !!document.querySelector("td.edit-input") ||
@@ -360,3 +366,4 @@ export {
   getSelAnchor,
   saveSel
 };
+export type { Bounds };

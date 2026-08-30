@@ -587,6 +587,7 @@ in detail in [`docs/roadmap.md`](roadmap.md).
 - [x] **Phase 8** — `services/remote-bridge.ts` (page-side `chrome.runtime` proxies); the panel and settings go through it; `tools/remote-bridge-test.ts`
 - [x] **Phase 9a** — `core/` fully migrated `.js` → `.ts` (all 12 modules), typed explicitly, added to `tsconfig.strict.json`; all importer specifiers flipped; 227 tests green
 - [x] **Phase 9b** — `lib/` fully migrated `.js` → `.ts` (format, markup, picklist, servicenow, storage, store, toast, tooltip), typed, added to `tsconfig.strict.json`; all importer specifiers flipped; `servicenow.ts` takes `TransportLike` structurally; `onStorageChange` handler values loosen to `any` (arbitrary JSON); 227 tests green
+- [x] **Phase 9d** — `surfaces/viewer/` fully migrated `.js` → `.ts` (all 18 modules), typed explicitly, added to `tsconfig.strict.json`; importer specifiers flipped project-wide (incl. `tools/viewer-dom-test.ts`, `tools/paste-test.js`, `tools/ci-split-test.js`); viewer fmt functions typed via `InstantFn` and wired into core reports through `buildRep`/`buildSlaSummaryFor`/`buildSlaSummaryRowsFor` wrappers in `core.ts`; dialogs' `mapModal`/`letterPop`/`ciModal`/`configModal` stay live `let` bindings typed `Modal | null`; 227 tests green (incl. all 31 viewer DOM tests)
 
 ## Deferred decisions
 
