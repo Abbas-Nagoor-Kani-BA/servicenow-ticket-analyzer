@@ -222,6 +222,9 @@ Full gate:
 npm run typecheck && npm run lint && npm test && npm run build
 ```
 
+`npm run release` runs the exact same gate — it is what the GitHub release
+workflow (`.github/workflows/release.yaml`) invokes.
+
 Pure modules in `core/` are ES modules and run standalone in plain node, e.g.:
 
 ```js

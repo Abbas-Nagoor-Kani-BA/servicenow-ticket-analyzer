@@ -12,6 +12,7 @@
     "watch": "node build.mjs --watch",
     "test": "node --test \"tools/*-test.*\"",
     "test:dom": "node --test tools/viewer-dom-test.js",
+    "release": "npm run typecheck && npm run lint && npm test && npm run build",
     "zip": "node tools/zip-dist.mjs"
   },
   "devDependencies": {
