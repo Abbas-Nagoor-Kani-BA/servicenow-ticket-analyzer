@@ -575,13 +575,16 @@ not a snapshot. Only `const`-destructuring at import time would break.
 
 ### Deferred
 
-`services/remote-bridge.ts` (page-side proxies over `chrome.runtime`) is the
-remaining piece of the layering; the panel still sends `MSG.count` / `MSG.run`
-by hand. It became worthwhile now that the viewer has a composition root.
+Everything still to be done after Phase 6 — the rest of the TypeScript
+migration, the last service extractions, and the feature backlog — is ordered
+in detail in [`docs/roadmap.md`](roadmap.md).
 
-Everything still to be done after Phase 6 — that bridge, the rest of the
-TypeScript migration, the last service extractions, and the feature backlog —
-is ordered in detail in [`docs/roadmap.md`](roadmap.md).
+## Roadmap progress
+
+`npm run typecheck && npm run lint && npm test && npm run build` are the gate.
+
+- [x] **Phase 7** — `background.js` → `platform/background.ts`; `viewer-dom-test` → `.ts`; lint clean (0 warnings)
+- [x] **Phase 8** — `services/remote-bridge.ts` (page-side `chrome.runtime` proxies); the panel and settings go through it; `tools/remote-bridge-test.ts`
 
 ## Deferred decisions
 

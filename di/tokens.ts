@@ -2,6 +2,7 @@ import { token } from "./token.ts";
 
 import type { ConnectionService } from "../services/connection-service.ts";
 import type { PullService } from "../services/pull-service.ts";
+import type { RemoteBridge } from "../services/remote-bridge.ts";
 
 import type { IdbDatabase } from "../data/idb.ts";
 import type { MsrListsRepository } from "../data/repositories/msr-lists-repository.ts";
@@ -69,5 +70,6 @@ export const TIMELINE_REPO = token<TimelineRepository>("timeline-repo");
 // Services
 export const PULL_SERVICE = token<PullService>("pull-service");
 export const CONNECTION_SERVICE = token<ConnectionService>("connection-service");
+export const REMOTE_BRIDGE = token<RemoteBridge>("remote-bridge");
 
 export type { TicketRow };

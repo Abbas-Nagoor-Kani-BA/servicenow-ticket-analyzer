@@ -40,7 +40,7 @@ export type MsgCount = {
   type: "COUNT";
   instanceUrl: string;
   groups: string[];
-  filterSets: { table: string; conditions: unknown[] }[];
+  filterSets?: { table: string; conditions: unknown[] }[];
   filters?: Record<string, unknown>;
 };
 export type MsgProgress = {

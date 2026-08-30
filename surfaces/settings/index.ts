@@ -1,10 +1,11 @@
 import { Container } from "../../di/container.ts";
 import { registerCoreRepositories } from "../../di/register-core.ts";
-import { MSR_LISTS_REPO, SETTINGS_REPO } from "../../di/tokens.ts";
+import { MSR_LISTS_REPO, SETTINGS_REPO, REMOTE_BRIDGE } from "../../di/tokens.ts";
 
 import { ChipList } from "../../components/chip-list.ts";
 import type { MsrListsRepository } from "../../data/repositories/msr-lists-repository.ts";
 import { SettingsService } from "../../services/settings-service.ts";
+import { RemoteBridge } from "../../services/remote-bridge.ts";
 import { MSR_DEFAULT_LISTS } from "../../core/msrchoices.js";
 
 /*
@@ -36,6 +37,7 @@ const MSR_RC_FIELDS: [string, string][] = [
 
 export type SettingsWiring = {
   container: Container;
+  bridge: RemoteBridge;
   settings: SettingsService;
   msrLists: MsrListsRepository;
   chips: Record<string, ChipList>;
@@ -44,6 +46,7 @@ export type SettingsWiring = {
 
 export function createSettings(): SettingsWiring {
   const container = registerCoreRepositories(new Container());
+  container.registerClass(REMOTE_BRIDGE, RemoteBridge, { singleton: true });
 
   const $ = (id: string): HTMLElement => {
     const node = document.getElementById(id);
@@ -63,6 +66,7 @@ export function createSettings(): SettingsWiring {
 
   return {
     container,
+    bridge: container.resolve(REMOTE_BRIDGE),
     settings: new SettingsService(container.resolve(SETTINGS_REPO)),
     msrLists: container.resolve(MSR_LISTS_REPO),
     chips,

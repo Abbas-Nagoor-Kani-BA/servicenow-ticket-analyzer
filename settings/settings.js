@@ -1,6 +1,5 @@
 import { getDefaultDatabase } from "../data/idb.ts";
-import { STORAGE, MSG } from "../lib/keys.ts";
-import { broadcast } from "../lib/storage.js";
+import { STORAGE } from "../lib/keys.ts";
 import { showToast } from "../lib/toast.js";
 import { initTooltips } from "../lib/tooltip.js";
 import { createSettings, fillMsrLists, collectMsrLists } from "../surfaces/settings/index.ts";
@@ -65,7 +64,7 @@ $("clearCacheBtn").addEventListener("click", async () => {
   try {
     await getDefaultDatabase().clearAll();
     await chrome.storage.local.remove([STORAGE.lastRun, STORAGE.lastData]);
-    broadcast({ type: MSG.dataUpdated });
+    page.bridge.notifyDataUpdated();
     showToast("Pull cache and saved data cleared");
   } catch (e) {
     showToast(e.message, "error");
@@ -197,7 +196,7 @@ Current queues, filters, mapping and split groups will be overwritten.`
     if (!ok) return;
     if (Object.keys(updates).length) await chrome.storage.local.set(updates);
     if (localVal != null) importFilterList(localVal);
-    broadcast({ type: MSG.dataUpdated });
+    page.bridge.notifyDataUpdated();
     fill(updates.pluginSettings ?? null);
     showToast("Settings imported");
   } catch (err) {

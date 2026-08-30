@@ -1,11 +1,12 @@
 import { Container } from "../../di/container.ts";
 import { registerCoreRepositories } from "../../di/register-core.ts";
-import { FILTER_LIST_REPO, SETTINGS_REPO } from "../../di/tokens.ts";
+import { FILTER_LIST_REPO, SETTINGS_REPO, REMOTE_BRIDGE } from "../../di/tokens.ts";
 
 import { LogCard } from "../../components/log-card.ts";
 import { ProgressCard } from "../../components/progress-card.ts";
 import { ConditionBuilder } from "../../components/condition-builder.ts";
 import { FilterSetList, migrateLegacyFilterSets } from "../../components/filter-set-list.ts";
+import { RemoteBridge } from "../../services/remote-bridge.ts";
 import type { CondFieldDef } from "../../components/condition-builder.ts";
 import type { FilterSet } from "../../data/repositories/filter-list-repository.ts";
 
@@ -21,6 +22,7 @@ import { snStateChoices, SN_PRIORITY_CHOICES, snTableLabel } from "../../core/st
 
 export type PanelWiring = {
   container: Container;
+  bridge: RemoteBridge;
   logCard: LogCard;
   progressCard: ProgressCard;
   conditions: ConditionBuilder;
@@ -37,6 +39,7 @@ export function createPanel(options: {
 }): PanelWiring {
   // registerCoreRepositories installs the chrome.storage-backed store itself.
   const container = registerCoreRepositories(new Container());
+  container.registerClass(REMOTE_BRIDGE, RemoteBridge, { singleton: true });
 
   const $ = (id: string): HTMLElement => {
     const node = document.getElementById(id);
@@ -75,7 +78,7 @@ export function createPanel(options: {
     await filterSets.load();
   })();
 
-  return { container, logCard, progressCard, conditions, filterSets, ready };
+  return { container, bridge: container.resolve(REMOTE_BRIDGE), logCard, progressCard, conditions, filterSets, ready };
 }
 
 export function filterKey(set: FilterSet): string {

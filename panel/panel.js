@@ -1,8 +1,7 @@
 import { buildEncodedQuery } from "../core/querybuilder.js";
 import { snStateChoices, SN_PRIORITY_CHOICES, snTableLabel } from "../core/statechoices.js";
-import { STORAGE, MSG } from "../lib/keys.ts";
+import { STORAGE } from "../lib/keys.ts";
 import { createPanel, describeFilterSet } from "../surfaces/panel/index.ts";
-import { broadcast } from "../lib/storage.js";
 import { showToast } from "../lib/toast.js";
 import { initTooltips } from "../lib/tooltip.js";
 
@@ -50,7 +49,7 @@ const panel = createPanel({
   onConditionChange: () => refreshGenerated(),
   onFilterSetChange: () => refreshGenerated()
 });
-const { logCard, progressCard, conditions, filterSets } = panel;
+const { logCard, progressCard, conditions, filterSets, bridge } = panel;
 const logger = { log: (text, level) => logCard.log(text, level || "") };
 let busy = false;
 let cfgQueues = [];
@@ -180,14 +179,6 @@ function configuredGroups() {
 function savePrefs() {
   chrome.storage.local.set({ snInstance: instanceUrl() });
 }
-function send(msg) {
-  return new Promise((resolve, reject) => {
-    chrome.runtime.sendMessage(msg, (res) => {
-      if (chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message));
-      else resolve(res);
-    });
-  });
-}
 async function connect(manual = false) {
   try {
     requireInstance();
@@ -258,8 +249,7 @@ els.preview.addEventListener("click", async () => {
     let overLimit = 0;
     let lastQuery = "";
     for (let i = 0; i < sets.length; i++) {
-      const res = await send({
-        type: MSG.count,
+      const res = await bridge.preview({
         instanceUrl: instanceUrl2,
         groups,
         filters: sets[i]
@@ -293,8 +283,7 @@ els.runBtn.addEventListener("click", async () => {
     const live = currentFilters();
     const saved = filterSets.getSets();
     const sets = saved.length ? saved.map((f) => ({ ...f, rawQuery: live.rawQuery })) : [live];
-    await send({
-      type: MSG.run,
+    await bridge.run({
       instanceUrl: requireInstance(),
       groups: configuredGroups(),
       filters: sets[0],
@@ -323,7 +312,7 @@ async function openViewer() {
       const tab2 = await chrome.tabs.get(viewerTabId);
       await chrome.tabs.update(tab2.id, { active: true });
       await chrome.windows.update(tab2.windowId, { focused: true });
-      broadcast({ type: MSG.dataUpdated });
+      bridge.notifyDataUpdated();
       return;
     } catch {
       viewerTabId = null;
@@ -332,8 +321,7 @@ async function openViewer() {
   const tab = await chrome.tabs.create({ url });
   viewerTabId = tab.id;
 }
-chrome.runtime.onMessage.addListener((msg) => {
-  if (msg.type !== MSG.progress) return;
+bridge.onProgress((msg) => {
   const detail = String(msg.detail ?? "");
   const level = progressCard.apply(msg);
 
