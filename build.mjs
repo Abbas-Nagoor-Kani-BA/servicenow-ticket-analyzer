@@ -17,7 +17,7 @@ const MINIFY = process.argv.includes("--minify");
 const OUT = WATCH ? path.join(ROOT, "dev") : path.join(ROOT, "dist");
 
 const ENTRIES = [
-  "background.js",
+  "platform/background.ts",
   "surfaces/viewer/index.ts",
   "panel/panel.js",
   "settings/settings.js",

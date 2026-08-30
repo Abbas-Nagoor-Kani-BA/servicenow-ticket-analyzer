@@ -10,6 +10,7 @@
   "include": [
     "types/global.d.ts",
     "lib/keys.ts",
+    "platform/background.ts",
     "di/token.ts",
     "di/container.ts",
     "di/tokens.ts",

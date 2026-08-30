@@ -43,7 +43,7 @@ lib/         Platform and UI helpers: keys, storage, store, markup, picklist,
              servicenow, toast, tooltip, format.
 viewer/      The data-view page (HTML only — viewer/viewer.html). Its modules
              live in surfaces/viewer/ below.
-panel/, settings/, background.js, content/
+panel/, settings/, platform/ (service worker), content/
 ```
 
 `surfaces/viewer/` is the viewer page's own composition root plus its modules
@@ -206,7 +206,7 @@ There is no bundler or package manager for tests. Verify with node after every
 change:
 
 ```bash
-node --check background.js core/*.js lib/*.js surfaces/viewer/*.js panel/*.js settings/settings.js content/content.js surfaces/viewer/index.ts && \
+node --check platform/background.ts core/*.js lib/*.js surfaces/viewer/*.js panel/*.js settings/settings.js content/content.js surfaces/viewer/index.ts && \
 node -e "JSON.parse(require('fs').readFileSync('manifest.json'))"
 ```
 

@@ -472,7 +472,7 @@ Chosen first: highest confusion, lowest risk, no hard-won invariants live there.
 ## Phase 5 — Restructure + documentation
 
 - [ ] Move `analysis/` + pure `lib/*` → `core/`
-- [ ] Move `background.js` → `platform/background.ts`; content script stays `content/content.js`
+- [x] Move `background.js` → `platform/background.ts`; content script stays `content/content.js`
 - [ ] Update `build.mjs` ENTRIES + `STATIC_COPY` for final paths
 - [ ] **Delete `docs/architecture.md`** (superseded by `docs/layered-architecture.md`)
 - [ ] **Delete `issues/001-readability-maintainability.md`** (tracking moves here)

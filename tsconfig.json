@@ -19,7 +19,7 @@
   },
   "include": [
     "types/global.d.ts",
-    "background.js",
+    "platform/**/*",
     "content/**/*.js",
     "lib/**/*",
     "core/**/*",

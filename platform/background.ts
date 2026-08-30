@@ -1,12 +1,16 @@
-import { MSG } from "./lib/keys.ts";
-import { broadcast } from "./lib/storage.js";
-import * as Analysis from "./core/phase2.js";
-import { createSmartTransport } from "./data/datasource/sn-transport.ts";
-import { createServiceNowRemote } from "./data/datasource/sn-remote.ts";
-import { PULL_SERVICE, CONNECTION_SERVICE, SETTINGS_REPO, SN_REMOTE_FACTORY } from "./di/tokens.ts";
-import { createBackgroundContainer } from "./di/register-background.ts";
-import { ConnectionService } from "./services/connection-service.ts";
-import { PullService } from "./services/pull-service.ts";
+import { MSG } from "../lib/keys.ts";
+import { broadcast } from "../lib/storage.js";
+import * as Analysis from "../core/phase2.js";
+import { createSmartTransport } from "../data/datasource/sn-transport.ts";
+import { createServiceNowRemote } from "../data/datasource/sn-remote.ts";
+import { PULL_SERVICE, CONNECTION_SERVICE, SETTINGS_REPO, SN_REMOTE_FACTORY } from "../di/tokens.ts";
+import { createBackgroundContainer } from "../di/register-background.ts";
+import { ConnectionService } from "../services/connection-service.ts";
+import { PullService } from "../services/pull-service.ts";
+import type { MsgRun, MsgCount } from "../types/global.d.ts";
+
+type WorkerRequest = MsgRun | MsgCount | { type: typeof MSG.ping };
+type SendResponse = (response: unknown) => void;
 
 /*
  * Service worker entry point: a message router, nothing more.
@@ -36,16 +40,16 @@ container.registerClass(CONNECTION_SERVICE, ConnectionService, { singleton: true
 
 let running = false;
 
-function clampNum(value, lo, hi) {
+function clampNum(value: unknown, lo: number, hi: number): number | null {
   const n = Math.round(Number(value));
   return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : null;
 }
 
-function progress(stage, detail, extra = {}) {
+function progress(stage: string, detail: string, extra: Record<string, unknown> = {}) {
   broadcast({ type: MSG.progress, stage, detail, ...extra });
 }
 
-function onDiagnostic(d) {
+function onDiagnostic(d: any) {
   const ms = typeof d.ms === "number" ? ` · ${d.ms}ms` : "";
   if (d.kind === "warn") {
     if (d.note) {
@@ -73,7 +77,7 @@ function onDiagnostic(d) {
 chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {
 });
 
-chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((msg: WorkerRequest, _sender: unknown, sendResponse: SendResponse) => {
   if (msg.type === MSG.ping) {
     sendResponse({ ok: true, running });
     return false;
