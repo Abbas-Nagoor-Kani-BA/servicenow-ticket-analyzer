@@ -1,9 +1,9 @@
 const CAP = 4;
-const DURATIONS = { success: 2600, error: 4200, info: 3200 };
+const DURATIONS: Record<string, number> = { success: 2600, error: 4200, info: 3200 };
 
-let stack = null;
+let stack: HTMLDivElement | null = null;
 
-function ensureStack() {
+function ensureStack(): HTMLDivElement {
   if (stack) return stack;
   stack = document.createElement("div");
   stack.className = "toastStack";
@@ -11,7 +11,7 @@ function ensureStack() {
   return stack;
 }
 
-function dismiss(node) {
+function dismiss(node: HTMLElement): void {
   if (!node.isConnected || node.classList.contains("out")) return;
   node.classList.add("out");
   setTimeout(() => {
@@ -23,7 +23,7 @@ function dismiss(node) {
   }, 200);
 }
 
-function showToast(message, type = "success") {
+export function showToast(message: string, type: "success" | "error" | "info" = "success"): HTMLElement {
   const kind = ["success", "error", "info"].includes(type) ? type : "success";
   const el = document.createElement("div");
   el.className = `toast ${kind}`;
@@ -32,9 +32,7 @@ function showToast(message, type = "success") {
   const s = ensureStack();
   s.appendChild(el);
   requestAnimationFrame(() => el.classList.add("in"));
-  if (s.childElementCount > CAP) dismiss(s.firstElementChild);
+  if (s.childElementCount > CAP) dismiss(s.firstElementChild as HTMLElement);
   setTimeout(() => dismiss(el), DURATIONS[kind]);
   return el;
 }
-
-export { showToast };

@@ -1,17 +1,17 @@
-let tip = null;
-let currentEl = null;
+let tip: HTMLDivElement | null = null;
+let currentEl: HTMLElement | null = null;
 let initialized = false;
 
 const OFFSET = 10;
 const MARGIN = 10;
 const SHOW_DELAY = 500;
 
-let delayTimer = null;
+let delayTimer: ReturnType<typeof setTimeout> | null = null;
 let lastX = 0;
 let lastY = 0;
-let suppressed = null;
+let suppressed: (() => boolean) | null = null;
 
-function ensureTip() {
+function ensureTip(): HTMLDivElement {
   if (tip) return tip;
   tip = document.createElement("div");
   tip.className = "tip";
@@ -19,13 +19,13 @@ function ensureTip() {
   return tip;
 }
 
-function tipTextFor(el) {
+function tipTextFor(el: HTMLElement): string {
   const t = el.getAttribute("data-tip");
   if (t != null && t !== "") return t;
   return "";
 }
 
-function placeTip(el) {
+function placeTip(el: HTMLElement): void {
   const root = ensureTip();
   const text = tipTextFor(el);
   if (!text) return;
@@ -36,7 +36,7 @@ function placeTip(el) {
   positionTip(lastX, lastY);
 }
 
-function positionTip(x, y) {
+function positionTip(x: number, y: number): void {
   if (!tip) return;
   const rect = tip.getBoundingClientRect();
   let nx = x + OFFSET;
@@ -53,12 +53,12 @@ function positionTip(x, y) {
   tip.style.top = `${ny}px`;
 }
 
-function show(el) {
+function show(el: HTMLElement): void {
   const text = tipTextFor(el);
   if (!text) return;
   currentEl = el;
   placeTip(el);
-  const move = ev => {
+  const move = (ev: MouseEvent) => {
     lastX = ev.clientX;
     lastY = ev.clientY;
     if (currentEl === el) positionTip(lastX, lastY);
@@ -66,11 +66,11 @@ function show(el) {
   el.addEventListener("mousemove", move);
   el.addEventListener("mouseleave", hide, { once: true });
   el.addEventListener("blur", hide, { once: true });
-  const kd = ev => { if (ev.key === "Escape") hide(); };
+  const kd = (ev: KeyboardEvent) => { if (ev.key === "Escape") hide(); };
   document.addEventListener("keydown", kd, { once: true });
 }
 
-function hide() {
+function hide(): void {
   if (delayTimer) {
     clearTimeout(delayTimer);
     delayTimer = null;
@@ -79,7 +79,7 @@ function hide() {
   if (tip) tip.classList.remove("in");
 }
 
-function setTip(el, text, accentClass) {
+export function setTip(el: HTMLElement, text: string, accentClass?: string): void {
   if (text) {
     el.setAttribute("data-tip", String(text));
     if (accentClass) {
@@ -91,20 +91,20 @@ function setTip(el, text, accentClass) {
   }
 }
 
-function delayThenShow(el) {
+function delayThenShow(el: HTMLElement): void {
   delayTimer = setTimeout(() => {
     delayTimer = null;
     if (currentEl === el) show(el);
   }, SHOW_DELAY);
 }
 
-function onEnter(ev) {
+function onEnter(ev: MouseEvent): void {
   if (suppressed && suppressed()) {
     hide();
     return;
   }
-  const el = ev.target.closest("[data-tip]");
-  if (!el) return;
+  const el = ev.target instanceof Element ? ev.target.closest("[data-tip]") : null;
+  if (!(el instanceof HTMLElement)) return;
   lastX = ev.clientX;
   lastY = ev.clientY;
   if (el === currentEl) return;
@@ -114,15 +114,12 @@ function onEnter(ev) {
 }
 
 /**
- * @param {(() => boolean) | null} [suppress] Optional predicate; when it returns
- *   true no tooltip will be shown (used by the viewer to hide tooltips while
- *   an overlay popup/option/dialog is open).
+ * Optional predicate; when it returns true no tooltip will be shown (used by
+ * the viewer to hide tooltips while an overlay popup/option/dialog is open).
  */
-function initTooltips(suppress) {
+export function initTooltips(suppress?: () => boolean): void {
   if (initialized) return;
   initialized = true;
   suppressed = suppress || null;
   document.addEventListener("mouseover", onEnter);
 }
-
-export { initTooltips, setTip };

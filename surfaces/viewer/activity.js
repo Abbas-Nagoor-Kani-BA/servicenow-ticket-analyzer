@@ -1,7 +1,7 @@
 import * as Journal from "../../core/journal.ts";
 import { el } from "./core.js";
 import { fmtInstant } from "./grid.js";
-import { setTip } from "../../lib/tooltip.js";
+import { setTip } from "../../lib/tooltip.ts";
 
 
 const FIELD_LABELS = {

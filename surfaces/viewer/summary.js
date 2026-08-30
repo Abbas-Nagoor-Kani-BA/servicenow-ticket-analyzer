@@ -1,6 +1,6 @@
 import { buildSlaSummary } from "../../core/slasummary.ts";
 import { rowOffsetMs } from "../../core/sntime.ts";
-import { pad2 } from "../../lib/format.js";
+import { pad2 } from "../../lib/format.ts";
 import { dataStore } from "./store.js";
 
 const $ = id => document.getElementById(id);

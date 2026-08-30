@@ -1,12 +1,12 @@
 import { Component, el } from "./component.ts";
 import type { ComponentProps } from "./component.ts";
-import { placePopupNear } from "../lib/markup.js";
+import { placePopupNear } from "../lib/markup.ts";
 import {
   applyPickFilter,
   paintPickItems,
   pickCurNotInOptions,
   pickLabelOf
-} from "../lib/picklist.js";
+} from "../lib/picklist.ts";
 
 /** How the user committed, so callers can advance the selection differently. */
 export type PickIntent = "enter" | "tab" | "tab-back" | "pointer";

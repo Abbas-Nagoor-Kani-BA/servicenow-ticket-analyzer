@@ -1,5 +1,5 @@
 import { MSG } from "../lib/keys.ts";
-import { broadcast } from "../lib/storage.js";
+import { broadcast } from "../lib/storage.ts";
 import type { MsgCount, MsgProgress, MsgRun } from "../types/global.d.ts";
 
 /*

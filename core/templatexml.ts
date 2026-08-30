@@ -1,4 +1,4 @@
-import { xmlEscape, decodeText, encodeText, colLetter } from "../lib/markup.js";
+import { xmlEscape, decodeText, encodeText, colLetter } from "../lib/markup.ts";
 
 // ---------------------------------------------------------------------------
 // OpenXML template surgery (ZIP / SpreadsheetML byte manipulation).

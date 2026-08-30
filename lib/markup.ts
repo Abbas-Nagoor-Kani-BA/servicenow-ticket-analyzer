@@ -1,16 +1,16 @@
-
-function xmlEscape(s) {
-  return String(s).replace(/[&<>"']/g, ch => ({
+function xmlEscape(s: unknown): string {
+  const map: Record<string, string> = {
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;"
-  })[ch]);
+  };
+  return String(s).replace(/[&<>"']/g, ch => map[ch]);
 }
-function decodeText(bytes) {
+function decodeText(bytes: Uint8Array): string {
   return new TextDecoder().decode(bytes);
 }
-function encodeText(str) {
+function encodeText(str: string): Uint8Array {
   return new TextEncoder().encode(str);
 }
-function colLetter(n) {
+function colLetter(n: number): string {
   let s = "";
   while (n > 0) {
     const m = (n - 1) % 26;
@@ -19,7 +19,7 @@ function colLetter(n) {
   }
   return s;
 }
-function letterToColNum(s) {
+function letterToColNum(s: string): number {
   let n = 0;
   for (const ch of String(s).trim().toUpperCase()) {
     const v = ch.charCodeAt(0) - 64;
@@ -34,19 +34,16 @@ function letterToColNum(s) {
  *
  * Moved here from surfaces/viewer/core.js so components do not have to import
  * from a surface.
- *
- * @param {HTMLElement} pop
- * @param {{left:number, top:number, bottom:number, width:number}} rect
- * @param {number} minW
- * @param {number} [gap]
  */
+export type RectLike = { left: number; top: number; bottom: number; width: number };
+
 /** Max characters shown in a grid cell before truncating; full text goes in the tooltip. */
-const CELL_MAX = 60;
-function cellShort(text) {
+export const CELL_MAX = 60;
+function cellShort(text: string): string {
   return text.length > CELL_MAX ? text.slice(0, CELL_MAX).trimEnd() + "\u2026" : text;
 }
 
-function placePopupNear(pop, rect, minW, gap = 4) {
+function placePopupNear(pop: HTMLElement, rect: RectLike, minW: number, gap = 4): void {
   const w = Math.max(rect.width, minW);
   pop.style.width = `${w}px`;
   const left = Math.max(8, Math.min(rect.left, window.innerWidth - w - 8));
@@ -63,6 +60,5 @@ export {
   colLetter,
   letterToColNum,
   placePopupNear,
-  cellShort,
-  CELL_MAX
+  cellShort
 };

@@ -1,4 +1,4 @@
-import { ServiceNowClient } from "../../lib/servicenow.js";
+import { ServiceNowClient } from "../../lib/servicenow.ts";
 
 export type TicketRecord = Record<string, any>;
 export type TimelineEvent = Record<string, any>;

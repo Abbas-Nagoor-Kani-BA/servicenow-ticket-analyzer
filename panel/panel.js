@@ -2,8 +2,8 @@ import { buildEncodedQuery } from "../core/querybuilder.ts";
 import { snStateChoices, SN_PRIORITY_CHOICES, snTableLabel } from "../core/statechoices.ts";
 import { STORAGE } from "../lib/keys.ts";
 import { createPanel, describeFilterSet } from "../surfaces/panel/index.ts";
-import { showToast } from "../lib/toast.js";
-import { initTooltips } from "../lib/tooltip.js";
+import { showToast } from "../lib/toast.ts";
+import { initTooltips } from "../lib/tooltip.ts";
 
 /** @param {string} id @returns {any} */
 const $ = id => document.getElementById(id);

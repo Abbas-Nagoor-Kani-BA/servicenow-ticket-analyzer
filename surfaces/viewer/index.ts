@@ -23,7 +23,7 @@ import { initDialogs } from "./dialogs.js";
 import { initToolbar, loadTplInfo } from "./toolbar.js";
 import { initInteractions } from "./interactions.js";
 import { anyOverlayOpen } from "./selection.js";
-import { initTooltips } from "../../lib/tooltip.js";
+import { initTooltips } from "../../lib/tooltip.ts";
 
 // Modules that carry no wiring of their own. They are imported for their
 // registrations and for module state that the modules above depend on.

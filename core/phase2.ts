@@ -451,9 +451,10 @@ type ListHistoryEntry = {
   entries?: { changes?: Array<Record<string, unknown>> };
 };
 
-function extractEventsFromListHistory(payload: { entries?: ListHistoryEntry[] } | null | undefined): Record<string, ListHistoryRow[]> {
+function extractEventsFromListHistory(payload: { entries?: unknown[] } | null | undefined): Record<string, ListHistoryRow[]> {
   const byTicket: Record<string, ListHistoryRow[]> = {};
-  for (const entry of payload?.entries || []) {
+  for (const e of payload?.entries || []) {
+    const entry = e as ListHistoryEntry;
     if (!entry || typeof entry !== "object") continue;
     const docId = String(entry.document_id || "").trim();
     if (!docId) continue;

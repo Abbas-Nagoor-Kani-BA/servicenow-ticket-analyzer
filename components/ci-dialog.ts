@@ -1,6 +1,6 @@
 import { Component, el } from "./component.ts";
 import type { ComponentProps } from "./component.ts";
-import { setTip } from "../lib/tooltip.js";
+import { setTip } from "../lib/tooltip.ts";
 
 export type CiGroup = {
   name: string;

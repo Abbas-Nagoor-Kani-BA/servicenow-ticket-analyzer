@@ -1,43 +1,73 @@
 import * as Analysis from "../core/phase2.ts";
 
+export type TransportResult = {
+  ok: boolean;
+  status?: number;
+  text?: string;
+  headers?: Record<string, string>;
+  via?: string;
+  hadToken?: boolean;
+  tokenSource?: string | null;
+  error?: string;
+};
+
+export type TransportLike = (url: string, opts?: unknown) => Promise<TransportResult>;
+
+export type Diagnostic = { [k: string]: unknown };
+
+type ListHistoryPayload = { entries: unknown[] };
+
 class ServiceNowClient {
-  constructor(instanceUrl, options = {}) {
+  baseUrl: string;
+  transport: TransportLike | null;
+  onDiagnostic: ((d: Diagnostic) => void) | null;
+  pageSize = 1000;
+  maxRetries = 4;
+  debugResponses = false;
+  activitySource = "";
+
+  constructor(instanceUrl: string, options: { transport?: TransportLike | null; onDiagnostic?: ((d: Diagnostic) => void) | null } = {}) {
     this.baseUrl = instanceUrl.replace(/\/+$/, "");
     this.transport = options.transport || null;
     this.onDiagnostic = options.onDiagnostic || null;
-    this.pageSize = 1000;
-    this.maxRetries = 4;
-    this.debugResponses = false;
-    this.activitySource = "";
   }
 
-  async #request(path, params = {}) {
+  #emit(diag: Diagnostic): void {
+    if (!this.onDiagnostic) return;
+    try {
+      this.onDiagnostic(diag);
+    } catch { /* diagnostics must never break the request */ }
+  }
+
+  async #sleep(ms: number): Promise<void> {
+    await new Promise(r => setTimeout(r, ms));
+  }
+
+  async #request(path: string, params: Record<string, unknown> = {}): Promise<Response> {
     const url = new URL(this.baseUrl + path);
     for (const [k, v] of Object.entries(params)) {
-      if (v !== undefined && v !== null) url.searchParams.set(k, v);
+      if (v !== undefined && v !== null) url.searchParams.set(k, String(v));
     }
     const target = url.toString();
     const started = Date.now();
     const q = String(params.sysparm_query || "");
     const shortQuery = q.length > 100 ? q.slice(0, 100) + "…" : q;
-    const emit = extra => {
+    const emit = (extra: Diagnostic) => {
       if (!this.onDiagnostic) return;
-      try {
-        this.onDiagnostic({
-          status: null, via: null, hadToken: null, tokenSource: null,
-          path, query: shortQuery, ms: Date.now() - started,
-          ...extra
-        });
-      } catch {}
+      this.#emit({
+        status: null, via: null, hadToken: null, tokenSource: null,
+        path, query: shortQuery, ms: Date.now() - started,
+        ...extra
+      });
     };
-    let lastError = null;
+    let lastError: Error | null = null;
     for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
       try {
-        let res;
+        let res: Response;
         if (this.transport) {
           const raw = await this.transport(target);
           if (!raw || raw.ok === false) throw new TypeError(raw?.error || "Transport failed");
-          res = new Response(raw.text, { status: raw.status, headers: raw.headers || {} });
+          res = new Response(raw.text || "", { status: raw.status, headers: raw.headers || {} });
           res.snVia = raw.via;
           res.snHadToken = raw.hadToken;
           res.snTokenSource = raw.tokenSource || null;
@@ -66,29 +96,15 @@ class ServiceNowClient {
           emit({ kind: "err", status: res.status });
           throw new Error(`HTTP ${res.status} on ${path}: ${body.slice(0, 300)}`);
         }
-        const extra = {};
-        if (this.debugResponses) {
-          let txt = "";
-          try {
-            txt = await res.clone().text();
-          } catch {}
-          if (txt) {
-            try {
-              const j = JSON.parse(txt);
-              if (j && Array.isArray(j.result)) extra.bodyRows = j.result.length;
-            } catch {}
-            extra.bodyPreview = txt.length > 300 ? txt.slice(0, 300) + "…" : txt;
-          }
-        }
-        emit({ kind: "ok", status: res.status, via: res.snVia, hadToken: res.snHadToken, tokenSource: res.snTokenSource, ...extra });
+        emit({ kind: "ok", status: res.status, via: res.snVia, hadToken: res.snHadToken, tokenSource: res.snTokenSource });
         return res;
       } catch (err) {
         if (err instanceof TypeError) {
           lastError = err;
-          emit({ kind: "warn", status: 0, attempt: attempt + 1, netError: String(err.message || err) });
+          emit({ kind: "warn", status: 0, attempt: attempt + 1, netError: String((err as Error).message || err) });
           await this.#sleep(1500 * Math.pow(2, attempt));
         } else {
-          if (!err.message || !/^Auth error|^HTTP /.test(err.message)) emit({ kind: "err", status: 0 });
+          if (!(err instanceof Error) || !/^Auth error|^HTTP /.test(err.message)) emit({ kind: "err", status: 0 });
           throw err;
         }
       }
@@ -100,11 +116,7 @@ class ServiceNowClient {
     throw lastError || new Error("Request failed after retries");
   }
 
-  async #sleep(ms) {
-    await new Promise(r => setTimeout(r, ms));
-  }
-
-  async count(table, encodedQuery) {
+  async count(table: string, encodedQuery: string): Promise<number> {
     const res = await this.#request(`/api/now/table/${table}`, {
       sysparm_query: encodedQuery,
       sysparm_limit: 1,
@@ -116,8 +128,15 @@ class ServiceNowClient {
     return total;
   }
 
-  async fetchAllRecords(table, encodedQuery, fields, onProgress, signal, expectedTotal = 0) {
-    const rows = [];
+  async fetchAllRecords(
+    table: string,
+    encodedQuery: string,
+    fields: string[],
+    onProgress?: (p: { fetched: number }) => void,
+    signal?: AbortSignal,
+    expectedTotal = 0
+  ): Promise<Record<string, any>[]> {
+    const rows: Record<string, any>[] = [];
     let offset = 0;
     let clampedWarned = false;
     const maxPages = expectedTotal > 0 ? expectedTotal + 10 : 2000;
@@ -135,17 +154,17 @@ class ServiceNowClient {
         sysparm_display_value: "all"
       });
       const data = await res.json();
-      const batch = (data.result || []).map(r => {
-        const out = {};
+      const batch = (data.result || []).map((r: Record<string, unknown>) => {
+        const out: Record<string, unknown> = {};
         for (const [k, v] of Object.entries(r)) {
           if (v && typeof v === "object") {
-            out[k] = { display_value: v.display_value ?? "", value: v.value ?? "" };
+            out[k] = { display_value: (v as { display_value?: string }).display_value ?? "", value: (v as { value?: string }).value ?? "" };
           } else {
             out[k] = v;
           }
         }
         return out;
-      });
+      }) as Record<string, any>[];
       if (!batch.length) break;
       rows.push(...batch);
       offset += batch.length;
@@ -154,12 +173,10 @@ class ServiceNowClient {
         if (rows.length >= expectedTotal) break;
         if (batch.length < this.pageSize && !clampedWarned) {
           clampedWarned = true;
-          try {
-            this.onDiagnostic?.({
-              kind: "warn",
-              note: `page returned ${batch.length} rows but ${this.pageSize} were requested — instance may cap page size; continuing with smaller pages`
-            });
-          } catch {}
+          this.#emit({
+            kind: "warn",
+            note: `page returned ${batch.length} rows but ${this.pageSize} were requested — instance may cap page size; continuing with smaller pages`
+          });
         }
         continue;
       }
@@ -168,18 +185,30 @@ class ServiceNowClient {
     return rows;
   }
 
-  async fetchTimelineEvents(sysIds, fieldNames, onProgress, signal, tableName = "incident") {
+  async fetchTimelineEvents(
+    sysIds: string[],
+    fieldNames: string[],
+    onProgress?: (p: { ticketsDone: number; ticketsTotal: number }) => void,
+    signal?: AbortSignal,
+    tableName = "incident"
+  ): Promise<Record<string, { field: string; oldValue: string; newValue: string; at: string }[]>> {
     if (!sysIds.length) return {};
     return this.#fetchViaActivity(sysIds, fieldNames, onProgress, signal, tableName);
   }
 
-  async #fetchViaActivity(sysIds, fieldNames, onProgress, signal, tableName) {
+  async #fetchViaActivity(
+    sysIds: string[],
+    fieldNames: string[],
+    onProgress?: (p: { ticketsDone: number; ticketsTotal: number }) => void,
+    signal?: AbortSignal,
+    tableName = "incident"
+  ): Promise<Record<string, { field: string; oldValue: string; newValue: string; at: string }[]>> {
     const A = Analysis;
     if (!A?.extractEventsFromListHistory && !A?.extractEventsFromActivity) {
       throw new Error("Activity parser module not loaded");
     }
     const wanted = new Set(fieldNames);
-    let preloaded = null;
+    let preloaded: Record<string, ListHistoryPayload> | null = null;
     if (!this.activitySource) {
       try {
         const probe = await this.#fetchListHistory(tableName, sysIds[0]);
@@ -190,9 +219,9 @@ class ServiceNowClient {
           this.activitySource = "stream";
         }
       } catch (err) {
-        this.onDiagnostic?.({
+        this.#emit({
           kind: "warn",
-          note: `list_history.do unavailable (${String(err.message).slice(0, 80)}) - using /api/now/v1/activity/stream`
+          note: `list_history.do unavailable (${String((err as Error).message).slice(0, 80)}) - using /api/now/v1/activity/stream`
         });
         this.activitySource = "stream";
       }
@@ -202,9 +231,9 @@ class ServiceNowClient {
         return await this.#runListHistory(sysIds, wanted, onProgress, signal, tableName, preloaded);
       } catch (err) {
         if (signal?.aborted) throw err;
-        this.onDiagnostic?.({
+        this.#emit({
           kind: "warn",
-          note: `list_history.do failed mid-run (${String(err.message).slice(0, 80)}) - switching to activity/stream`
+          note: `list_history.do failed mid-run (${String((err as Error).message).slice(0, 80)}) - switching to activity/stream`
         });
         this.activitySource = "stream";
       }
@@ -212,9 +241,16 @@ class ServiceNowClient {
     return await this.#runStream(sysIds, wanted, onProgress, signal, tableName);
   }
 
-  async #runListHistory(sysIds, wanted, onProgress, signal, tableName, preloaded) {
-    const byTicket = {};
-    const filterWanted = wanted && typeof wanted.size === "number" ? wanted.size > 0 : false;
+  async #runListHistory(
+    sysIds: string[],
+    wanted: Set<string>,
+    onProgress?: (p: { ticketsDone: number; ticketsTotal: number }) => void,
+    signal?: AbortSignal,
+    tableName = "incident",
+    preloaded: Record<string, ListHistoryPayload> | null = null
+  ): Promise<Record<string, { field: string; oldValue: string; newValue: string; at: string }[]>> {
+    const byTicket: Record<string, { field: string; oldValue: string; newValue: string; at: string }[]> = {};
+    const filterWanted = wanted.size > 0;
     for (const [idx, sysId] of sysIds.entries()) {
       if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
       const payload = preloaded?.[sysId] || await this.#fetchListHistory(tableName, sysId);
@@ -224,7 +260,7 @@ class ServiceNowClient {
       onProgress?.({ ticketsDone: idx + 1, ticketsTotal: sysIds.length });
     }
     if (!Object.keys(byTicket).length && sysIds.length) {
-      this.onDiagnostic?.({
+      this.#emit({
         kind: "warn",
         note: "activity feed yielded no field changes; timelines will stay empty"
       });
@@ -232,7 +268,7 @@ class ServiceNowClient {
     return byTicket;
   }
 
-  async #fetchListHistory(table, sysId) {
+  async #fetchListHistory(table: string, sysId: string): Promise<ListHistoryPayload> {
     const res = await this.#request("/list_history.do", {
       sysparm_type: "list_history",
       table,
@@ -243,9 +279,9 @@ class ServiceNowClient {
       sys_id: sysId
     });
     const text = await res.text();
-    let json;
+    let json: ListHistoryPayload;
     try {
-      json = JSON.parse(text);
+      json = JSON.parse(text) as ListHistoryPayload;
     } catch {
       throw new Error("non-JSON response");
     }
@@ -253,18 +289,24 @@ class ServiceNowClient {
     return json;
   }
 
-  async #runStream(sysIds, wanted, onProgress, signal, tableName) {
+  async #runStream(
+    sysIds: string[],
+    wanted: Set<string>,
+    onProgress?: (p: { ticketsDone: number; ticketsTotal: number }) => void,
+    signal?: AbortSignal,
+    tableName = "incident"
+  ): Promise<Record<string, { field: string; oldValue: string; newValue: string; at: string }[]>> {
     const parse = Analysis.extractEventsFromActivity;
-    const byTicket = {};
-    const filterWanted = wanted && typeof wanted.size === "number" ? wanted.size > 0 : false;
+    const byTicket: Record<string, { field: string; oldValue: string; newValue: string; at: string }[]> = {};
+    const filterWanted = wanted.size > 0;
     for (const [idx, sysId] of sysIds.entries()) {
       if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
-      let entries;
+      let entries: unknown[];
       try {
         entries = await this.#fetchActivityEntries(tableName, sysId);
       } catch (err) {
         throw new Error(
-          `Activity stream unavailable (${err.message}) - no compatible activity feed endpoint on this release`
+          `Activity stream unavailable (${(err as Error).message}) - no compatible activity feed endpoint on this release`
         );
       }
       let events = parse(entries) || [];
@@ -273,7 +315,7 @@ class ServiceNowClient {
       onProgress?.({ ticketsDone: idx + 1, ticketsTotal: sysIds.length });
     }
     if (!Object.keys(byTicket).length && sysIds.length) {
-      this.onDiagnostic?.({
+      this.#emit({
         kind: "warn",
         note: "activity feed yielded no recognizable field changes; timelines will stay empty"
       });
@@ -281,8 +323,8 @@ class ServiceNowClient {
     return byTicket;
   }
 
-  async #fetchActivityEntries(table, sysId) {
-    const entries = [];
+  async #fetchActivityEntries(table: string, sysId: string): Promise<unknown[]> {
+    const entries: unknown[] = [];
     for (let page = 0; page < 5; page++) {
       const res = await this.#request("/api/now/v1/activity/stream", {
         table,

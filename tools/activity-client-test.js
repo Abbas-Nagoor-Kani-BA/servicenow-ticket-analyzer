@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { ServiceNowClient } from "../lib/servicenow.js";
+import { ServiceNowClient } from "../lib/servicenow.ts";
 let failed = 0;
 function check(name, cond) {
   if (!cond) failed++;

@@ -1,7 +1,7 @@
 import { getDefaultDatabase } from "../data/idb.ts";
 import { STORAGE } from "../lib/keys.ts";
-import { showToast } from "../lib/toast.js";
-import { initTooltips } from "../lib/tooltip.js";
+import { showToast } from "../lib/toast.ts";
+import { initTooltips } from "../lib/tooltip.ts";
 import { createSettings, fillMsrLists, collectMsrLists } from "../surfaces/settings/index.ts";
 import { normaliseSettings } from "../services/settings-service.ts";
 

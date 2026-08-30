@@ -1,37 +1,40 @@
-export function loadOnce(key, fallback = null) {
+export function loadOnce<T>(key: string, fallback: T | null = null): Promise<T | null> {
   if (!globalThis.chrome?.storage?.local) return Promise.resolve(fallback);
   return chrome.storage.local
     .get([key])
-    .then((res) => (res && key in res ? res[key] : fallback))
+    .then((res: Record<string, unknown>) => (res && key in res ? (res[key] as T) : fallback))
     .catch(() => fallback);
 }
 
-export function saveValue(key, value) {
+export function saveValue(key: string, value: unknown): Promise<void> {
   if (!globalThis.chrome?.storage?.local) return Promise.resolve();
   return chrome.storage.local.set({ [key]: value }).catch(() => {});
 }
 
-export function removeValue(key) {
+export function removeValue(key: string): Promise<void> {
   if (!globalThis.chrome?.storage?.local) return Promise.resolve();
   return chrome.storage.local.remove([key]).catch(() => {});
 }
 
 /**
  * Fire-and-forget runtime message broadcast (e.g. MSG.dataUpdated).
- * @param {object} msg
- * @returns {Promise<void>}
  */
-export function broadcast(msg) {
+export function broadcast(msg: object): Promise<void> {
   if (!globalThis.chrome?.runtime?.sendMessage) return Promise.resolve();
   return chrome.runtime.sendMessage(msg).catch(() => {});
 }
 
-export function onStorageChange(keys, handler) {
+type StorageChange = { newValue?: unknown; oldValue?: unknown };
+
+export function onStorageChange(
+  keys: string[],
+  handler: (changes: Record<string, any>) => void
+): () => void {
   if (!globalThis.chrome?.storage?.onChanged) return () => {};
   const wanted = new Set(keys);
-  const listener = (changes, area) => {
+  const listener = (changes: Record<string, StorageChange>, area: string) => {
     if (area !== "local") return;
-    const hit = {};
+    const hit: Record<string, any> = {};
     let any = false;
     for (const key of Object.keys(changes)) {
       if (wanted.has(key)) {
@@ -45,8 +48,15 @@ export function onStorageChange(keys, handler) {
   return () => chrome.storage.onChanged.removeListener(listener);
 }
 
-export function persistSlice(store, sliceName, key, debounceMs = 300) {
-  let timer = null;
+type StoreLike<S> = { getState: () => S };
+
+export function persistSlice<S, K extends keyof S>(
+  store: StoreLike<S>,
+  sliceName: K,
+  key: string,
+  debounceMs = 300
+): { save(): void; flush(): void } {
+  let timer: ReturnType<typeof setTimeout> | null = null;
   let pending = false;
   const flush = () => {
     timer = null;

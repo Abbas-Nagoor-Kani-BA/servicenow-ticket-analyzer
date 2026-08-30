@@ -1,5 +1,5 @@
 import { $, columnOptionList, visibleCols } from "./core.js";
-import { showToast } from "../../lib/toast.js";
+import { showToast } from "../../lib/toast.ts";
 import { currentRows, hasDataRows, parseLocalInput } from "./grid-data.js";
 import { cellValue, tsvCell } from "./clipboard.js";
 import { render, scheduleSave, setSelectionHooks } from "./grid.js";

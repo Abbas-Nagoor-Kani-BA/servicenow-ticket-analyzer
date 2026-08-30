@@ -1,5 +1,5 @@
 import { MSG } from "../lib/keys.ts";
-import { broadcast } from "../lib/storage.js";
+import { broadcast } from "../lib/storage.ts";
 import * as Analysis from "../core/phase2.ts";
 import { createSmartTransport } from "../data/datasource/sn-transport.ts";
 import { createServiceNowRemote } from "../data/datasource/sn-remote.ts";

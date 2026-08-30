@@ -1,8 +1,8 @@
 import { detectSnOffsetMs, rowOffsetMs } from "../../core/sntime.ts";
 import { extractHeuristic } from "../../core/aiextract.ts";
 import { STORAGE } from "../../lib/keys.ts";
-import { pad2 } from "../../lib/format.js";
-import { showToast } from "../../lib/toast.js";
+import { pad2 } from "../../lib/format.ts";
+import { showToast } from "../../lib/toast.ts";
 import { $, columnOptionList, migrateLegacyResolutions, setStatus, visibleCols } from "./core.js";
 import { DataGrid } from "../../components/data-grid.ts";
 import { currentRows, hasDataRows, parseLocalInput } from "./grid-data.js";

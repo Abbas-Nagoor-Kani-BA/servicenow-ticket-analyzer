@@ -1,13 +1,13 @@
-import * as Markup from "../../lib/markup.js";
+import * as Markup from "../../lib/markup.ts";
 import * as TemplateXml from "../../core/templatexml.ts";
 import { STORAGE } from "../../lib/keys.ts";
-import { pad2 } from "../../lib/format.js";
+import { pad2 } from "../../lib/format.ts";
 import { $, setStatus, el } from "./core.js";
 import {
   getCiSplit, setCiSplit, getSavedMapPresent, setSavedMapPresent,
   syncSplitRadio, closeConfigDialog, updateCiBtn, updateExportDots, setOnConfigChange
 } from "./config-state.js";
-import { showToast } from "../../lib/toast.js";
+import { showToast } from "../../lib/toast.ts";
 import { EXPORT_FIELD_BY_ID, MAP_MAX_COL, TPL_COLUMNS } from "./exporter.js";
 import { buildMsrTsv } from "./clipboard.js";
 import { configModal, hideLetterPop, openCiDialog, openMapDialog } from "./dialogs.js";

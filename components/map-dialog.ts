@@ -1,8 +1,8 @@
 import { Component, el } from "./component.ts";
 import type { ComponentProps } from "./component.ts";
-import { colLetter, letterToColNum } from "../lib/markup.js";
-import { placePopupNear } from "../lib/markup.js";
-import { setTip } from "../lib/tooltip.js";
+import { colLetter, letterToColNum } from "../lib/markup.ts";
+import { placePopupNear } from "../lib/markup.ts";
+import { setTip } from "../lib/tooltip.ts";
 import type { Modal } from "./modal.ts";
 
 /** A field id, its display label, and any exporter-specific extras. */

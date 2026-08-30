@@ -4,7 +4,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import fflate from "../lib/vendor/fflate.cjs";
 import * as T from "../core/templatexml.ts";
-import { } from "../lib/markup.js";
+import { } from "../lib/markup.ts";
 import { setFflate } from "../core/templatexml.ts";
 
 setFflate(fflate);

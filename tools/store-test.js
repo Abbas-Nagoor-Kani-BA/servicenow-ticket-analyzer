@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-import { createStore } from "../lib/store.js";
-import { loadOnce, saveValue, removeValue, persistSlice } from "../lib/storage.js";
+import { createStore } from "../lib/store.ts";
+import { loadOnce, saveValue, removeValue, persistSlice } from "../lib/storage.ts";
 
 let failed = 0;
 function check(name, got, want) {

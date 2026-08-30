@@ -1,5 +1,5 @@
-import { createStore } from "../../lib/store.js";
-import { onStorageChange, loadOnce, saveValue, removeValue } from "../../lib/storage.js";
+import { createStore } from "../../lib/store.ts";
+import { onStorageChange, loadOnce, saveValue, removeValue } from "../../lib/storage.ts";
 import { STORAGE } from "../../lib/keys.ts";
 import * as MsrChoices from "../../core/msrchoices.ts";
 

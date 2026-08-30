@@ -1,7 +1,7 @@
 import { Component, el } from "./component.ts";
 import type { ComponentProps } from "./component.ts";
-import { cellShort } from "../lib/markup.js";
-import { setTip } from "../lib/tooltip.js";
+import { cellShort } from "../lib/markup.ts";
+import { setTip } from "../lib/tooltip.ts";
 import { buildReport } from "../core/report.ts";
 
 /** [key, label, cell class, default width] — matches COLUMNS in surfaces/viewer/core.js. */
