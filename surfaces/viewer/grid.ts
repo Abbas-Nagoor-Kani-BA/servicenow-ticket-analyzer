@@ -1,5 +1,4 @@
 import { detectSnOffsetMs, rowOffsetMs } from "../../core/sntime.ts";
-import { extractHeuristic } from "../../core/aiextract.ts";
 import { STORAGE } from "../../lib/keys.ts";
 import { pad2 } from "../../lib/format.ts";
 import { showToast } from "../../lib/toast.ts";
@@ -11,6 +10,9 @@ import type { DataGridState } from "../../components/data-grid.ts";
 import { currentRows, hasDataRows, parseLocalInput } from "./grid-data.ts";
 import { dataStore, getColWidths, saveColWidths, setColWidths, setSelfPush } from "./store.ts";
 import { attachSummaryToData, renderSummary, setRowsProvider } from "./summary.ts";
+import { ExtractService } from "../../services/extract-service.ts";
+
+const extract = new ExtractService();
 
 function st() { return dataStore.getState(); }
 
@@ -187,28 +189,13 @@ function displayedValue(row: ViewerRow, key: string, cls?: string): string {
 function autoParse(): number {
   const data = st().data;
   if (!data || !Array.isArray(data.rows)) return 0;
-  let filled = 0, withNotes = 0;
-  for (const row of data.rows) {
-    if (!(row.closeNotes || "").trim()) continue;
-    withNotes++;
-    if (row.solutionType && row.rootCause) continue;
-    const h = extractHeuristic(row.closeNotes);
-    if (h.solutionType || h.rootCause) {
-      row.solutionType = row.solutionType || h.solutionType;
-      row.rootCause = row.rootCause || h.rootCause;
-      const conf = h.confidence;
-      if ((h.solutionType && conf && conf.solutionType !== "high") || (h.rootCause && conf && conf.rootCause !== "high")) {
-        row.parseReview = true;
-      }
-      filled++;
-    }
-  }
-  if (data.rows.length && !withNotes) {
+  const stats = extract.applyExtraction(data.rows);
+  if (data.rows.length && !stats.withNotes) {
     setStatus("No close notes / work notes / comments found on these tickets", true);
-  } else if (filled) {
-    showToast(`Extracted resolution details from ${filled} ticket${filled === 1 ? "" : "s"}`);
+  } else if (stats.filled) {
+    showToast(`Extracted resolution details from ${stats.filled} ticket${stats.filled === 1 ? "" : "s"}`);
   }
-  return filled;
+  return stats.filled;
 }
 
 export {
