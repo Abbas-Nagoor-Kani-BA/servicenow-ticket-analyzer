@@ -585,6 +585,7 @@ in detail in [`docs/roadmap.md`](roadmap.md).
 
 - [x] **Phase 7** — `background.js` → `platform/background.ts`; `viewer-dom-test` → `.ts`; lint clean (0 warnings)
 - [x] **Phase 8** — `services/remote-bridge.ts` (page-side `chrome.runtime` proxies); the panel and settings go through it; `tools/remote-bridge-test.ts`
+- [x] **Phase 9a** — `core/` fully migrated `.js` → `.ts` (all 12 modules), typed explicitly, added to `tsconfig.strict.json`; all importer specifiers flipped; 227 tests green
 
 ## Deferred decisions
 

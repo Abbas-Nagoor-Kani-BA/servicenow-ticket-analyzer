@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import * as Journal from "../core/journal.js";
+import * as Journal from "../core/journal.ts";
 
 let failed = 0;
 function check(name, got, want) {

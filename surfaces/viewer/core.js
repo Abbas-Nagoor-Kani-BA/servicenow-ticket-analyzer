@@ -1,4 +1,4 @@
-import * as MsrChoices from "../../core/msrchoices.js";
+import * as MsrChoices from "../../core/msrchoices.ts";
 import { CELL_MAX, cellShort, placePopupNear } from "../../lib/markup.js";
 import { uiStore, setMsrLists, getMsrLists } from "./store.js";
 

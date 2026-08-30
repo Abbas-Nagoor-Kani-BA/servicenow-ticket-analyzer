@@ -30,18 +30,24 @@ import { xmlEscape, decodeText, encodeText, colLetter } from "../lib/markup.js";
 // See docs/invariants.md "Invariant 3" for the full constraint set.
 // ---------------------------------------------------------------------------
 
-let fflate = globalThis?.fflate ?? null;
-export function setFflate(f) { fflate = f; }
+type FileMap = Record<string, Uint8Array>;
+type Fflate = {
+  unzipSync: (data: Uint8Array) => FileMap;
+  zipSync: (files: FileMap, opts?: { level?: number }) => Uint8Array;
+};
 
-function normSheetName(s) {
+let fflate: Fflate | null = globalThis?.fflate ?? null;
+export function setFflate(f: Fflate | null): void { fflate = f; }
+
+function normSheetName(s: string): string {
   return String(s).toLowerCase().replace(/[\s_]+/g, "");
 }
 
-function findTargetSheetPath(files, wanted) {
+function findTargetSheetPath(files: FileMap, wanted: string): string | null {
   const target = normSheetName(wanted);
   const wbXml = decodeText(files["xl/workbook.xml"] || new Uint8Array());
   const relsXml = decodeText(files["xl/_rels/workbook.xml.rels"] || new Uint8Array());
-  const resolveRel = rid => {
+  const resolveRel = (rid: string): string | null => {
     const relMatch = relsXml.match(new RegExp(`<Relationship[^>]*Id="${rid}"[^>]*Target="([^"]*)"`, "i"))
       || relsXml.match(new RegExp(`<Relationship[^>]*Target="([^"]*)"[^>]*Id="${rid}"`, "i"));
     if (!relMatch) return null;
@@ -49,9 +55,9 @@ function findTargetSheetPath(files, wanted) {
     if (!t.startsWith("xl/")) t = "xl/" + t;
     return files[t] ? t : null;
   };
-  for (const mode of ["exact", "loose"]) {
+  for (const mode of ["exact", "loose"] as const) {
     const tagRe = /<sheet\b[^>]*>/g;
-    let m;
+    let m: RegExpExecArray | null;
     while ((m = tagRe.exec(wbXml)) !== null) {
       const nameM = m[0].match(/\bname="([^"]*)"/i);
       const ridM = m[0].match(/\br:id="([^"]*)"/i);
@@ -66,18 +72,18 @@ function findTargetSheetPath(files, wanted) {
   return null;
 }
 
-function parseSharedStrings(files) {
+function parseSharedStrings(files: FileMap): string[] {
   const raw = files["xl/sharedStrings.xml"];
   if (!raw) return [];
   const xml = decodeText(raw);
-  const items = [];
+  const items: string[] = [];
   const re = /<si(?:\s[^>]*)?>([\s\S]*?)<\/si>|<si\/>/g;
-  let m;
+  let m: RegExpExecArray | null;
   while ((m = re.exec(xml)) !== null) {
     if (!m[1]) { items.push(""); continue; }
     let text = "";
     const tRe = /<t(?:\s[^>]*)?>([\s\S]*?)<\/t>|<t\/>/g;
-    let t;
+    let t: RegExpExecArray | null;
     while ((t = tRe.exec(m[1])) !== null) text += t[1] ?? "";
     items.push(text.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"')
       .replace(/&apos;/g, "'").replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(+d)).replace(/&amp;/g, "&"));
@@ -85,12 +91,12 @@ function parseSharedStrings(files) {
   return items;
 }
 
-function cellDisplayValue(cellXml, sharedStrings) {
+function cellDisplayValue(cellXml: string, sharedStrings: string[]): string {
   const isMatch = cellXml.match(/<is>([\s\S]*?)<\/is>/);
   if (isMatch) {
     let text = "";
     const tRe = /<t(?:\s[^>]*)?>([\s\S]*?)<\/t>|<t\/>/g;
-    let t;
+    let t: RegExpExecArray | null;
     while ((t = tRe.exec(isMatch[1])) !== null) text += t[1] ?? "";
     return text;
   }
@@ -103,22 +109,22 @@ function cellDisplayValue(cellXml, sharedStrings) {
   return vMatch[1];
 }
 
-function harvestDataCellStyles(sheetXml, startRow) {
+function harvestDataCellStyles(sheetXml: string, startRow: number): Record<string, string> {
   const openEnd = sheetXml.indexOf("</sheetData>");
   if (openEnd === -1) return {};
   const sdStart = sheetXml.lastIndexOf("<sheetData", openEnd);
   const innerStart = sheetXml.indexOf(">", sdStart) + 1;
   const inner = sheetXml.slice(innerStart, openEnd);
-  const map = {};
+  const map: Record<string, string> = {};
   const rowRe = /<row\s[^>]*r="(\d+)"[\s\S]*?<\/row>/g;
-  let m;
+  let m: RegExpExecArray | null;
   let scanned = 0;
   while ((m = rowRe.exec(inner)) !== null) {
     const rowNum = parseInt(m[1], 10);
     if (rowNum < startRow) continue;
     if (++scanned > 50) break;
     const cellRe = /<c\s[^>]*?\br="([A-Z]+)\d+"[^>]*?(?:\/>|>)/g;
-    let c;
+    let c: RegExpExecArray | null;
     while ((c = cellRe.exec(m[0])) !== null) {
       const col = c[1];
       if (map[col] !== undefined) continue;
@@ -129,13 +135,20 @@ function harvestDataCellStyles(sheetXml, startRow) {
   return map;
 }
 
-function isNumericCellValue(s) {
+function isNumericCellValue(s: string): boolean {
   const t = s.trim();
   if (!t || /^0\d/.test(t)) return false;
   return /^-?\d+(\.\d+)?$/.test(t);
 }
 
-function buildDataRowsXml(rows, startRow, styleMap, tplCols) {
+export type TemplateCol = { col: number; get: (row: unknown, index: number) => unknown };
+
+function buildDataRowsXml(
+  rows: unknown[],
+  startRow: number,
+  styleMap: Record<string, string> | null,
+  tplCols: TemplateCol[]
+): string {
   let out = "";
   rows.forEach((row, i) => {
     let cells = "";
@@ -160,7 +173,7 @@ function buildDataRowsXml(rows, startRow, styleMap, tplCols) {
   return out;
 }
 
-function patchSheetXml(sheetXml, sharedStrings, dataRowsXml, startRow, lastDataRow, lastColLetter) {
+function patchSheetXml(sheetXml: string, sharedStrings: string[], dataRowsXml: string, startRow: number, lastDataRow: number, lastColLetter: string): string {
   const dimRe = /(<dimension ref=")([^"]*)(")/;
   if (dimRe.test(sheetXml)) {
     sheetXml = sheetXml.replace(dimRe, `$1A1:${lastColLetter}${lastDataRow}$3`);
@@ -174,9 +187,9 @@ function patchSheetXml(sheetXml, sharedStrings, dataRowsXml, startRow, lastDataR
   const sdStart = sheetXml.lastIndexOf("<sheetData", openEnd);
   const innerStart = sheetXml.indexOf(">", sdStart) + 1;
   const inner = sheetXml.slice(innerStart, openEnd);
-  const keptRows = [];
+  const keptRows: string[] = [];
   const rowRe = /<row\s[^>]*r="(\d+)"[\s\S]*?<\/row>|<row\s[^>]*r="(\d+)"[^>]*\/>/g;
-  let m;
+  let m: RegExpExecArray | null;
   let lastKeptEnd = 0;
   while ((m = rowRe.exec(inner)) !== null) {
     const rowNum = parseInt(m[1] || m[2], 10);
@@ -202,9 +215,9 @@ function patchSheetXml(sheetXml, sharedStrings, dataRowsXml, startRow, lastDataR
   return sheetXml.slice(0, innerStart) + rebuilt + sheetXml.slice(openEnd);
 }
 
-function findHeaderRowInXml(sheetXml, sharedStrings) {
+function findHeaderRowInXml(sheetXml: string, sharedStrings: string[]): number {
   const rowRe = /<row\s[^>]*r="(\d+)"[\s\S]*?<\/row>/g;
-  let m;
+  let m: RegExpExecArray | null;
   while ((m = rowRe.exec(sheetXml)) !== null) {
     const rowNum = parseInt(m[1], 10);
     if (rowNum > 30) break;
@@ -214,7 +227,7 @@ function findHeaderRowInXml(sheetXml, sharedStrings) {
   return 1;
 }
 
-function stripCalcChain(files) {
+function stripCalcChain(files: FileMap): void {
   if (files["xl/calcChain.xml"]) {
     delete files["xl/calcChain.xml"];
     const ctKey = Object.keys(files).find(k => k.toLowerCase() === "[content_types].xml");
@@ -238,28 +251,28 @@ function stripCalcChain(files) {
   }
 }
 
-function normLabel(s) {
+function normLabel(s: string): string {
   return String(s).toLowerCase().replace(/\s+/g, " ").trim();
 }
 
-function cellMatch(sheetXml, ref) {
+function cellMatch(sheetXml: string, ref: string): RegExpMatchArray | null {
   const re = new RegExp(`<c\\s[^>]*\\br="${ref}"[^>]*?(?:\\/>|>[\\s\\S]*?<\\/c>)`);
   return sheetXml.match(re);
 }
 
-function findCellStyle(sheetXml, ref) {
+function findCellStyle(sheetXml: string, ref: string): string | null {
   const m = cellMatch(sheetXml, ref);
   if (!m) return null;
   const sM = m[0].match(/\bs="(\d+)"/);
   return sM ? sM[1] : null;
 }
 
-function cellHasFormula(sheetXml, ref) {
+function cellHasFormula(sheetXml: string, ref: string): boolean {
   const m = cellMatch(sheetXml, ref);
   return m ? /<f[\s>]/.test(m[0]) : false;
 }
 
-function setCell(sheetXml, ref, typeAttr, body, fallbackStyle) {
+function setCell(sheetXml: string, ref: string, typeAttr: string, body: string, fallbackStyle?: string | null): string {
   const m = cellMatch(sheetXml, ref);
   let style = "";
   if (m) {
@@ -269,32 +282,43 @@ function setCell(sheetXml, ref, typeAttr, body, fallbackStyle) {
     style = ` s="${fallbackStyle}"`;
   }
   const newCell = `<c r="${ref}"${style}${typeAttr ? ` ${typeAttr}` : ""}>${body}</c>`;
-  if (m) return sheetXml.slice(0, m.index) + newCell + sheetXml.slice(m.index + m[0].length);
+  if (m && m.index !== undefined) return sheetXml.slice(0, m.index) + newCell + sheetXml.slice(m.index + m[0].length);
   const rowNum = ref.replace(/^[A-Z]+/, "");
   const rowRe = new RegExp(`<row\\s[^>]*\\br="${rowNum}"[^>]*>[\\s\\S]*?<\\/row>`);
   const rm = sheetXml.match(rowRe);
-  if (!rm) return sheetXml;
+  if (!rm || rm.index === undefined) return sheetXml;
   const insertAt = rm.index + rm[0].length - 6;
   return sheetXml.slice(0, insertAt) + newCell + sheetXml.slice(insertAt);
 }
 
-function patchSummarySlaSheet(files, sharedStrings, summaryRows) {
+export type SlaSummaryItem = {
+  metric: string;
+  category: string;
+  sla: string;
+  count: number;
+  total: number;
+  actual: number;
+  status?: string | null;
+  writeStatus?: boolean;
+};
+
+function patchSummarySlaSheet(files: FileMap, sharedStrings: string[], summaryRows: SlaSummaryItem[]): number {
   if (!summaryRows || !summaryRows.length) return 0;
   const path = findTargetSheetPath(files, "summary_sla");
   if (!path) return 0;
   let sheetXml = decodeText(files[path]);
-  const keyMap = new Map();
+  const keyMap = new Map<string, SlaSummaryItem>();
   for (const item of summaryRows) {
     keyMap.set(normLabel(`${item.metric}|${item.category}|${item.sla}`), item);
   }
   const rowRe = /<row\s[^>]*r="(\d+)"[\s\S]*?<\/row>/g;
-  let m;
+  let m: RegExpExecArray | null;
   let curMetric = "", curCat = "";
-  const hits = [];
+  const hits: Array<{ rowNum: string; item: SlaSummaryItem }> = [];
   while ((m = rowRe.exec(sheetXml)) !== null) {
     const rowNum = m[1];
     const body = m[0];
-    const readText = col => {
+    const readText = (col: string): string => {
       const cm = body.match(new RegExp(`<c\\s[^>]*r="${col}${rowNum}"[\\s\\S]*?(?:<\\/c>|\\/>)`));
       return cm ? cellDisplayValue(cm[0], sharedStrings) : "";
     };
@@ -329,7 +353,14 @@ function patchSummarySlaSheet(files, sharedStrings, summaryRows) {
   return patched;
 }
 
-function fillTemplateBuffer(templateBuf, rows, tplCols, sheetName, summary) {
+function fillTemplateBuffer(
+  templateBuf: Uint8Array | ArrayBuffer,
+  rows: unknown[],
+  tplCols: TemplateCol[],
+  sheetName?: string,
+  summary?: SlaSummaryItem[]
+): Uint8Array {
+  if (!fflate) throw new Error("fflate not available — call setFflate() first");
   const files = fflate.unzipSync(new Uint8Array(templateBuf));
   sheetName = sheetName || "all_ticket_details";
   const sheetPath = findTargetSheetPath(files, sheetName);

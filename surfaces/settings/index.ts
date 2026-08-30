@@ -6,7 +6,7 @@ import { ChipList } from "../../components/chip-list.ts";
 import type { MsrListsRepository } from "../../data/repositories/msr-lists-repository.ts";
 import { SettingsService } from "../../services/settings-service.ts";
 import { RemoteBridge } from "../../services/remote-bridge.ts";
-import { MSR_DEFAULT_LISTS } from "../../core/msrchoices.js";
+import { MSR_DEFAULT_LISTS } from "../../core/msrchoices.ts";
 
 /*
  * Composition root for the options page.

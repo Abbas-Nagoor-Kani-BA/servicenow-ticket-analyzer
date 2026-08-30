@@ -2,7 +2,7 @@ import { Component, el } from "./component.ts";
 import type { ComponentProps } from "./component.ts";
 import { cellShort } from "../lib/markup.js";
 import { setTip } from "../lib/tooltip.js";
-import { buildReport } from "../core/report.js";
+import { buildReport } from "../core/report.ts";
 
 /** [key, label, cell class, default width] — matches COLUMNS in surfaces/viewer/core.js. */
 export type GridColumn = readonly [string, string, string, number];
@@ -200,7 +200,7 @@ export class DataGrid extends Component<DataGridState, ComponentProps, DataGridD
     for (const row of state.rows) {
       const tr = document.createElement("tr");
       tr.dataset.sysId = String(row.sysId ?? "");
-      const rep = buildReport(row, this.deps.fmtInstant) as Record<string, any>;
+      const rep = buildReport(row as Parameters<typeof buildReport>[0], this.deps.fmtInstant as unknown as Parameters<typeof buildReport>[1]) as Record<string, any>;
       const num = String(row.number ?? "");
       if (num) typeCounts[rep.type || "Other"] = (typeCounts[rep.type || "Other"] || 0) + 1;
 

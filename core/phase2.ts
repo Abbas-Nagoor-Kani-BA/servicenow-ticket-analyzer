@@ -1,56 +1,86 @@
 /**
  * Per-ticket timeline extraction context. `queueName` and `snapshotGroupName`
  * are compared in name-space (lowercased/trimmed) via {@link nameKey}.
- * @typedef {Object} ExtractCtx
- * @property {Record<string,string>} stateMap OOB state value->label map
- * @property {string} queueName name-keyed target queue
- * @property {string[]} memberNames plain team-member names for ackn detection
- * @property {string} snapshotGroupName the ticket's current group display name
- * @property {string} openedAtUtcRaw raw opened_at string in UTC (no suffix)
  */
+import { parseSnDisplayMs } from "../core/sntime.ts";
 
-import { parseSnDisplayMs } from "../core/sntime.js";
+export type ExtractCtx = {
+  /** OOB state value->label map */
+  stateMap: Record<string, string>;
+  /** name-keyed target queue */
+  queueName: string;
+  /** plain team-member names for ackn detection */
+  memberNames: string[];
+  /** the ticket's current group display name */
+  snapshotGroupName: string | null;
+  /** raw opened_at string in UTC (no suffix) */
+  openedAtUtcRaw: string;
+};
 
-function parseUtc(s) {
+export type Event = {
+  field: string | undefined;
+  oldValue: string;
+  newValue: string;
+  atEpoch: number;
+};
+
+export type Timeline = {
+  assignTimeUtcIso: string | null;
+  acknTimeUtcIso: string | null;
+  suspendTimeUtcIso: string | null;
+  resumeTimeUtcIso: string | null;
+  resumeSource: string | null;
+  onHoldCount: number;
+  lastQueueEntryEpoch: number | null;
+};
+
+function parseUtc(s: string | null | undefined): number {
   if (!s) return NaN;
   const str = String(s).trim().replace(" ", "T");
   return Date.parse(/(Z|[+-]\d\d:?\d\d)$/.test(str) ? str : str + "Z");
 }
 
-function nameKey(v) {
+function nameKey(v: unknown): string {
   return String(v ?? "").trim().toLowerCase();
 }
 
-function toIso(epoch) {
+function toIso(epoch: number): string {
   return new Date(epoch).toISOString();
 }
 
-function utcRawToEpochMs(s) {
+function utcRawToEpochMs(s: string): number {
   return parseUtc(s);
 }
 
-function epochMsToUtcIso(n) {
+function epochMsToUtcIso(n: number): string {
   return toIso(n);
 }
 
-function resolveLabel(stateMap, v) {
+function resolveLabel(stateMap: Record<string, string>, v: unknown): string {
   const raw = String(v ?? "").trim();
   return stateMap[raw] || raw;
 }
 
-function normalizeEvents(auditRows) {
+type AuditRowLike = {
+  field?: string;
+  oldValue?: unknown;
+  newValue?: unknown;
+  at: string;
+};
+
+function normalizeEvents(auditRows: AuditRowLike[] | null | undefined): Event[] {
   return (auditRows || [])
     .map(r => ({
       field: r.field,
-      oldValue: r.oldValue || "",
-      newValue: r.newValue || "",
+      oldValue: String(r.oldValue || ""),
+      newValue: String(r.newValue || ""),
       atEpoch: utcRawToEpochMs(r.at)
     }))
     .filter(e => Number.isFinite(e.atEpoch))
     .sort((a, b) => a.atEpoch - b.atEpoch);
 }
 
-function createResult() {
+function createResult(): Timeline {
   return {
     assignTimeUtcIso: null,
     acknTimeUtcIso: null,
@@ -62,8 +92,8 @@ function createResult() {
   };
 }
 
-function applyBornInQueueFallback(events, result, ctx) {
-  const inQueue = g => g != null && nameKey(g) === nameKey(ctx.queueName);
+function applyBornInQueueFallback(events: Event[], result: Timeline, ctx: ExtractCtx): string | null {
+  const inQueue = (g: unknown) => g != null && nameKey(g) === nameKey(ctx.queueName);
   const hasGroupEvent = events.some(e => e.field === "assignment_group");
   if (hasGroupEvent || !inQueue(ctx.snapshotGroupName)) return null;
   const bornEpoch = utcRawToEpochMs(ctx.openedAtUtcRaw);
@@ -73,8 +103,15 @@ function applyBornInQueueFallback(events, result, ctx) {
   return ctx.snapshotGroupName;
 }
 
-function handleGroupEvent(e, result, ctx, loopState) {
-  const inQueue = g => g != null && nameKey(g) === nameKey(ctx.queueName);
+type LoopState = {
+  currentGroup: string | null;
+  memberSet: Set<string>;
+  memberAssignments: number[];
+  suspendEpoch: number | null;
+};
+
+function handleGroupEvent(e: Event, result: Timeline, ctx: ExtractCtx, loopState: LoopState): void {
+  const inQueue = (g: unknown) => g != null && nameKey(g) === nameKey(ctx.queueName);
   if (inQueue(e.newValue)) {
     result.assignTimeUtcIso = epochMsToUtcIso(e.atEpoch);
     result.lastQueueEntryEpoch = e.atEpoch;
@@ -82,14 +119,14 @@ function handleGroupEvent(e, result, ctx, loopState) {
   loopState.currentGroup = e.newValue;
 }
 
-function handleAssignmentEvent(e, result, ctx, loopState) {
+function handleAssignmentEvent(e: Event, result: Timeline, ctx: ExtractCtx, loopState: LoopState): void {
   if (loopState.memberSet.has(nameKey(e.newValue))) {
     loopState.memberAssignments.push(e.atEpoch);
   }
 }
 
-function handleStateEvent(e, result, ctx, loopState) {
-  const inQueue = g => g != null && nameKey(g) === nameKey(ctx.queueName);
+function handleStateEvent(e: Event, result: Timeline, ctx: ExtractCtx, loopState: LoopState): void {
+  const inQueue = (g: unknown) => g != null && nameKey(g) === nameKey(ctx.queueName);
   if (!inQueue(loopState.currentGroup)) return;
 
   const toLabel = resolveLabel(ctx.stateMap, e.newValue).toLowerCase();
@@ -114,30 +151,30 @@ function handleStateEvent(e, result, ctx, loopState) {
   }
 }
 
-function resolveAcknTime(result, memberAssignments) {
+function resolveAcknTime(result: Timeline, memberAssignments: number[]): void {
   if (result.lastQueueEntryEpoch === null) return;
-  const valid = memberAssignments.filter(atEpoch => atEpoch >= result.lastQueueEntryEpoch);
+  const entryEpoch: number = result.lastQueueEntryEpoch;
+  const valid = memberAssignments.filter(atEpoch => atEpoch >= entryEpoch);
   if (valid.length) {
     result.acknTimeUtcIso = epochMsToUtcIso(Math.min(...valid));
   }
 }
 
-function clampAssignTime(result, ctx) {
+function clampAssignTime(result: Timeline, ctx: ExtractCtx): void {
   const bornEpoch = utcRawToEpochMs(ctx.openedAtUtcRaw);
   if (!Number.isFinite(bornEpoch)) return;
-  const a = utcRawToEpochMs(result.assignTimeUtcIso);
+  const a = utcRawToEpochMs(String(result.assignTimeUtcIso || ""));
   if (Number.isFinite(a) && a < bornEpoch) {
     result.assignTimeUtcIso = epochMsToUtcIso(bornEpoch);
   }
 }
 
-/** @param {unknown[]} auditRows @param {ExtractCtx} ctx */
-function extractTimelines(auditRows, ctx) {
+function extractTimelines(auditRows: AuditRowLike[] | null | undefined, ctx: ExtractCtx): Timeline {
   const events = normalizeEvents(auditRows);
   const result = createResult();
   const memberSet = new Set((ctx.memberNames || []).map(nameKey));
 
-  const loopState = {
+  const loopState: LoopState = {
     currentGroup: applyBornInQueueFallback(events, result, ctx),
     memberSet,
     memberAssignments: [],
@@ -155,37 +192,87 @@ function extractTimelines(auditRows, ctx) {
   return result;
 }
 
-function fieldValue(v) {
+type SnValue = string | { display_value?: string; value?: string } | null | undefined;
+
+function fieldValue(v: SnValue | unknown): string {
   if (v === null || v === undefined) return "";
   if (typeof v === "string") return v;
-  return v.display_value || v.value || "";
+  if (typeof v === "object") return (v as { display_value?: string; value?: string }).display_value || (v as { display_value?: string; value?: string }).value || "";
+  return "";
 }
 
-function rawValue(v) {
+function rawValue(v: SnValue | unknown): string {
   if (v === null || v === undefined) return "";
   if (typeof v === "string") return v;
-  return v.value || "";
+  if (typeof v === "object") return (v as { display_value?: string; value?: string }).value || "";
+  return "";
 }
 
-/**
- * @param {any[]} records pulled ticket records
- * @param {object} auditByTicket sys_id -> audit rows
- * @param {Record<string,string>} stateMap value->label map
- * @param {{membersByQueue?: Record<string,string[]>, fallbackMembers?: string[], tableName?: string}} queueCtx
- */
-function analyzeAll(records, auditByTicket, stateMap, queueCtx) {
+export type AnalyzedRow = {
+  sysId: string | null;
+  number: string;
+  shortDescription: string;
+  state: string;
+  stateValue: string;
+  priority: string;
+  priorityValue: string;
+  category: string;
+  caller: string;
+  assignmentGroup: string;
+  assignedTo: string;
+  assignedToSysId: string;
+  updatedOn: string;
+  updatedBy: string;
+  configItem: string;
+  createdOn: string;
+  incidentState: string;
+  resolvedAt: string;
+  resolvedAtRaw: string;
+  openedAt: string;
+  openedAtRaw: string;
+  closedAt: string;
+  closedAtRaw: string;
+  closeCode: string;
+  closeNotes: string;
+  workNotes: string;
+  comments: string;
+  assignTimeUtcIso: string;
+  acknTimeUtcIso: string;
+  suspendTimeUtcIso: string;
+  resumeTimeUtcIso: string;
+  resumeSource: string;
+  onHoldCount: number;
+  activity: Array<{ f: string | undefined; o: string; n: string; atEpoch: number }>;
+};
+
+export type AnalyzeResult = { rows: AnalyzedRow[]; missingAudit: number };
+
+export type QueueCtx = {
+  membersByQueue?: Record<string, string[]>;
+  fallbackMembers?: string[];
+  tableName?: string;
+};
+
+function analyzeAll(
+  records: Array<Record<string, unknown>>,
+  auditByTicket: Record<string, unknown>,
+  stateMap: Record<string, string>,
+  queueCtx: QueueCtx | null | undefined
+): AnalyzeResult {
   const membersByQueue = (queueCtx && queueCtx.membersByQueue) || {};
   const fallbackMembers = (queueCtx && queueCtx.fallbackMembers) || [];
   const tableName = (queueCtx && queueCtx.tableName) || "";
   const isIncident = tableName === "incident";
-  const out = [];
+  const out: AnalyzedRow[] = [];
   let missingAudit = 0;
   for (const rec of records) {
     const snapshotGroupName = fieldValue(rec.assignment_group);
-    const sysId = typeof rec.sys_id === "object"
-      ? (rec.sys_id.value || rec.sys_id.display_value)
+    const sysIdRec = rec.sys_id as { value?: string; display_value?: string } | null | undefined;
+    const sysId = typeof rec.sys_id === "object" && sysIdRec
+      ? (sysIdRec.value || sysIdRec.display_value)
       : rec.sys_id;
-    const rows = auditByTicket[sysId];
+    const sysIdStr = typeof sysId === "string" ? sysId : null;
+    const rows = sysIdStr ? (auditByTicket[sysIdStr] as AuditRowLike[] | undefined) : undefined;
     if (!rows) missingAudit++;
     const t = extractTimelines(rows, {
       stateMap,
@@ -194,17 +281,15 @@ function analyzeAll(records, auditByTicket, stateMap, queueCtx) {
       snapshotGroupName,
       openedAtUtcRaw: rawValue(rec.opened_at)
     });
+    const stateLabel = fieldValue(rec.state).toLowerCase();
     if (!isIncident) {
       t.suspendTimeUtcIso = null;
       t.resumeTimeUtcIso = null;
       t.resumeSource = null;
-    } else {
-      const stateLabel = fieldValue(rec.state).toLowerCase();
-      if (!stateLabel.startsWith("close") && !stateLabel.startsWith("resolv")) {
-        t.suspendTimeUtcIso = null;
-        t.resumeTimeUtcIso = null;
-        t.resumeSource = null;
-      }
+    } else if (!stateLabel.startsWith("close") && !stateLabel.startsWith("resolv")) {
+      t.suspendTimeUtcIso = null;
+      t.resumeTimeUtcIso = null;
+      t.resumeSource = null;
     }
     const activity = (rows || [])
       .map(r => {
@@ -217,10 +302,11 @@ function analyzeAll(records, auditByTicket, stateMap, queueCtx) {
         };
       })
       .filter(e => e.atEpoch !== null)
+      .map(e => ({ f: e.f, o: e.o, n: e.n, atEpoch: e.atEpoch as number }))
       .sort((a, b) => b.atEpoch - a.atEpoch)
       .slice(0, 500);
     out.push({
-      sysId,
+      sysId: sysIdStr,
       number: fieldValue(rec.number),
       shortDescription: fieldValue(rec.short_description),
       state: fieldValue(rec.state),
@@ -267,17 +353,17 @@ const ACTIVITY_ANCHORS = [
 
 const ACTIVITY_DT_RE = /(\d{4}-\d{1,2}-\d{1,2}|\d{1,2}[-/.]\d{1,2}[-/.]\d{4}|\d{1,2}\/\d{1,2}\/\d{4})[ T](\d{1,2}:\d{2}(?::\d{2})?)\s*([AaPp][Mm])?/g;
 
-function scanSnDateTime(text) {
+function scanSnDateTime(text: unknown): string {
   const re = new RegExp(ACTIVITY_DT_RE.source, "g");
   let m;
   while ((m = re.exec(String(text || ""))) !== null) {
     const ms = parseSnDisplayMs(`${m[1]} ${m[2]}${m[3] ? " " + m[3] : ""}`);
-    if (Number.isFinite(ms)) return new Date(ms).toISOString();
+    if (ms != null && Number.isFinite(ms)) return new Date(ms).toISOString();
   }
   return "";
 }
 
-function cleanCapture(s) {
+function cleanCapture(s: unknown): string {
   return String(s || "")
     .replace(/<[^>]*>/g, " ")
     .replace(/\\+/g, "")
@@ -285,26 +371,33 @@ function cleanCapture(s) {
     .trim();
 }
 
-/** @param {any[]} entries raw `/api/now/v1/activity/stream` entries */
-function extractEventsFromActivity(entries) {
-  const out = [];
-  const seen = new Set();
+type ActivityChange = {
+  field: string;
+  oldValue: string;
+  newValue: string;
+  at: string;
+};
+
+function extractEventsFromActivity(entries: unknown[]): ActivityChange[] {
+  const out: ActivityChange[] = [];
+  const seen = new Set<string>();
   for (const entry of entries || []) {
     if (!entry || typeof entry !== "object") continue;
 
-    const changes = Array.isArray(entry.changes) ? entry.changes : null;
+    const changes = Array.isArray((entry as { changes?: unknown }).changes) ? (entry as { changes: unknown[] }).changes : null;
     if (changes) {
       for (const ch of changes) {
         if (!ch || typeof ch !== "object") continue;
-        const label = String(ch.label ?? ch.field_label ?? "").toLowerCase();
+        const c = ch as Record<string, unknown>;
+        const label = String(c.label ?? c.field_label ?? "").toLowerCase();
         const anchor = ACTIVITY_ANCHORS.find(a => a.labels.some(l => label === l));
         if (!anchor) continue;
         const atIso = scanSnDateTime(JSON.stringify(ch)) ||
           scanSnDateTime(JSON.stringify(entry));
         const ev = {
           field: anchor.field,
-          oldValue: cleanCapture(ch.old_value ?? ch.old ?? ch.from ?? ""),
-          newValue: cleanCapture(ch.new_value ?? ch.new ?? ch.to ?? ""),
+          oldValue: cleanCapture(c.old_value ?? c.old ?? c.from ?? ""),
+          newValue: cleanCapture(c.new_value ?? c.new ?? c.to ?? ""),
           at: atIso
         };
         const key = `${ev.field}|${ev.oldValue}|${ev.newValue}|${ev.at}`;
@@ -350,16 +443,23 @@ function extractEventsFromActivity(entries) {
   return out;
 }
 
-/** @param {any} payload raw `list_history.do` JSON response */
-function extractEventsFromListHistory(payload) {
-  const byTicket = {};
+type ListHistoryRow = ActivityChange & { at: string };
+
+type ListHistoryEntry = {
+  document_id?: unknown;
+  sys_created_on?: unknown;
+  entries?: { changes?: Array<Record<string, unknown>> };
+};
+
+function extractEventsFromListHistory(payload: { entries?: ListHistoryEntry[] } | null | undefined): Record<string, ListHistoryRow[]> {
+  const byTicket: Record<string, ListHistoryRow[]> = {};
   for (const entry of payload?.entries || []) {
     if (!entry || typeof entry !== "object") continue;
     const docId = String(entry.document_id || "").trim();
     if (!docId) continue;
     const at = String(entry.sys_created_on || "").trim();
     if (!at) continue;
-    for (const ch of entry.entries?.changes || []) {
+    for (const ch of (entry.entries?.changes || [])) {
       if (!ch || typeof ch !== "object") continue;
       let fname = String(ch.field_name || "").trim();
       if (!fname) continue;

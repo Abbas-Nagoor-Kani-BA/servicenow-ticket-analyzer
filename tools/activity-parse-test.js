@@ -1,5 +1,5 @@
 "use strict";
-import { extractEventsFromActivity, extractEventsFromListHistory } from "../core/phase2.js";
+import { extractEventsFromActivity, extractEventsFromListHistory } from "../core/phase2.ts";
 
 let failures = 0;
 function check(name, cond, extra) {

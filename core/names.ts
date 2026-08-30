@@ -1,14 +1,14 @@
+export type NameEntry = string | { name?: unknown } | null | undefined;
+
 /**
  * Normalize an array of name entries (legacy `{name}` objects or plain strings)
  * into a de-duplicated array of trimmed, non-empty name strings. Used by the
  * options page (settings) and the pull pipeline (background) so both share one
  * migration + dedupe rule.
- * @param {Array<string | {name?: unknown} | null | undefined>} arr
- * @returns {string[]}
  */
-export function normalizeNames(arr) {
-  const seen = new Set();
-  const out = [];
+export function normalizeNames(arr: NameEntry[] | null | undefined): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
   for (const p of arr || []) {
     const n = String(p && typeof p === "object" ? p.name ?? "" : p ?? "").trim();
     if (!n) continue;
@@ -24,10 +24,8 @@ export function normalizeNames(arr) {
  * Parse a multi-line name list from an options-page textarea. Each line is
  * trimmed and any legacy `Name | sys_id` tail is stripped; results are
  * de-duplicated case-insensitively.
- * @param {string} text
- * @returns {string[]}
  */
-export function parseNameLines(text) {
+export function parseNameLines(text: string): string[] {
   return normalizeNames(String(text).split("\n").map((s) => s.replace(/\s*[|=]\s*.*$/, "").trim()));
 }
 
@@ -38,9 +36,7 @@ export function parseNameLines(text) {
  *
  * Moved here from settings/chips.js so components and surfaces share one
  * implementation instead of a component depending on a surface.
- * @param {string} text
- * @returns {string[]}
  */
-export function splitTerms(text) {
+export function splitTerms(text: string): string[] {
   return parseNameLines(String(text ?? "").replace(/[\n,;]+/g, "\n"));
 }

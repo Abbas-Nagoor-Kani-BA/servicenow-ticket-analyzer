@@ -2,7 +2,7 @@
 import {
   MSR_DEFAULT_LISTS, mergeMsrLists, normResolution, msrStatus, msrType,
   rootCauseFor, parseDisplayMs, excelSerialFromMs, displayToSerial, hmsToDays
-} from "../core/msrchoices.js";
+} from "../core/msrchoices.ts";
 
 let failed = 0;
 function check(name, got, want) {

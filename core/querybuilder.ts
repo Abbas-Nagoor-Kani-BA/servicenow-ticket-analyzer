@@ -1,8 +1,27 @@
-function sanitizeValue(v) {
+export type QueryCondition = {
+  field: string;
+  oper: string;
+  value?: string;
+  value2?: string;
+  join?: string;
+};
+
+export type QueryBuilderConfig = {
+  dateField?: string;
+  conditions?: QueryCondition[];
+  from?: string;
+  to?: string;
+  states?: string[];
+  priorities?: string[];
+  groupNames?: string[];
+  rawQuery?: string;
+};
+
+function sanitizeValue(v: unknown): string {
   return String(v ?? "").replace(/['\\]/g, "");
 }
 
-function encodeCondition(c) {
+function encodeCondition(c: QueryCondition): string {
   const f = c.field;
   switch (c.oper) {
     case "isEmpty": return `${f}ISEMPTY`;
@@ -28,10 +47,8 @@ function encodeCondition(c) {
  * Conditions fragment MUST be emitted FIRST (callers do) because SN evaluates
  * encoded queries strictly left-to-right and a trailing ^OR would OR over the
  * whole preceding scope. Emits nothing for unknown operators.
- * @param {Array<{field:string, oper:string, value?:string, value2?:string, join?:string}>} list
- * @returns {string}
  */
-function encodeConditions(list) {
+function encodeConditions(list: QueryCondition[] | null | undefined): string {
   let out = "";
   let outputCount = 0;
   (list || []).forEach(c => {
@@ -45,20 +62,11 @@ function encodeConditions(list) {
 
 /**
  * Build a complete encoded query string from a config object.
- * @param {object} cfg
- * @param {string} [cfg.dateField]
- * @param {Array} [cfg.conditions]
- * @param {string} [cfg.from]
- * @param {string} [cfg.to]
- * @param {Array<string>} [cfg.states]
- * @param {Array<string>} [cfg.priorities]
- * @param {Array<string>} [cfg.groupNames]
- * @param {string} [cfg.rawQuery]
+ *
  * @throws {Error} if rawQuery contains a top-level ^OR
- * @returns {string}
  */
-function buildEncodedQuery(cfg) {
-  const parts = [];
+function buildEncodedQuery(cfg: QueryBuilderConfig): string {
+  const parts: string[] = [];
   const dateField = cfg.dateField || "opened_at";
 
   if (cfg.conditions?.length) {

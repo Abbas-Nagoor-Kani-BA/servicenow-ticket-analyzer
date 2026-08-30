@@ -1,4 +1,4 @@
-import * as MsrChoices from "../../core/msrchoices.js";
+import * as MsrChoices from "../../core/msrchoices.ts";
 import { el, setStatus } from "./core.js";
 import { SearchPicker } from "../../components/search-picker.ts";
 import { getMsrLists } from "./store.js";

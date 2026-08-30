@@ -1,5 +1,5 @@
-import { buildSlaSummary } from "../../core/slasummary.js";
-import { rowOffsetMs } from "../../core/sntime.js";
+import { buildSlaSummary } from "../../core/slasummary.ts";
+import { rowOffsetMs } from "../../core/sntime.ts";
 import { pad2 } from "../../lib/format.js";
 import { dataStore } from "./store.js";
 

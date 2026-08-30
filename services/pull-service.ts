@@ -7,11 +7,11 @@ import type { TicketRepository } from "../data/repositories/ticket-repository.ts
 import type { TimelineRepository } from "../data/repositories/timeline-repository.ts";
 import type { TicketRow } from "../data/repositories/dataset-repository.ts";
 
-import { buildEncodedQuery } from "../core/querybuilder.js";
-import { snStateMap, snTableLabel } from "../core/statechoices.js";
-import { normalizeNames } from "../core/names.js";
-import { mergeRows } from "../core/rowmerge.js";
-import { analyzeAll } from "../core/phase2.js";
+import { buildEncodedQuery, type QueryBuilderConfig } from "../core/querybuilder.ts";
+import { snStateMap, snTableLabel } from "../core/statechoices.ts";
+import { normalizeNames } from "../core/names.ts";
+import { mergeRows } from "../core/rowmerge.ts";
+import { analyzeAll } from "../core/phase2.ts";
 import { groupScopeOf, scopeGroups } from "./queue-scope.ts";
 
 export type ProgressFn = (stage: string, detail: string, extra?: Record<string, unknown>) => void;
@@ -162,7 +162,7 @@ export class PullService {
       const table = sets[i].table || "incident";
       const label = `Filter ${i + 1}/${sets.length}`;
       const { memberSysIds: _drop, ...rest } = sets[i];
-      const encodedQuery = buildEncodedQuery({ ...rest, ...configured.groupScope });
+      const encodedQuery = buildEncodedQuery({ ...rest, ...configured.groupScope } as QueryBuilderConfig);
 
       progress("count", `${label}: counting...`);
       const total = await tickets.count(table, encodedQuery);

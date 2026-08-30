@@ -1,20 +1,20 @@
-import { pairOffsetMs } from "../core/sntime.js";
+import { pairOffsetMs } from "../core/sntime.ts";
 
-const SLA_TABLE = {
+const SLA_TABLE: Record<number, { min: number; max: number }> = {
   1: { min: 1, max: 4 },
   2: { min: 2, max: 8 },
   3: { min: 9, max: 45 },
   4: { min: 90, max: 135 }
 };
 
-const RESPONSE_SLA_TABLE = {
+const RESPONSE_SLA_TABLE: Record<number, number> = {
   1: 0.08333,
   2: 0.25,
   3: 2,
   4: 3
 };
 
-function deriveType(refNum) {
+function deriveType(refNum: string | null | undefined): string {
   const s = String(refNum || "");
   if (s.startsWith("INC")) return "Incident";
   if (s.startsWith("REQ")) return "RFS";
@@ -22,38 +22,38 @@ function deriveType(refNum) {
   return "";
 }
 
-function slaPriority(priority) {
+function slaPriority(priority: unknown): number {
   let n = parseInt(String(priority));
   if (!Number.isFinite(n)) return 0;
   if (n > 4) n = 4;
   return SLA_TABLE[n] ? n : 0;
 }
 
-function metSLA(value, priority, threshold) {
+function metSLA(value: unknown, priority: unknown, threshold: "min" | "max"): string {
   const p = slaPriority(priority);
   if (!p) return "";
-  const v = parseFloat(value);
+  const v = parseFloat(String(value));
   if (isNaN(v)) return "";
   return v < SLA_TABLE[p][threshold] ? "YES" : "NO";
 }
 
-function hmsToHours(hms) {
+function hmsToHours(hms: unknown): number {
   if (!hms && hms !== 0) return 0;
   const parts = String(hms).split(":");
-  if (parts.length < 2) return parseFloat(hms) || 0;
+  if (parts.length < 2) return parseFloat(String(hms)) || 0;
   return parseInt(parts[0]) + parseInt(parts[1]) / 60 + (parseInt(parts[2]) || 0) / 3600;
 }
 
-function hoursToHMS(decimalHours) {
-  if (decimalHours === "" || decimalHours === "0" || isNaN(parseFloat(decimalHours))) return "";
-  const totalSecs = Math.round(parseFloat(decimalHours) * 3600);
+function hoursToHMS(decimalHours: unknown): string {
+  if (decimalHours === "" || decimalHours === "0" || isNaN(parseFloat(String(decimalHours)))) return "";
+  const totalSecs = Math.round(parseFloat(String(decimalHours)) * 3600);
   const h = Math.floor(totalSecs / 3600);
   const m = Math.floor((totalSecs % 3600) / 60);
   const s = totalSecs % 60;
   return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
-function normDisplay(v) {
+function normDisplay(v: unknown): string {
   if (!v) return "";
   const s = String(v).trim().replace("T", " ").replace(/\.\d+Z?$/, "").replace(/Z$/, "");
   let m = s.match(/^(\d{4})-(\d{2})-(\d{2})[ ](\d{2}:\d{2}(?::\d{2})?)$/);
@@ -69,9 +69,8 @@ function normDisplay(v) {
  * of the browser's timezone. All business-hours math uses `getUTC*`/`Date.UTC`
  * in this same projected space, so results match the instance clock regardless
  * of where the extension runs (fixes issues/003-report-tz-bug.md).
- * @param {string} str
  */
-function parseDisplayWallClock(str) {
+function parseDisplayWallClock(str: string): Date | null {
   if (!str) return null;
   const [datePart, timePart] = String(str).trim().split(/\s+/);
   const [dd, mm, yyyy] = datePart.split("-");
@@ -81,15 +80,15 @@ function parseDisplayWallClock(str) {
   return isNaN(d.getTime()) ? null : d;
 }
 
-function businessHoursBetween(startStr, endStr) {
+function businessHoursBetween(startStr: string | Date, endStr: string | Date): number {
   const start = typeof startStr === "string" ? parseDisplayWallClock(startStr) : startStr;
   const end = typeof endStr === "string" ? parseDisplayWallClock(endStr) : endStr;
-  if (!start || !end || isNaN(start) || isNaN(end)) return 0;
+  if (!start || !end || isNaN(start.getTime()) || isNaN(end.getTime())) return 0;
 
   const WORK_START_H = 8;
   const WORK_END_H = 17;
 
-  function isWorkday(d) { const day = d.getUTCDay(); return day !== 0 && day !== 6; }
+  function isWorkday(d: Date) { const day = d.getUTCDay(); return day !== 0 && day !== 6; }
 
   let hours = 0;
   const startDayEpoch = Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate());
@@ -106,9 +105,16 @@ function businessHoursBetween(startStr, endStr) {
   return hours;
 }
 
-function calcBusinessHours(createdStr, resolvedStr, suspendedStr, resumedStr, priority, offsetMs = 0) {
+function calcBusinessHours(
+  createdStr: string | null | undefined,
+  resolvedStr: string | null | undefined,
+  suspendedStr: string | null | undefined,
+  resumedStr: string | null | undefined,
+  priority: unknown,
+  offsetMs = 0
+): string {
   const p = slaPriority(priority);
-  const start = parseDisplayWallClock(createdStr);
+  const start = parseDisplayWallClock(String(createdStr || ""));
   if (!start) return "";
 
   const end = resolvedStr ? parseDisplayWallClock(resolvedStr) : new Date(Date.now() + offsetMs);
@@ -131,7 +137,14 @@ function calcBusinessHours(createdStr, resolvedStr, suspendedStr, resumedStr, pr
   return Math.max(0, hours).toFixed(2);
 }
 
-function calcIncCurrentHours(assignedStr, resolvedStr, suspendedStr, resumedStr, priority, offsetMs = 0) {
+function calcIncCurrentHours(
+  assignedStr: string | null | undefined,
+  resolvedStr: string | null | undefined,
+  suspendedStr: string | null | undefined,
+  resumedStr: string | null | undefined,
+  priority: unknown,
+  offsetMs = 0
+): string {
   if (!assignedStr) return "0";
   const p = slaPriority(priority);
   const start = parseDisplayWallClock(assignedStr);
@@ -168,7 +181,14 @@ function calcIncCurrentHours(assignedStr, resolvedStr, suspendedStr, resumedStr,
   return Math.max(0, hours).toFixed(2);
 }
 
-function calcResponseSLA(assignedStr, acknowledgedStr, suspendedStr, resumedStr, priority, offsetMs = 0) {
+function calcResponseSLA(
+  assignedStr: string | null | undefined,
+  acknowledgedStr: string | null | undefined,
+  suspendedStr: string | null | undefined,
+  resumedStr: string | null | undefined,
+  priority: unknown,
+  offsetMs = 0
+): string {
   if (!assignedStr) return "";
   const p = slaPriority(priority);
   const start = parseDisplayWallClock(assignedStr);
@@ -192,18 +212,73 @@ function calcResponseSLA(assignedStr, acknowledgedStr, suspendedStr, resumedStr,
   return hoursToHMS(Math.max(0, hours));
 }
 
-function calcTotalAgeDays(businessHoursDecimal) {
-  const h = parseFloat(businessHoursDecimal);
+function calcTotalAgeDays(businessHoursDecimal: unknown): string {
+  const h = parseFloat(String(businessHoursDecimal));
   if (isNaN(h)) return "";
   return (h / 9).toFixed(2);
 }
 
-function analysedDateString(now = new Date()) {
-  const p = n => String(n).padStart(2, "0");
+function analysedDateString(now: Date = new Date()): string {
+  const p = (n: number) => String(n).padStart(2, "0");
   return `${p(now.getDate())}/${p(now.getMonth() + 1)}/${now.getFullYear()}`;
 }
 
-function buildReport(row, fmt, now = new Date()) {
+export type ReportRow = {
+  number: string;
+  priority: string | number;
+  state?: string;
+  assignmentGroup?: string;
+  createdOn?: string;
+  assignTimeUtcIso?: string;
+  acknTimeUtcIso?: string;
+  resolvedAt?: string;
+  suspendTimeUtcIso?: string;
+  resumeTimeUtcIso?: string;
+  openedAt?: string;
+  openedAtRaw?: string;
+  configItem?: string;
+  solutionType?: string;
+  rootCause?: string;
+  __reportKey?: string;
+  __report?: Report;
+};
+
+export type WalkedRow = ReportRow & {
+  __report?: Report;
+  __reportKey?: string;
+};
+
+export type Report = {
+  type: string;
+  opCo: string;
+  domain: string;
+  created: string;
+  assigned: string;
+  ackn: string;
+  resolved: string;
+  susp: string;
+  resumed: string;
+  impactedApplication: string;
+  resolutionType: string;
+  rootCauseCategory: string;
+  incidentHours: string;
+  incidentTotalAge: string;
+  incCurrentHours: string;
+  incidentCurrentAge: string;
+  responseSLA: string;
+  cumulativeSla: string;
+  cumulativeDays: string;
+  timeTaken: string;
+  metResponseSLA: string;
+  metMinResolutionSLA: string;
+  metMaxResolutionSLA: string;
+  slaBreach: string;
+  analysedDate: string;
+};
+
+export type MessageFormatter = (v: string) => string;
+
+export function buildReport(row: WalkedRow, fmt?: MessageFormatter | null, now: Date = new Date()): Report {
   const keyInputs = [
     row.number, row.priority, row.state, row.assignmentGroup,
     row.createdOn, row.assignTimeUtcIso, row.acknTimeUtcIso, row.resolvedAt,
@@ -213,12 +288,12 @@ function buildReport(row, fmt, now = new Date()) {
 
   const type = deriveType(row.number);
   const created = normDisplay(row.createdOn);
-  const assigned = normDisplay(fmt ? fmt(row.assignTimeUtcIso) : row.assignTimeUtcIso);
-  const ackn = normDisplay(fmt ? fmt(row.acknTimeUtcIso) : row.acknTimeUtcIso);
+  const assigned = normDisplay(fmt ? fmt(String(row.assignTimeUtcIso || "")) : row.assignTimeUtcIso);
+  const ackn = normDisplay(fmt ? fmt(String(row.acknTimeUtcIso || "")) : row.acknTimeUtcIso);
   const resolved = normDisplay(row.resolvedAt);
-  const susp = normDisplay(fmt ? fmt(row.suspendTimeUtcIso) : row.suspendTimeUtcIso);
-  const resumed = normDisplay(fmt ? fmt(row.resumeTimeUtcIso) : row.resumeTimeUtcIso);
-  const instanceOffsetMs = pairOffsetMs(row.openedAt, row.openedAtRaw) || 0;
+  const susp = normDisplay(fmt ? fmt(String(row.suspendTimeUtcIso || "")) : row.suspendTimeUtcIso);
+  const resumed = normDisplay(fmt ? fmt(String(row.resumeTimeUtcIso || "")) : row.resumeTimeUtcIso);
+  const instanceOffsetMs = pairOffsetMs(row.openedAt || "", row.openedAtRaw || "") || 0;
 
   const incidentHoursRaw =   calcBusinessHours(created, resolved, susp, resumed, row.priority, instanceOffsetMs);
   const incidentHours = hoursToHMS(incidentHoursRaw);
@@ -233,18 +308,18 @@ function buildReport(row, fmt, now = new Date()) {
   const incVal = parseFloat(incCurrentHoursRaw);
   const metMin = isNaN(incVal) ? "" : metSLA(incVal, row.priority, "min");
   const metMax = isNaN(incVal) ? "" : metSLA(incVal, row.priority, "max");
-  const breached = [];
+  const breached: string[] = [];
   if (metResponse === "No") breached.push("R");
   if (metMax === "NO") breached.push("M");
 
-  const rep = {
+  const rep: Report = {
     type,
     opCo: "BA",
     domain: "AO",
     created, assigned, ackn, resolved, susp, resumed,
-    impactedApplication: row.configItem || "",
-    resolutionType: row.solutionType || "",
-    rootCauseCategory: row.rootCause || "",
+    impactedApplication: String(row.configItem || ""),
+    resolutionType: String(row.solutionType || ""),
+    rootCauseCategory: String(row.rootCause || ""),
     incidentHours,
     incidentTotalAge,
     incCurrentHours,
@@ -267,5 +342,5 @@ function buildReport(row, fmt, now = new Date()) {
 
 export {
   deriveType, slaPriority, metSLA, hmsToHours, normDisplay, businessHoursBetween,
-  calcBusinessHours, calcIncCurrentHours, calcResponseSLA, buildReport
+  calcBusinessHours, calcIncCurrentHours, calcResponseSLA
 };

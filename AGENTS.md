@@ -206,7 +206,7 @@ There is no bundler or package manager for tests. Verify with node after every
 change:
 
 ```bash
-node --check platform/background.ts core/*.js lib/*.js surfaces/viewer/*.js panel/*.js settings/settings.js content/content.js surfaces/viewer/index.ts && \
+node --check platform/background.ts core/*.ts lib/*.js surfaces/viewer/*.js panel/*.js settings/settings.js content/content.js surfaces/viewer/index.ts && \
 node -e "JSON.parse(require('fs').readFileSync('manifest.json'))"
 ```
 

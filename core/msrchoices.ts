@@ -1,6 +1,20 @@
-import { parseSnDisplayMs } from "./sntime.js";
+import { parseSnDisplayMs } from "./sntime.ts";
 
-const MSR_DEFAULT_LISTS = {
+export type RootCauseLists = { Incident: string[]; RFS: string[]; P_Ticket: string[] };
+export type MsrListSet = {
+  opCo: string[];
+  domain: string[];
+  type: string[];
+  queue: string[];
+  status: string[];
+  resolution: string[];
+  duplicate: string[];
+  subCategory: string[];
+  rootCause: RootCauseLists;
+};
+export type MsrListOverrides = Partial<Omit<MsrListSet, "rootCause">> & { rootCause?: Partial<RootCauseLists> };
+
+const MSR_DEFAULT_LISTS: MsrListSet = {
   opCo: ["BA", "IB", "EI"],
   domain: ["Apex", "SharePoint", "TechTools", "Mobile", "SIP", "JFE", "AO", "MRO", "LIP", "Pathway", "QIP", "COSI RTO", "Commercial Services", "ODI"],
   type: ["Incident", "RFS", "P_Ticket"],
@@ -51,10 +65,10 @@ const MSR_DEFAULT_LISTS = {
   }
 };
 
-function normList(arr) {
+function normList(arr: unknown): string[] {
   if (!Array.isArray(arr)) return [];
-  const seen = new Set();
-  const out = [];
+  const seen = new Set<string>();
+  const out: string[] = [];
   for (const item of arr) {
     const s = String(item ?? "").trim();
     if (!s) continue;
@@ -66,8 +80,8 @@ function normList(arr) {
   return out;
 }
 
-function mergeMsrLists(overrides) {
-  const base = {
+function mergeMsrLists(overrides: MsrListOverrides | null | undefined): MsrListSet {
+  const base: MsrListSet = {
     opCo: [...MSR_DEFAULT_LISTS.opCo],
     domain: [...MSR_DEFAULT_LISTS.domain],
     type: [...MSR_DEFAULT_LISTS.type],
@@ -83,19 +97,21 @@ function mergeMsrLists(overrides) {
     }
   };
   if (!overrides || typeof overrides !== "object") return base;
-  for (const key of ["opCo", "domain", "type", "queue", "status", "resolution", "duplicate", "subCategory"]) {
-    if (Array.isArray(overrides[key])) base[key] = normList(overrides[key]);
+  for (const key of ["opCo", "domain", "type", "queue", "status", "resolution", "duplicate", "subCategory"] as const) {
+    const v = (overrides as Record<string, unknown>)[key];
+    if (Array.isArray(v)) base[key] = normList(v);
   }
   const rc = overrides.rootCause;
   if (rc && typeof rc === "object") {
-    for (const t of ["Incident", "RFS", "P_Ticket"]) {
-      if (Array.isArray(rc[t])) base.rootCause[t] = normList(rc[t]);
+    for (const t of ["Incident", "RFS", "P_Ticket"] as const) {
+      const v = (rc as Record<string, unknown>)[t];
+      if (Array.isArray(v)) base.rootCause[t] = normList(v);
     }
   }
   return base;
 }
 
-function normResolution(v) {
+function normResolution(v: unknown): string {
   const s = String(v ?? "").trim();
   if (!s) return "";
   const n = s.toLowerCase().replace(/\s+/g, " ");
@@ -109,15 +125,14 @@ function normResolution(v) {
   return s;
 }
 
-/** @type {Array<[RegExp, string]>} */
-const STATUS_MAP = [
+const STATUS_MAP: Array<[RegExp, string]> = [
  [/^(closed|resolved|cancelled|canceled|closed complete|closed incomplete|closed skipped)/i, "Closed"],
  [/^on hold|^suspended|^awaiting|^pending (vendor|supplier|user)/i, "Suspended"],
  [/^triage/i, "Triaged"],
  [/^(new|open|in progress|work in progress|in progress$)/i, "In Progress"]
 ];
 
-function msrStatus(snStateLabel) {
+function msrStatus(snStateLabel: unknown): string {
   const s = String(snStateLabel ?? "").trim();
   if (!s) return "";
   for (const [re, label] of STATUS_MAP) {
@@ -126,7 +141,7 @@ function msrStatus(snStateLabel) {
   return "In Progress";
 }
 
-function msrType(refNumber) {
+function msrType(refNumber: unknown): string {
   const s = String(refNumber || "");
   if (s.startsWith("INC")) return "Incident";
   if (s.startsWith("REQ")) return "RFS";
@@ -134,7 +149,7 @@ function msrType(refNumber) {
   return "";
 }
 
-function rootCauseFor(rootCauseLists, typeLabel) {
+function rootCauseFor(rootCauseLists: RootCauseLists | null | undefined, typeLabel: unknown): string[] {
   const t = String(typeLabel || "");
   if (t === "Incident") return rootCauseLists?.Incident || [];
   if (t === "RFS") return rootCauseLists?.RFS || [];
@@ -142,29 +157,29 @@ function rootCauseFor(rootCauseLists, typeLabel) {
   return [];
 }
 
-function parseDisplayMs(s) {
-  return parseSnDisplayMs(s);
+function parseDisplayMs(s: string | null | undefined): number | null {
+  return parseSnDisplayMs(s ?? "");
 }
 
 const EXCEL_EPOCH_SERIAL = 25569;
 
-function excelSerialFromMs(ms) {
+function excelSerialFromMs(ms: number | null | undefined): number | null {
   if (ms === null || ms === undefined || isNaN(ms)) return null;
   return Math.round(((ms / 86400000) + EXCEL_EPOCH_SERIAL) * 1e10) / 1e10;
 }
 
-function displayToSerial(text) {
-  return excelSerialFromMs(parseDisplayMs(text));
+function displayToSerial(text: unknown): number | null {
+  return excelSerialFromMs(parseDisplayMs(String(text ?? "")));
 }
 
-function hmsToHours(v) {
+function hmsToHours(v: unknown): number {
   if (v === "" || v === null || v === undefined) return NaN;
   const parts = String(v).split(":");
-  if (parts.length < 2) return parseFloat(v) || 0;
+  if (parts.length < 2) return parseFloat(String(v)) || 0;
   return parseInt(parts[0], 10) + parseInt(parts[1], 10) / 60 + (parseInt(parts[2], 10) || 0) / 3600;
 }
 
-function hmsToDays(v) {
+function hmsToDays(v: unknown): string | number {
   const h = hmsToHours(v);
   if (!Number.isFinite(h)) return "";
   return Math.round((h / 24) * 1e10) / 1e10;

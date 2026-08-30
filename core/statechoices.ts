@@ -1,4 +1,4 @@
-const SN_STATE_MAPS = {
+const SN_STATE_MAPS: Record<string, Record<string, string>> = {
   incident: { "1": "New", "2": "In Progress", "3": "On Hold", "6": "Resolved", "7": "Closed", "8": "Canceled" },
   change_request: { "-5": "New", "10": "Assess", "11": "Authorize", "12": "Scheduled", "-1": "Implement", "6": "Review", "7": "Closed", "8": "Canceled" },
   // problem updated from a live instance (choice XML): fully custom values 151-157;
@@ -17,7 +17,7 @@ const SN_PRIORITY_CHOICES = [
   { value: "4", label: "4 - Low" }
 ];
 
-const SN_TABLE_LABELS = {
+const SN_TABLE_LABELS: Record<string, string> = {
   incident: "Incident",
   change_request: "Change Request",
   problem: "Problem",
@@ -35,17 +35,17 @@ const SN_TABLE_LABELS = {
  * @param {string} table
  * @returns {string} the label, or the table name when unknown
  */
-function snTableLabel(table) {
+function snTableLabel(table: string): string {
   return SN_TABLE_LABELS[table] || table;
 }
 
-function snStateMap(table) {
+function snStateMap(table: string): Record<string, string> {
   const t = table || "incident";
   if (SN_STATE_MAPS[t]) return SN_STATE_MAPS[t];
   return SN_STATE_MAPS.sc_req_item;
 }
 
-function snStateChoices(table) {
+function snStateChoices(table: string): Array<{ value: string; label: string }> {
   return Object.entries(snStateMap(table)).map(([value, label]) => ({ value, label }));
 }
 

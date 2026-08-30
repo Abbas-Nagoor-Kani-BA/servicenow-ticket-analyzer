@@ -10,7 +10,7 @@ import { RemoteBridge } from "../../services/remote-bridge.ts";
 import type { CondFieldDef } from "../../components/condition-builder.ts";
 import type { FilterSet } from "../../data/repositories/filter-list-repository.ts";
 
-import { snStateChoices, SN_PRIORITY_CHOICES, snTableLabel } from "../../core/statechoices.js";
+import { snStateChoices, SN_PRIORITY_CHOICES, snTableLabel } from "../../core/statechoices.ts";
 
 /*
  * Composition root for the side panel.

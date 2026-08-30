@@ -1,7 +1,7 @@
 const SOLUTION_PERMANENT = "Permanent solution";
 const SOLUTION_WORKAROUND = "Workaround solution";
 
-function tidyRootCause(v) {
+function tidyRootCause(v: unknown): string {
   let s = String(v ?? "").replace(/\s+/g, " ").trim();
   s = s.replace(/^root\s*ca?us?e\s*(is)?\s*[::-]?\s*/i, "").replace(/[\s.;]+$/, "");
   if (!s || /^(unknown|n\/?a|none|not specified|not mentioned|not provided)$/i.test(s)) return "";
@@ -12,17 +12,17 @@ function tidyRootCause(v) {
 /* Fuzzy section-label matching                                        */
 /* ------------------------------------------------------------------ */
 
-function normLabel(s) {
+function normLabel(s: string): string {
   return String(s).toLowerCase().replace(/[^a-z]+/g, " ").replace(/\s+/g, " ").trim();
 }
 
 // Strip list bullets / numbering: "-", "* ", "3.", "1)", "(2" ...
-function stripPrefix(s) {
+function stripPrefix(s: string): string {
   return String(s).replace(/^[ \t]*(?:[-*\u2022]|\d{1,2}[.):-])[ \t]*/, "");
 }
 
 // Classic DP edit distance with an early bail-out threshold.
-function editDistanceWithin(a, b, max) {
+function editDistanceWithin(a: string, b: string, max: number): boolean {
   if (a === b) return true;
   if (Math.abs(a.length - b.length) > max) return false;
   const m = a.length, n = b.length;
@@ -40,7 +40,12 @@ function editDistanceWithin(a, b, max) {
 
 // Known section headers. Variants include common typos and rewordings;
 // matching itself is fuzzy (distance 1-2 depending on label length).
-const SECTION_LABELS = [
+type SectionLabel = { key: SectionKey; variants: string[] };
+type SectionKey =
+  | "rootCause" | "resolutionType" | "impact" | "steps" | "preventive"
+  | "problemTicket" | "resolvedBy" | "closure" | "issue";
+
+const SECTION_LABELS: SectionLabel[] = [
   { key: "rootCause", variants: ["analysis root cause", "analysis rca", "rca analysis", "root cause analysis", "root cause summary", "root cause", "rootcause", "root caus", "rca"] },
   { key: "resolutionType", variants: ["resolution type", "resoultion type", "resolution types", "solution type", "resolved type", "resolution status"] },
   { key: "impact", variants: ["impact", "business impact", "customer impact"] },
@@ -52,21 +57,21 @@ const SECTION_LABELS = [
   { key: "issue", variants: ["issue", "issue summary", "description"] }
 ];
 
-function maxDistFor(variant) {
+function maxDistFor(variant: string): number {
   return variant.replace(/ /g, "").length >= 10 ? 2 : 1;
 }
 
 // A line "looks like" a header when it has an early colon ("Analysis (Root
 // Cause): text...") or is short — this stops body sentences that merely begin
 // with words like "Impact" from being mistaken for section headers.
-function looksLikeHeader(line) {
+function looksLikeHeader(line: string): boolean {
   const t = line.trim();
   const colon = t.indexOf(":");
   return (colon >= 0 && colon <= 45) || t.length <= 60;
 }
 
 // Returns the SECTION_LABELS key for a header-looking line, else null.
-function lineSectionKey(line) {
+function lineSectionKey(line: string): SectionKey | null {
   if (!looksLikeHeader(line)) return null;
   const words = normLabel(stripPrefix(line)).split(" ").filter(Boolean);
   if (!words.length) return null;
@@ -83,19 +88,20 @@ function lineSectionKey(line) {
   return null;
 }
 
-function findLine(lines, keys) {
+function findLine(lines: string[], keys: SectionKey[]): number {
   for (let i = 0; i < lines.length; i++) {
-    if (keys.includes(lineSectionKey(lines[i]))) return i;
+    const k = lineSectionKey(lines[i]);
+    if (k && keys.includes(k)) return i;
   }
   return -1;
 }
 
 // Capture the value belonging to a section header line: the remainder of the
 // header line after its colon, plus following lines until the next header.
-function captureFrom(lines, startIdx) {
+function captureFrom(lines: string[], startIdx: number): string {
   const head = stripPrefix(lines[startIdx]);
   const colon = head.indexOf(":");
-  const kept = [];
+  const kept: string[] = [];
   const first = colon >= 0 ? head.slice(colon + 1) : "";
   if (first.trim()) kept.push(first.trim());
   for (let j = startIdx + 1; j < lines.length; j++) {
@@ -111,11 +117,11 @@ function captureFrom(lines, startIdx) {
 
 // Token-level fuzzy check so misspellings still map onto a known bucket
 // ("Permanant fix" -> permanent, "Work arount" -> workaround).
-function tokensInclude(list, target, maxDist) {
+function tokensInclude(list: string[], target: string, maxDist: number): boolean {
   return list.some(t => t === target || editDistanceWithin(t, target, maxDist));
 }
 
-function classifySolution(raw) {
+function classifySolution(raw: unknown): string {
   let s = String(raw ?? "").replace(/\s+/g, " ").trim();
   if (!s) return "";
   s = s.replace(/^[:\-)\]]+\s*/, "");
@@ -141,13 +147,16 @@ function classifySolution(raw) {
 /* Main entry point                                                    */
 /* ------------------------------------------------------------------ */
 
-/**
- * @param {string} notes
- * @returns {{ solutionType: string, rootCause: string, confidence: { solutionType: string, rootCause: string }, parseReview?: boolean }}
- */
-function extractHeuristic(notes) {
+export type ExtractResult = {
+  solutionType: string;
+  rootCause: string;
+  confidence: { solutionType: string; rootCause: string };
+  parseReview?: boolean;
+};
+
+function extractHeuristic(notes: unknown): ExtractResult {
   const text = String(notes ?? "");
-  const out = { solutionType: "", rootCause: "", confidence: { solutionType: "", rootCause: "" } };
+  const out: ExtractResult = { solutionType: "", rootCause: "", confidence: { solutionType: "", rootCause: "" } };
   if (!text.trim()) return out;
   const lines = text.split(/\r?\n/);
 

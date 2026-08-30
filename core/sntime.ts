@@ -1,5 +1,4 @@
-/** @param {string} ap AM/PM marker, if any */
-function pmHour(h, ap) {
+function pmHour(h: number, ap: string): number {
   if (/p/i.test(ap || "") && h < 12) return h + 12;
   if (/a/i.test(ap || "") && h === 12) return 0;
   return h;
@@ -8,11 +7,8 @@ function pmHour(h, ap) {
 /**
  * Parse a display-format-dating datetime string to epoch ms. Tolerant of
  * ISO yyyy-MM-dd, dd-MM-yyyy, dd.MM.yyyy, and MM/dd/yyyy, with optional AM/PM.
- * @param {string} s
-
- * @returns {number|null}
  */
-function parseSnDisplayMs(s) {
+function parseSnDisplayMs(s: string): number | null {
   const str = String(s || "").trim();
   if (!str) return null;
   let m = str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})[ T](\d{1,2}):(\d{2})(?::(\d{2}))?\s*([AaPp][Mm])?/);
@@ -27,8 +23,8 @@ function parseSnDisplayMs(s) {
   return Date.UTC(+m[1], +m[2] - 1, +m[3], pmHour(+m[4], m[7]), +m[5], +(m[6] || 0));
 }
 
-/** @returns {number|null} display-minus-raw offset in ms, or null if unparseable */
-function pairOffsetMs(disp, raw) {
+/** Return display-minus-raw offset in ms, or null if unparseable. */
+function pairOffsetMs(disp: string | undefined, raw: string | undefined): number | null {
   const d = String(disp || "");
   const r = String(raw || "");
   if (!d || !r) return null;
@@ -38,9 +34,11 @@ function pairOffsetMs(disp, raw) {
   return de - re;
 }
 
-/** @param {Array<{openedAt?:string,openedAtRaw?:string}>} rows @returns {number} median instance offset in ms */
-function detectSnOffsetMs(rows) {
-  const offs = [];
+type OffsetRow = { openedAt?: string; openedAtRaw?: string };
+
+/** Return median instance offset in ms over up to 200 sampled rows. */
+function detectSnOffsetMs(rows: OffsetRow[] | null | undefined): number {
+  const offs: number[] = [];
   for (const r of rows || []) {
     const o = pairOffsetMs(r.openedAt, r.openedAtRaw);
     if (o != null && Math.abs(o) < 15 * 3600e3) offs.push(o);
@@ -54,24 +52,20 @@ function detectSnOffsetMs(rows) {
 
 /**
  * Resolve a row's OWN instance offset from its openedAt display/raw pair.
- * @param {{openedAt?:string,openedAtRaw?:string}} row
- * @param {number} fallback
- * @returns {number}
  */
-function rowOffsetMs(row, fallback) {
+function rowOffsetMs(row: OffsetRow | undefined | null, fallback: number): number {
   const o = pairOffsetMs(row?.openedAt, row?.openedAtRaw);
   return o == null ? (fallback || 0) : o;
 }
 
-/** @param {string|number} v @param {number} offsetMs @returns {string} formatted with the given offset */
-function fmtWithOffset(v, offsetMs) {
+/** Format v (epoch ms string/number) with the given offset, as ISO-ish text. */
+function fmtWithOffset(v: string | number, offsetMs: number): string {
   const d = new Date(v);
   if (isNaN(d.getTime())) return String(v);
-  const p = n => String(n).padStart(2, "0");
+  const p = (n: number) => String(n).padStart(2, "0");
   const s = new Date(d.getTime() + (offsetMs || 0));
   return `${s.getUTCFullYear()}-${p(s.getUTCMonth() + 1)}-${p(s.getUTCDate())} ` +
     `${p(s.getUTCHours())}:${p(s.getUTCMinutes())}:${p(s.getUTCSeconds())}`;
 }
-
 
 export { parseSnDisplayMs, pmHour, pairOffsetMs, detectSnOffsetMs, rowOffsetMs, fmtWithOffset };

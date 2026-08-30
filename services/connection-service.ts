@@ -2,7 +2,7 @@ import { RUN_SCOPE_FACTORY, SETTINGS_REPO } from "../di/tokens.ts";
 import type { RunScopeFactory } from "../di/tokens.ts";
 import type { SettingsRepository } from "../data/repositories/settings-repository.ts";
 
-import { buildEncodedQuery } from "../core/querybuilder.js";
+import { buildEncodedQuery } from "../core/querybuilder.ts";
 import { groupScopeOf, scopeGroups } from "./queue-scope.ts";
 
 export type CountRequest = {

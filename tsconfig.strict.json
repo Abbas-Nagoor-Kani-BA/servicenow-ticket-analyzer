@@ -48,6 +48,18 @@
     "components/data-grid.ts",
     "components/modal.ts",
     "components/ci-dialog.ts",
-    "components/map-dialog.ts"
+    "components/map-dialog.ts",
+    "core/sntime.ts",
+    "core/names.ts",
+    "core/rowmerge.ts",
+    "core/statechoices.ts",
+    "core/querybuilder.ts",
+    "core/journal.ts",
+    "core/msrchoices.ts",
+    "core/aiextract.ts",
+    "core/report.ts",
+    "core/slasummary.ts",
+    "core/templatexml.ts",
+    "core/phase2.ts"
   ]
 }
