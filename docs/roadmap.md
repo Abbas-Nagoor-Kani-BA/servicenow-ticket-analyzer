@@ -435,7 +435,7 @@ then close the gaps:
 
 | Decision | Gated phase | Current answer |
 |---|---|---|
-| Is a standalone `timeline-service` worth it, or is the `phase2` + `pull-service` wiring enough? | 10d | Ask when starting 10d |
+| Is a standalone `timeline-service` worth it, or is the `phase2` + `pull-service` wiring enough? | 10d | **Settled:** done-by-route (Phase 10d). Rules live in `core/phase2` wired by `pull-service`; the viewer's activity pane is DOM rendering only and stays in a surface |
 | Which format for work-notes export (extra column vs. extra sheet)? | 11c | Ask when starting 11c |
 | Should features (11) precede finishing the migration (9–10)? | before 11 | No — finishing structure first keeps the feature branches small |
 | `content/content.js`: keep classic JS permanently? | 9c | Yes — manifest constraint; re-evaluate only if the manifest gains `"type":"module"` |

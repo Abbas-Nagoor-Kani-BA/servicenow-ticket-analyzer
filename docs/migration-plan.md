@@ -170,7 +170,7 @@ Verified by reintroducing the fix's inverse — 3 of the 8 new tests fail withou
 ## Phase 2 — Services (background becomes a router) — see above
 
 - [ ] `services/pull-service.ts` — `resolveRunSettings`, `scopeGroups`, limit enforcement, per-table `sys_id` union, `mergeRows`, persist + broadcast
-- [ ] `services/timeline-service.ts` — the four timeline rules wiring, state-map selection
+- [ ] `services/timeline-service.ts` — **decided against (Phase 10d, done-by-route):** the four rules stay in `core/phase2` wired by `pull-service`; the viewer's activity pane is surface-level DOM rendering, and a surface-blessed view needs no timeline service
 - [ ] `services/connection-service.ts` — PING / COUNT, instance detection
 - [ ] `services/report-service.ts` — report + SLA summary derivation
 - [ ] `services/export-service.ts` — xlsx fill, CI-split grouping, TSV build
@@ -593,6 +593,11 @@ in detail in [`docs/roadmap.md`](roadmap.md).
 - [x] **Phase 10c** — `services/extract-service.ts` extracted from `grid.ts`'s autoParse (heuristic classification + closure-note review); viewer keeps only status/toast messaging; `tools/extract-service-test.js` (7 checks) — the first service migration pilot; 228 tests green
 - [x] **Phase 10a** — `services/report-service.ts` extracted (viewer/core.ts's `buildRep`/`buildSlaSummaryFor`/`buildSlaSummaryRowsFor` now delegate; the single cast boundary between the viewer's two-arg instance-clock formatter and core's one-arg `MessageFormatter` lives in the service); `tools/report-service-test.js` pins the load-bearing coupling (non-identity fmt shifts derived SLA results); 229 tests green
 - [x] **Phase 10b** — `services/export-service.ts` extracted: template column map + field groups for the map dialog, per-CI-group split and diagnostics, MSR clipboard TSV layout, column-map pre-processing, filled-filename construction, base64 helpers. `surfaces/viewer/exporter.ts` / `clipboard.ts` are now thin composition bindings and `toolbar.ts` delegates, so viewer behavior and exported bytes are byte-identical; `tools/export-service-test.js` (33 checks); 230 tests green
+- [x] **Phase 10d** — timeline route decision: **done-by-route, no code.** The four timeline rules already live in `core/phase2.ts` and are wired for pipeline runs by `services/pull-service.ts`; the viewer NEVER computes timelines or fetches activity feeds by hand — its per-ticket timeline view (`editors.ts` → `activityPaneEl`) renders stored row data + journal only. That rendering is DOM by definition, which must stay in a surface, so a standalone `timeline-service` would hold no business logic. Phase 10 complete.
+
+## Phase 11 and beyond
+
+Phases 11-12 are the roadmap's remaining feature/service work; see `docs/roadmap.md`.
 
 ## Deferred decisions
 
