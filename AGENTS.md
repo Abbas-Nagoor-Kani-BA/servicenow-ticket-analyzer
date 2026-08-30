@@ -240,6 +240,8 @@ Regression suites (`npm test` runs all of them):
 | `cache-test.js` — **superseded by** `pull-cache-test.ts` | cache policy, now tested through the repositories |
 | `idb-test.ts` | the real IndexedDB path via fake-indexeddb |
 | `di-test.ts`, `repository-test.ts`, `pull-service-test.ts`, `settings-service-test.ts` | DI and services against fakes |
+| `extract-service-test.js`, `report-service-test.js`, `export-service-test.js` | the viewer-bound services: autoParse extraction, report/SLA adaptation (fmt→SLA coupling), export building |
+| `durations-test.js` | derived durations (assign→ackn, assign→resolve, suspend total) from the four rules' UTC timestamps |
 | `panel-components-test.ts`, `data-grid-test.ts`, `search-picker-test.ts`, `modal-test.ts`, `map-dialog-test.ts`, `settings-chips-test.js` | components |
 | `viewer-dom-test.js` | end-to-end viewer flow (happy-dom) |
 
@@ -316,8 +318,9 @@ component needs its own test; end-to-end coverage is not enough.
   rows are reported in the done-message count.
 - Remaining migration work is tracked in `docs/migration-plan.md`; the forward
   plan (what is still left after Phase 6, in order) is `docs/roadmap.md`.
-- Possible future work: resume-from-checkpoint for huge pulls, derived duration
-  columns, work-notes text export, additional tables (RITM, change).
+- Possible future work: resume-from-checkpoint for huge pulls (Phase 11a),
+  work-notes text export (Phase 11c), additional tables (RITM, change) (Phase 11d).
+  Derived duration columns shipped in Phase 11b (`core/durations.ts`).
 
 ## Docs
 

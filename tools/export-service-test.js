@@ -39,10 +39,24 @@ check("MAP_MAX_COL matches the last template column", MAP_MAX_COL, svc.tplColumn
 
 console.log("== ExportService — field groups for the map dialog ==");
 
-check("three groups, in order", svc.exportGroups.map((g) => g.name), ["General", "Ticket fields", "Report / SLA fields"]);
+check("four groups, in order", svc.exportGroups.map((g) => g.name), ["General", "Ticket fields", "Report / SLA fields", "Durations"]);
 check("fieldById resolves a report field label", svc.fieldById.get("rep:opCo")?.label, "Report: Op co");
 check("fieldById getter for #row", svc.fieldById.get("#row")?.get(mkRow(), 2), "3");
 check("DEFAULT_EXPORT_MAP anchors", { a: DEFAULT_EXPORT_MAP["#row"], z: DEFAULT_EXPORT_MAP["rep:analysedDate"] }, { a: "A", z: "AN" });
+
+const durRow = mkRow({
+  assignTimeUtcIso: "2026-01-05T09:00:00.000Z",
+  acknTimeUtcIso: "2026-01-05T09:30:00.000Z",
+  suspendTimeUtcIso: "2026-01-05T10:00:00.000Z",
+  resumeTimeUtcIso: "2026-01-05T11:15:00.000Z",
+  resolvedAtRaw: "2026-01-05 17:00:00"
+});
+check("dur fields resolve through the map dialog groups", [
+  svc.fieldById.get("dur:assignToAckn")?.get(durRow, 0),
+  svc.fieldById.get("dur:assignToResolve")?.get(durRow, 0),
+  svc.fieldById.get("dur:suspendTotal")?.get(durRow, 0)
+], ["0:30:00", "8:00:00", "1:15:00"]);
+check("dur fields are not part of the default export map (byte-identical defaults)", ["dur:assignToAckn", "dur:assignToResolve", "dur:suspendTotal"].every((k) => !(k in DEFAULT_EXPORT_MAP)), true);
 
 console.log("== ExportService — column map pre-processing ==");
 

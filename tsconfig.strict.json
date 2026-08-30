@@ -89,6 +89,7 @@
     "core/msrchoices.ts",
     "core/aiextract.ts",
     "core/report.ts",
+    "core/durations.ts",
     "core/slasummary.ts",
     "core/templatexml.ts",
     "core/phase2.ts"

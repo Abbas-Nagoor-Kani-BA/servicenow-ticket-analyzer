@@ -3,6 +3,7 @@ import type { ComponentProps } from "./component.ts";
 import { cellShort } from "../lib/markup.ts";
 import { setTip } from "../lib/tooltip.ts";
 import { buildReport } from "../core/report.ts";
+import { computeDurations } from "../core/durations.ts";
 
 /** [key, label, cell class, default width] — matches COLUMNS in surfaces/viewer/core.ts. */
 export type GridColumn = readonly [string, string, string, number];
@@ -201,11 +202,12 @@ export class DataGrid extends Component<DataGridState, ComponentProps, DataGridD
       const tr = document.createElement("tr");
       tr.dataset.sysId = String(row.sysId ?? "");
       const rep = buildReport(row as Parameters<typeof buildReport>[0], this.deps.fmtInstant as unknown as Parameters<typeof buildReport>[1]) as Record<string, any>;
+      const durations = computeDurations(row);
       const num = String(row.number ?? "");
       if (num) typeCounts[rep.type || "Other"] = (typeCounts[rep.type || "Other"] || 0) + 1;
 
       for (const [key, , cls] of state.cols) {
-        tr.appendChild(this.buildCell(row, rep, key, cls, breachCounts));
+        tr.appendChild(this.buildCell(row, rep, durations, key, cls, breachCounts));
       }
       frag.appendChild(tr);
     }
@@ -222,6 +224,7 @@ export class DataGrid extends Component<DataGridState, ComponentProps, DataGridD
   protected buildCell(
     row: GridRow,
     rep: Record<string, any>,
+    durations: Record<string, string>,
     key: string,
     cls: string,
     breachCounts: BreachCounts
@@ -232,12 +235,14 @@ export class DataGrid extends Component<DataGridState, ComponentProps, DataGridD
     let v: unknown;
     if (key.startsWith("rep:")) {
       v = rep[key.slice(4)] ?? "";
+    } else if (key.startsWith("dur:")) {
+      v = durations[key.slice(4)] ?? "";
     } else {
       if (key !== "number") td.classList.add("editable");
       else td.classList.add("numLink");
       v = row[key];
       if (cls === "inst") v = this.deps.fmtInstant(v as string, row);
-      if ((cls === "time" || cls === "inst") && !v) td.classList.add("empty-time");
+      if ((cls === "time" || cls === "inst" || cls === "dur") && !v) td.classList.add("empty-time");
     }
 
     const text = v === null || v === undefined ? "" : String(v);

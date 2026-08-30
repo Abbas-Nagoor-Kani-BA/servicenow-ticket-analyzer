@@ -342,6 +342,11 @@ feature branch: plan → implement → focused tests → gate green → review.
 
 ### 11b. Derived duration columns
 
+**Status: Done (Phase 11b).** `core/durations.ts` `computeDurations` derives
+assign→ackn, assign→resolve (from `resolvedAtRaw`) and suspend total from the
+four rules' UTC ISO timestamps; surfaced as viewer `dur:` columns and a
+"Durations" group in the export column map. Default template layout unchanged.
+
 - Problem: the workbook lacks easy "time in queue" / "handling time"
   durations.
 - Work: derive `assign→ackn`, `assign→resolve`, `suspend` total on the

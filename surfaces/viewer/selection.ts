@@ -294,7 +294,7 @@ function writeFill(rows: ViewerRow[], cols: ViewerCol[], lo: number, hi: number,
   for (let r = 0; r < tr; r++) {
     for (let c = 0; c < tc; c++) {
       const key = cols[lc + c][0];
-      if (!key || key === "number" || key.startsWith("rep:")) { skipped++; continue; }
+      if (!key || key === "number" || key.startsWith("rep:") || key.startsWith("dur:")) { skipped++; continue; }
       const row = rows[lo + r];
       snapshot.push({ row, key, old: row[key] });
       row[key] = storedValue(fill[r][c], key, cols[lc + c][2], row, deps);

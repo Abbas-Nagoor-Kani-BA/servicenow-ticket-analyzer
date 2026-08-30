@@ -1,6 +1,7 @@
 import * as MsrChoices from "../core/msrchoices.ts";
 import { letterToColNum } from "../lib/markup.ts";
 import { pad2 } from "../lib/format.ts";
+import { computeDurations, type Durations } from "../core/durations.ts";
 import { ReportService, type ReportFmt } from "./report-service.ts";
 
 /*
@@ -86,6 +87,7 @@ export class ExportService {
 
     const expRaw = (key: string): ColGet => (r: Row) => expStr(r[key]);
     const expRep = (key: string): ColGet => (r: Row) => this.rep.rep(r, this.fmt)[key] ?? "";
+    const durGet = (key: keyof Durations): ColGet => (r: Row) => computeDurations(r)[key];
 
     this.tplColumns = [
       { col: 1, get: (r, i) => String(i + 1) },
@@ -174,6 +176,14 @@ export class ExportService {
           ["rep:metMaxResolutionSLA", "Report: Met max resolution SLA", expRep("metMaxResolutionSLA")],
           ["rep:analysedDate", "Report: Analysed date", expRep("analysedDate")]
         ]
+      },
+      {
+        name: "Durations",
+        items: [
+          ["dur:assignToAckn", "Time to acknowledge", durGet("assignToAckn")],
+          ["dur:assignToResolve", "Time to resolve", durGet("assignToResolve")],
+          ["dur:suspendTotal", "Suspend total", durGet("suspendTotal")]
+        ]
       }
     ];
 
@@ -224,6 +234,9 @@ export class ExportService {
   cellValue(row: Row, key: string, cls: string): string {
     if (key.startsWith("rep:")) {
       return String(this.rep.rep(row, this.fmt)[key.slice(4)] ?? "");
+    }
+    if (key.startsWith("dur:")) {
+      return String(computeDurations(row)[key.slice(4) as keyof Durations] ?? "");
     }
     let v = row[key];
     if (cls === "inst") v = this.fmt(String(v), row);

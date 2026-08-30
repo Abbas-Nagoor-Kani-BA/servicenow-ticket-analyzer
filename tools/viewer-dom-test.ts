@@ -152,6 +152,25 @@ test("ticket popup edits timeline date in place", { timeout: 8000 }, async () =>
   assert.equal(document.querySelector(".ticketPop"), null, "Escape closed popup");
 });
 
+test("derived duration columns render HMS from the timeline stamps", { timeout: 8000 }, async () => {
+  const row = grid.currentRows()[0];
+  Object.assign(row, {
+    assignTimeUtcIso: new Date(2026, 7, 5, 9, 0, 0).toISOString(),
+    acknTimeUtcIso: new Date(2026, 7, 5, 9, 30, 0).toISOString(),
+    suspendTimeUtcIso: new Date(2026, 7, 5, 10, 0, 0).toISOString(),
+    resumeTimeUtcIso: new Date(2026, 7, 5, 11, 15, 0).toISOString(),
+    resolvedAtRaw: "2026-08-05 17:00:00"
+  });
+  grid.render();
+  await flush();
+  const ths = [...document.querySelectorAll("#tbl thead th")];
+  const idxOf = (label: string) => ths.findIndex(t => t.textContent === label);
+  const cells = [...document.querySelector("#tbl tbody tr").children];
+  assert.equal(cells[idxOf("Time to ackn")].textContent, "0:30:00", "assign->ackn rendered as HMS");
+  assert.equal(cells[idxOf("Time to resolve")].textContent, "8:00:00", "assign->resolve rendered as HMS");
+  assert.equal(cells[idxOf("Suspend total")].textContent, "1:15:00", "suspend total rendered as HMS");
+});
+
 test("number popup opens on click even when pointer capture retargets the event to tbody", { timeout: 8000 }, async () => {
   const tbody = document.querySelector("#tbl tbody");
   const numTd = Array.from(tbody.querySelector("tr").children)
