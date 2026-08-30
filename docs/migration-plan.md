@@ -483,6 +483,42 @@ Chosen first: highest confusion, lowest risk, no hard-won invariants live there.
 
 ---
 
+## Phase 5a — `core/` move — COMPLETE
+
+**Result: gate green — typecheck 0 errors, lint 0 errors, 222/222 tests, build OK.**
+
+`analysis/` and the pure domain helpers from `lib/` moved to `core/`, so the
+layering is visible in the directory names rather than only in the docs:
+
+- **core/** — pure domain: `phase2`, `report`, `slasummary`, `aiextract`,
+  `querybuilder`, `sntime`, `statechoices`, `names`, `msrchoices`, `rowmerge`,
+  `journal`, `templatexml`. No DOM, no `chrome.*`, no I/O.
+- **lib/** — platform and UI helpers: `keys`, `storage`, `store`, `markup`,
+  `picklist`, `servicenow`, `toast`, `tooltip`, `format`.
+
+Both were top-level directories, so relative import specifiers were unchanged —
+only the directory name differs. 35 files updated.
+
+`templatexml.js` moved too: the xlsx zip surgery is domain logic, not a UI
+helper, even though only the viewer reaches it.
+
+## Phase 5b — Documentation — COMPLETE
+
+- [x] **Deleted `docs/architecture.md`** — superseded by `layered-architecture.md`
+- [x] **Deleted `issues/001-readability-maintainability.md`** — its open items
+      are tracked as phases here
+- [x] `issues/002` → `docs/timeline-formats.md` (it is a canonical reference for
+      the datetime formats, not an issue)
+- [x] `issues/003` → `docs/resolved/report-tz-bug.md`; the `issues/` folder is gone
+- [x] **Rewrote `AGENTS.md`**: directory map, layering rules, the component
+      contract including the `super()`/private-method trap, DI, the verification
+      gate, the build/dev workflow, and the "integration tests cannot validate a
+      component" lesson
+
+Final docs set: `layered-architecture.md` (target), `migration-plan.md` (status),
+`timeline.md` + `timeline-formats.md` (SLA/datetime), `filtering.md`,
+`invariants.md`, `resolved/` (fixed bugs).
+
 ## Deferred decisions
 
 | Decision | Status |
@@ -491,6 +527,7 @@ Chosen first: highest confusion, lowest risk, no hard-won invariants live there.
 | DI style | Settled: **constructor injection + branded tokens** (no decorators) |
 | Directory restructure | Settled: **layer in place, move last** |
 | Starting surface | Settled: **panel** |
-| Old doc deletion | Settled: **Phase 5**, AGENTS.md updated last |
+| Old doc deletion | **Done** (Phase 5b) — architecture.md and issues/001 deleted, AGENTS.md rewritten |
 | TS toolchain | **Proven** by the Phase 0 pilot — no fallback needed |
-| TS strictness ramp | Open: opt-in per file (current plan) vs. strict from the start |
+| TS strictness ramp | Settled: opt-in per file; 39 TS files now on `tsconfig.strict.json` |
+| Viewer composition root | Open — 25-dialogs.js already acts as the dialog composition root; viewer.js still imports modules in numeric order |
