@@ -42,7 +42,7 @@ let grid, clipboard, ticketpop;
 before(async () => {
   installSkeleton();
   seedAll(FIXTURE);
-  await import("../surfaces/viewer/index.js");
+  await import("../surfaces/viewer/index.ts");
   grid = await import("../surfaces/viewer/grid.js");
   clipboard = await import("../surfaces/viewer/clipboard.js");
   ticketpop = await import("../surfaces/viewer/ticketpop.js");

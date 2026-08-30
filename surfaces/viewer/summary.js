@@ -218,24 +218,26 @@ function showSummary() {
   renderSummary();
 }
 
-$("tabTickets").addEventListener("click", () => showTickets());
-$("tabSummary").addEventListener("click", () => showSummary());
+export function initSummary() {
+  $("tabTickets").addEventListener("click", () => showTickets());
+  $("tabSummary").addEventListener("click", () => showSummary());
 
-document.addEventListener("keydown", e => {
-  const t = e.target;
-  if (t instanceof HTMLElement &&
-      (t.tagName === "INPUT" || t.tagName === "SELECT" || t.tagName === "TEXTAREA" || t.isContentEditable)) {
-    return;
-  }
-  const mod = e.ctrlKey || e.metaKey;
-  if (!mod) return;
-  if (e.key === "1") { e.preventDefault(); showTickets(); }
-  else if (e.key === "2") { e.preventDefault(); showSummary(); }
-  else if (e.key === "Tab") {
-    e.preventDefault();
-    if (e.shiftKey) showTickets();
-    else showSummary();
-  }
-});
+  document.addEventListener("keydown", e => {
+    const t = e.target;
+    if (t instanceof HTMLElement &&
+        (t.tagName === "INPUT" || t.tagName === "SELECT" || t.tagName === "TEXTAREA" || t.isContentEditable)) {
+      return;
+    }
+    const mod = e.ctrlKey || e.metaKey;
+    if (!mod) return;
+    if (e.key === "1") { e.preventDefault(); showTickets(); }
+    else if (e.key === "2") { e.preventDefault(); showSummary(); }
+    else if (e.key === "Tab") {
+      e.preventDefault();
+      if (e.shiftKey) showTickets();
+      else showSummary();
+    }
+  });
+}
 
 export { attachSummaryToData, renderSummary, setRowsProvider };

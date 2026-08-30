@@ -11,8 +11,6 @@ import { attachSummaryToData, renderSummary, setRowsProvider } from "./summary.j
 
 function st() { return dataStore.getState(); }
 
-setRowsProvider(() => currentRows());
-
 let selHooks = {
   highlight: () => {},
   clearUndo: () => {},
@@ -69,27 +67,32 @@ function fmtInstant(utcIso, row) {
   return formatWallClock(local);
 }
 
-const grid = new DataGrid($("wrap"), {}, {
-  table: $("tbl"),
-  count: $("count"),
-  slaBar: $("slaBar"),
-  fmtInstant,
-  columnOptions: (key, row) => columnOptionList(key, row),
-  onSort: (key) => {
-    const { sortKey, sortDir } = st();
-    if (sortKey === key) dataStore.setState({ sortDir: -sortDir });
-    else dataStore.setState({ sortKey: key, sortDir: 1 });
-    render();
-  },
-  onWidthsChange: (widths) => {
-    setColWidths(widths);
-    saveColWidths();
-  },
-  afterRender: () => {
-    selHooks.highlight();
-    renderSummary();
-  }
-});
+let grid = null;
+
+export function initGrid() {
+  setRowsProvider(() => currentRows());
+  grid = new DataGrid($("wrap"), {}, {
+    table: $("tbl"),
+    count: $("count"),
+    slaBar: $("slaBar"),
+    fmtInstant,
+    columnOptions: (key, row) => columnOptionList(key, row),
+    onSort: (key) => {
+      const { sortKey, sortDir } = st();
+      if (sortKey === key) dataStore.setState({ sortDir: -sortDir });
+      else dataStore.setState({ sortKey: key, sortDir: 1 });
+      render();
+    },
+    onWidthsChange: (widths) => {
+      setColWidths(widths);
+      saveColWidths();
+    },
+    afterRender: () => {
+      selHooks.highlight();
+      renderSummary();
+    }
+  });
+}
 
 function gridState(rows) {
   const { data, sortKey, sortDir } = st();

@@ -41,10 +41,21 @@ surfaces/    Composition roots: panel, settings. The only place that knows both
 di/          Container, tokens, and the per-surface registration functions.
 lib/         Platform and UI helpers: keys, storage, store, markup, picklist,
              servicenow, toast, tooltip, format.
-viewer/      The data-view page. Still mid-migration: it owns the data stores and
-             the export pipeline; its UI lives in components/.
+viewer/      The data-view page (HTML only — viewer/viewer.html). Its modules
+             live in surfaces/viewer/ below.
 panel/, settings/, background.js, content/
 ```
+
+`surfaces/viewer/` is the viewer page's own composition root plus its modules
+(`core`, `store`, `grid-data`, `cols`, `config-state`, `exporter`, `clipboard`,
+`summary`, `paste`, `toolbar`, `dialogs`, `grid`, `selection`, `ticketpop`,
+`activity`, `editors`, `shared`, `interactions`). `surfaces/viewer/index.ts`
+calls each module's `init*()` in a fixed order and then boots. The modules still
+own the data stores and the export pipeline; their UI lives in `components/`.
+
+**Nothing binds DOM handlers at module scope.** Every module exports an
+`init*()` and the composition root decides when it runs. Adding top-level
+wiring to a viewer module re-introduces the invisible ordering this replaced.
 
 ### Layering rules
 
@@ -195,7 +206,7 @@ There is no bundler or package manager for tests. Verify with node after every
 change:
 
 ```bash
-node --check background.js core/*.js lib/*.js surfaces/viewer/*.js panel/*.js settings/settings.js content/content.js surfaces/viewer/index.js && \
+node --check background.js core/*.js lib/*.js surfaces/viewer/*.js panel/*.js settings/settings.js content/content.js surfaces/viewer/index.ts && \
 node -e "JSON.parse(require('fs').readFileSync('manifest.json'))"
 ```
 

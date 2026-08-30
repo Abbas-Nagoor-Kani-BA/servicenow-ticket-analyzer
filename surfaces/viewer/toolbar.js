@@ -18,30 +18,95 @@ import { copyText } from "./shared.js";
 
 let tplInfo = null;
 
-setOnConfigChange(updateConfigSummary);
+export function initToolbar() {
+  setOnConfigChange(updateConfigSummary);
 
-$("radSingle").addEventListener("change", async () => {
-  if (!$("radSingle").checked || !getCiSplit().enabled) return;
-  setCiSplit({ ...getCiSplit(), enabled: false });
-  await chrome.storage.local.set({ [STORAGE.ciSplit]: getCiSplit() });
-  updateExportDots();
-  showToast("Split export disabled — one file per export");
-});
-
-$("radSplit").addEventListener("change", () => {
-  if (!$("radSplit").checked) return;
-  if (!getCiSplit().groups.length) {
-    syncSplitRadio();
-    openCiDialog();
-    return;
-  }
-  if (getCiSplit().enabled) return;
-  setCiSplit({ ...getCiSplit(), enabled: true });
-  chrome.storage.local.set({ [STORAGE.ciSplit]: getCiSplit() }).then(() => {
+  $("radSingle").addEventListener("change", async () => {
+    if (!$("radSingle").checked || !getCiSplit().enabled) return;
+    setCiSplit({ ...getCiSplit(), enabled: false });
+    await chrome.storage.local.set({ [STORAGE.ciSplit]: getCiSplit() });
     updateExportDots();
-    showToast("Split export enabled — one file per CI group");
+    showToast("Split export disabled — one file per export");
   });
-});
+
+  $("radSplit").addEventListener("change", () => {
+    if (!$("radSplit").checked) return;
+    if (!getCiSplit().groups.length) {
+      syncSplitRadio();
+      openCiDialog();
+      return;
+    }
+    if (getCiSplit().enabled) return;
+    setCiSplit({ ...getCiSplit(), enabled: true });
+    chrome.storage.local.set({ [STORAGE.ciSplit]: getCiSplit() }).then(() => {
+      updateExportDots();
+      showToast("Split export enabled — one file per CI group");
+    });
+  });
+
+  $("cfgTplBtn").addEventListener("click", async () => {
+    const f = await pickTemplateFile();
+    if (!f) return;
+    tplInfo = { name: f.name, dataB64: b64FromBuffer(await f.arrayBuffer()), savedAt: Date.now() };
+    await chrome.storage.local.set({ [STORAGE.snXlsxTemplate]: tplInfo });
+    updateTplState();
+    showToast("Template set");
+  });
+
+  $("cfgTplClear").addEventListener("click", async () => {
+    await chrome.storage.local.remove(STORAGE.snXlsxTemplate);
+    tplInfo = null;
+    updateTplState();
+    showToast("Template cleared");
+  });
+
+  $("cfgMapBtn").addEventListener("click", () => openMapDialog());
+  $("cfgCiBtn").addEventListener("click", () => openCiDialog());
+
+  $("configClose").addEventListener("click", closeConfigDialog);
+  $("configCancel").addEventListener("click", closeConfigDialog);
+
+  $("configExport").addEventListener("click", runExport);
+
+  $("exportBtn").addEventListener("click", () => {
+    if (!hasDataRows()) {
+      setStatus("Nothing to export", true);
+      return;
+    }
+    if (!currentRows().length) {
+      setStatus("Nothing to export — search filter matches no rows", true);
+      return;
+    }
+    openConfigDialog();
+  });
+
+  $("copyMsrBtn").addEventListener("click", () => {
+    if (!hasDataRows()) {
+      setStatus("Nothing to copy", true);
+      return;
+    }
+    const rows = currentRows();
+    if (!rows.length) {
+      setStatus("Nothing to copy — search filter matches no rows", true);
+      return;
+    }
+    copyText(buildMsrTsv(rows))
+      .then(() => showToast(`Copied ${rows.length} row${rows.length === 1 ? "" : "s"} to clipboard`))
+      .catch(() => showToast("Copy failed", "error"));
+  });
+
+  // Outside-click dismissal for the popovers that are not Modals.
+  document.addEventListener("click", e => {
+    const menu = $("colMenu");
+    if (!menu.classList.contains("hidden") && !menu.contains(e.target)) {
+      menu.classList.add("hidden");
+    }
+    const pop = $("letterPop");
+    if (!pop.classList.contains("hidden") && !pop.contains(e.target)) {
+      hideLetterPop();
+    }
+  });
+}
 
 function sanitizeFilePart(s) {
   return String(s).replace(/[^\w.-]+/g, "-").replace(/^-+|-+$/g, "") || "group";
@@ -131,25 +196,6 @@ function updateTplState() {
     clr.classList.add("hidden");
   }
 }
-
-$("cfgTplBtn").addEventListener("click", async () => {
-  const f = await pickTemplateFile();
-  if (!f) return;
-  tplInfo = { name: f.name, dataB64: b64FromBuffer(await f.arrayBuffer()), savedAt: Date.now() };
-  await chrome.storage.local.set({ [STORAGE.snXlsxTemplate]: tplInfo });
-  updateTplState();
-  showToast("Template set");
-});
-
-$("cfgTplClear").addEventListener("click", async () => {
-  await chrome.storage.local.remove(STORAGE.snXlsxTemplate);
-  tplInfo = null;
-  updateTplState();
-  showToast("Template cleared");
-});
-
-$("cfgMapBtn").addEventListener("click", () => openMapDialog());
-$("cfgCiBtn").addEventListener("click", () => openCiDialog());
 
 function pickTemplateFile() {
   return new Promise(resolve => {
@@ -254,23 +300,6 @@ function openConfigDialog() {
   configModal.open();
 }
 
-$("configClose").addEventListener("click", closeConfigDialog);
-$("configCancel").addEventListener("click", closeConfigDialog);
-
-$("configExport").addEventListener("click", runExport);
-
-$("exportBtn").addEventListener("click", () => {
-  if (!hasDataRows()) {
-    setStatus("Nothing to export", true);
-    return;
-  }
-  if (!currentRows().length) {
-    setStatus("Nothing to export — search filter matches no rows", true);
-    return;
-  }
-  openConfigDialog();
-});
-
 async function runExport() {
   // Export exactly what the data view shows: same rows, same order
   // (current search filter + current sort), including all edits.
@@ -345,32 +374,6 @@ async function runExport() {
     closeConfigDialog();
   }
 }
-
-$("copyMsrBtn").addEventListener("click", () => {
-  if (!hasDataRows()) {
-    setStatus("Nothing to copy", true);
-    return;
-  }
-  const rows = currentRows();
-  if (!rows.length) {
-    setStatus("Nothing to copy — search filter matches no rows", true);
-    return;
-  }
-  copyText(buildMsrTsv(rows))
-    .then(() => showToast(`Copied ${rows.length} row${rows.length === 1 ? "" : "s"} to clipboard`))
-    .catch(() => showToast("Copy failed", "error"));
-});
-
-document.addEventListener("click", e => {
-  const menu = $("colMenu");
-  if (!menu.classList.contains("hidden") && !menu.contains(e.target)) {
-    menu.classList.add("hidden");
-  }
-  const pop = $("letterPop");
-  if (!pop.classList.contains("hidden") && !pop.contains(e.target)) {
-    hideLetterPop();
-  }
-});
 
 export {
   getCiSplit,

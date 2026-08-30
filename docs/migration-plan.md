@@ -519,6 +519,66 @@ Final docs set: `layered-architecture.md` (target), `migration-plan.md` (status)
 `timeline.md` + `timeline-formats.md` (SLA/datetime), `filtering.md`,
 `invariants.md`, `resolved/` (fixed bugs).
 
+## Phase 6 — Viewer composition root — COMPLETE
+
+**Result: gate green — typecheck 0 errors, lint 0 errors, 222/222 tests, build OK.**
+
+The viewer was wired by import side effects: `viewer.js` imported eighteen
+modules in numeric order and each one bound its own DOM handlers as it was
+evaluated. The wiring was invisible and the `NN-` file names were load-bearing.
+
+- [x] **6a** — moved `viewer/js/*` to `surfaces/viewer/*` and dropped the
+      numeric prefixes (`00-core` → `core`, `30-grid` → `grid`, …)
+- [x] **6b** — every module that had top-level wiring now exports an `init*()`,
+      and `surfaces/viewer/index.ts` is the only place that knows the order
+
+### The init order was measured, not assumed
+
+Module evaluation order is dependency-driven (DFS post-order), so the numeric
+prefixes never actually described it. Instrumenting the six wiring modules and
+importing the old entry gave the real order:
+
+```
+summary → grid → cols → dialogs → toolbar → interactions
+```
+
+`grid` evaluated before `cols` because `cols` imports `grid`. The composition
+root calls the inits in exactly that order. It matters for the three
+document-level `keydown` handlers (`summary`, `dialogs`, `interactions`), which
+run in registration order on a shared target.
+
+### Two things worth recording
+
+**A scan for top-level wiring must be exhaustive.** The first pass found six
+wiring modules and missed that `toolbar.js` had nine more wiring statements
+further down the file (the config-dialog and popover handlers). The 20 viewer
+DOM tests caught it. The check is now a scripted scan for executable statements
+at brace depth 0, not a read of the first fifty lines.
+
+**ES exports are live bindings.** `dialogs.js` builds its four `Modal`s and two
+dialog editors inside `initDialogs()`, so `mapModal`/`configModal`/`ciModal`
+became `let` rather than `const`. `toolbar.js` imports `configModal` and reads it
+at call time, which still works — a `let` export is a live view of the binding,
+not a snapshot. Only `const`-destructuring at import time would break.
+
+### Notes
+
+- `exporter.js` still has a top-level `for` loop, but it builds the
+  `EXPORT_FIELD_BY_ID` lookup — data construction, not DOM wiring. It stays.
+- The composition root is `.ts`, matching `surfaces/panel` and
+  `surfaces/settings`, and is on `tsconfig.strict.json`. esbuild emits `.js`, so
+  `viewer.html` references `../surfaces/viewer/index.js` while the source entry
+  is `index.ts`.
+- Modules with no wiring of their own are still imported explicitly by the
+  composition root, which documents the dependency rather than relying on
+  transitive imports.
+
+### Deferred
+
+`services/remote-bridge.ts` (page-side proxies over `chrome.runtime`) is the
+remaining piece of the layering; the panel still sends `MSG.count` / `MSG.run`
+by hand. It became worthwhile now that the viewer has a composition root.
+
 ## Deferred decisions
 
 | Decision | Status |
@@ -530,4 +590,4 @@ Final docs set: `layered-architecture.md` (target), `migration-plan.md` (status)
 | Old doc deletion | **Done** (Phase 5b) — architecture.md and issues/001 deleted, AGENTS.md rewritten |
 | TS toolchain | **Proven** by the Phase 0 pilot — no fallback needed |
 | TS strictness ramp | Settled: opt-in per file; 39 TS files now on `tsconfig.strict.json` |
-| Viewer composition root | Open — 25-dialogs.js already acts as the dialog composition root; viewer.js still imports modules in numeric order |
+| Viewer composition root | **Done** (Phase 6) — `surfaces/viewer/index.ts` calls `init*()` in the measured order; `viewer/js/` and the `NN-` prefixes are gone |

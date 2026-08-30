@@ -18,7 +18,7 @@ const OUT = WATCH ? path.join(ROOT, "dev") : path.join(ROOT, "dist");
 
 const ENTRIES = [
   "background.js",
-  "surfaces/viewer/index.js",
+  "surfaces/viewer/index.ts",
   "panel/panel.js",
   "settings/settings.js",
   "content/content.js"

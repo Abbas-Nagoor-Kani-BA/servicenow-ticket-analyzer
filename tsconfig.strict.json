@@ -38,6 +38,7 @@
     "components/condition-builder.ts",
     "components/filter-set-list.ts",
     "surfaces/panel/index.ts",
+  "surfaces/viewer/index.ts",
     "components/chip-list.ts",
     "surfaces/settings/index.ts",
     "services/settings-service.ts",

@@ -10,29 +10,48 @@ function updateColsBtn() {
   $("colsBtn").textContent = hideStore().size ? `Columns (${hideStore().size} hidden)` : "Columns";
 }
 
-$("clearBtn").addEventListener("click", async () => {
-  await removeValue(STORAGE.lastData);
-  load(null);
-  showToast("Pull data cleared");
-});
+export function initCols() {
+  $("clearBtn").addEventListener("click", async () => {
+    await removeValue(STORAGE.lastData);
+    load(null);
+    showToast("Pull data cleared");
+  });
 
-$("colsBtn").addEventListener("click", e => {
-  e.stopPropagation();
-  const menu = $("colMenu");
-  if (menu.classList.contains("hidden")) {
-    buildColMenu();
-    $("colSearch").value = "";
-    setTimeout(() => $("colSearch").focus(), 0);
-  }
-  menu.classList.toggle("hidden");
-});
+  $("colsBtn").addEventListener("click", e => {
+    e.stopPropagation();
+    const menu = $("colMenu");
+    if (menu.classList.contains("hidden")) {
+      buildColMenu();
+      $("colSearch").value = "";
+      setTimeout(() => $("colSearch").focus(), 0);
+    }
+    menu.classList.toggle("hidden");
+  });
 
-$("colSearch").addEventListener("input", e => {
-  const q = e.target.value.trim().toLowerCase();
-  for (const lab of $("colList").children) {
-    lab.style.display = !q || lab.textContent.toLowerCase().includes(q) ? "" : "none";
-  }
-});
+  $("colSearch").addEventListener("input", e => {
+    const q = e.target.value.trim().toLowerCase();
+    for (const lab of $("colList").children) {
+      lab.style.display = !q || lab.textContent.toLowerCase().includes(q) ? "" : "none";
+    }
+  });
+
+  $("showAllCols").addEventListener("click", async () => {
+    setHiddenCols(new Set());
+    try {
+      await saveValue(STORAGE.viewerHiddenCols, []);
+    } catch {}
+    $("colMenu").classList.add("hidden");
+    buildHead();
+    render();
+    updateColsBtn();
+    setStatus("All columns visible");
+  });
+
+  $("resetColWidthsBtn").addEventListener("click", () => {
+    resetColWidths();
+    setStatus("Column widths reset");
+  });
+}
 
 function buildColMenu() {
   const list = $("colList");
@@ -69,20 +88,3 @@ async function toggleCol(key, show) {
   render();
   updateColsBtn();
 }
-
-$("showAllCols").addEventListener("click", async () => {
-  setHiddenCols(new Set());
-  try {
-    await saveValue(STORAGE.viewerHiddenCols, []);
-  } catch {}
-  $("colMenu").classList.add("hidden");
-  buildHead();
-  render();
-  updateColsBtn();
-  setStatus("All columns visible");
-});
-
-$("resetColWidthsBtn").addEventListener("click", () => {
-  resetColWidths();
-  setStatus("Column widths reset");
-});
