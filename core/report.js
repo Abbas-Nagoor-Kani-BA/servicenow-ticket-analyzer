@@ -1,4 +1,4 @@
-import { pairOffsetMs } from "../lib/sntime.js";
+import { pairOffsetMs } from "../core/sntime.js";
 
 const SLA_TABLE = {
   1: { min: 1, max: 4 },

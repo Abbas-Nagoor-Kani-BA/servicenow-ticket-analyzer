@@ -1,5 +1,5 @@
-import { buildEncodedQuery } from "../lib/querybuilder.js";
-import { snStateChoices, SN_PRIORITY_CHOICES, snTableLabel } from "../lib/statechoices.js";
+import { buildEncodedQuery } from "../core/querybuilder.js";
+import { snStateChoices, SN_PRIORITY_CHOICES, snTableLabel } from "../core/statechoices.js";
 import { STORAGE, MSG } from "../lib/keys.ts";
 import { createPanel, describeFilterSet } from "../surfaces/panel/index.ts";
 import { broadcast } from "../lib/storage.js";

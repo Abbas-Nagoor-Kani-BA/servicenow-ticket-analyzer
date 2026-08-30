@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import * as R from "../analysis/report.js";
+import * as R from "../core/report.js";
 
 let failed = 0;
 function check(name, got, want) {

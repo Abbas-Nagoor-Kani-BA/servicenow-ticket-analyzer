@@ -1,7 +1,7 @@
 import { createStore } from "../../lib/store.js";
 import { onStorageChange, loadOnce, saveValue, removeValue } from "../../lib/storage.js";
 import { STORAGE } from "../../lib/keys.ts";
-import * as MsrChoices from "../../lib/msrchoices.js";
+import * as MsrChoices from "../../core/msrchoices.js";
 
 export const dataStore = createStore({
   data: null,

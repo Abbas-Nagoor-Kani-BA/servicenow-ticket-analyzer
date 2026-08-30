@@ -9,7 +9,7 @@ import { FilterSetList, migrateLegacyFilterSets } from "../../components/filter-
 import type { CondFieldDef } from "../../components/condition-builder.ts";
 import type { FilterSet } from "../../data/repositories/filter-list-repository.ts";
 
-import { snStateChoices, SN_PRIORITY_CHOICES, snTableLabel } from "../../lib/statechoices.js";
+import { snStateChoices, SN_PRIORITY_CHOICES, snTableLabel } from "../../core/statechoices.js";
 
 /*
  * Composition root for the side panel.

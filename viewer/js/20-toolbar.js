@@ -1,5 +1,5 @@
 import * as Markup from "../../lib/markup.js";
-import * as TemplateXml from "../../lib/templatexml.js";
+import * as TemplateXml from "../../core/templatexml.js";
 import { STORAGE } from "../../lib/keys.ts";
 import { pad2 } from "../../lib/format.js";
 import { $, setStatus, el } from "./00-core.js";
@@ -12,7 +12,7 @@ import { EXPORT_FIELD_BY_ID, MAP_MAX_COL, TPL_COLUMNS } from "./10-exporter.js";
 import { buildMsrTsv } from "./15-clipboard.js";
 import { configModal, hideLetterPop, openCiDialog, openMapDialog } from "./25-dialogs.js";
 import { currentRows, getTotalRows, hasDataRows, fmtInstant } from "./30-grid.js";
-import { buildSlaSummaryRows } from "../../analysis/slasummary.js";
+import { buildSlaSummaryRows } from "../../core/slasummary.js";
 import { copyText } from "./85-shared.js";
 
 

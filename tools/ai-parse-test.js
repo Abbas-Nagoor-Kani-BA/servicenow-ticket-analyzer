@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { extractHeuristic } from "../analysis/aiextract.js";
+import { extractHeuristic } from "../core/aiextract.js";
 
 let failed = 0;
 function check(name, got, want) {

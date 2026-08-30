@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import "./helpers/dom-env.mjs";
-import { splitTerms } from "../lib/names.js";
+import { splitTerms } from "../core/names.js";
 import { ChipList } from "../components/chip-list.ts";
 
 function makeChip(opts = {}) {

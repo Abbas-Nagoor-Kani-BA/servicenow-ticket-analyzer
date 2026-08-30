@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { extractTimelines, analyzeAll } from "../analysis/phase2.js";
+import { extractTimelines, analyzeAll } from "../core/phase2.js";
 
 let failed = 0;
 function check(name, got, want) {

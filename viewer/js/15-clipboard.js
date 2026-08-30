@@ -1,5 +1,5 @@
-import * as MsrChoices from "../../lib/msrchoices.js";
-import { buildReport } from "../../analysis/report.js";
+import * as MsrChoices from "../../core/msrchoices.js";
+import { buildReport } from "../../core/report.js";
 import { expStr } from "./10-exporter.js";
 import { fmtInstant } from "./30-grid.js";
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { mergeRows } from "../lib/rowmerge.js";
+import { mergeRows } from "../core/rowmerge.js";
 
 let failed = 0;
 function check(name, got, want) {

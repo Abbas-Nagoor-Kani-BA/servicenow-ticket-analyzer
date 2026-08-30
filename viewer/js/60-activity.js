@@ -1,4 +1,4 @@
-import * as Journal from "../../lib/journal.js";
+import * as Journal from "../../core/journal.js";
 import { el } from "./00-core.js";
 import { fmtInstant } from "./30-grid.js";
 import { setTip } from "../../lib/tooltip.js";

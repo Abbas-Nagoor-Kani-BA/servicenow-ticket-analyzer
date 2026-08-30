@@ -1,5 +1,5 @@
-import { detectSnOffsetMs, rowOffsetMs } from "../../lib/sntime.js";
-import { extractHeuristic } from "../../analysis/aiextract.js";
+import { detectSnOffsetMs, rowOffsetMs } from "../../core/sntime.js";
+import { extractHeuristic } from "../../core/aiextract.js";
 import { STORAGE } from "../../lib/keys.ts";
 import { pad2 } from "../../lib/format.js";
 import { showToast } from "../../lib/toast.js";

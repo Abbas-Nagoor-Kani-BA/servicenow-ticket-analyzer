@@ -3,9 +3,9 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import fflate from "../lib/vendor/fflate.cjs";
-import * as T from "../lib/templatexml.js";
+import * as T from "../core/templatexml.js";
 import { } from "../lib/markup.js";
-import { setFflate } from "../lib/templatexml.js";
+import { setFflate } from "../core/templatexml.js";
 
 setFflate(fflate);
 

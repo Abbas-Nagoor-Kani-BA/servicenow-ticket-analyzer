@@ -1,4 +1,4 @@
-import { buildReport } from "../../analysis/report.js";
+import { buildReport } from "../../core/report.js";
 import { fmtInstant } from "./30-grid.js";
 
 

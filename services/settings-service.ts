@@ -1,7 +1,7 @@
 import { SETTINGS_REPO } from "../di/tokens.ts";
 import type { SettingsRepository } from "../data/repositories/settings-repository.ts";
 
-import { mergeMsrLists, MSR_DEFAULT_LISTS } from "../lib/msrchoices.js";
+import { mergeMsrLists, MSR_DEFAULT_LISTS } from "../core/msrchoices.js";
 
 export type SettingsDraft = {
   version: number;

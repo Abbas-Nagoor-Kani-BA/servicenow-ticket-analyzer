@@ -2,7 +2,7 @@ import { Component, el } from "./component.ts";
 import type { ComponentProps } from "./component.ts";
 import { cellShort } from "../lib/markup.js";
 import { setTip } from "../lib/tooltip.js";
-import { buildReport } from "../analysis/report.js";
+import { buildReport } from "../core/report.js";
 
 /** [key, label, cell class, default width] — matches COLUMNS in viewer/js/00-core.js. */
 export type GridColumn = readonly [string, string, string, number];

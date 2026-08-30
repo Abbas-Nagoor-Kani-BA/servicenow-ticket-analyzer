@@ -6,7 +6,7 @@ import {
   setClipboardText, clearClipboardText
 } from "./helpers/dom-env.mjs";
 import fflate from "../lib/vendor/fflate.cjs";
-import { setFflate } from "../lib/templatexml.js";
+import { setFflate } from "../core/templatexml.js";
 
 const FIXTURE = {
   lastData: {

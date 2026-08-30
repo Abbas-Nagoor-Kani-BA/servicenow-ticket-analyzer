@@ -22,7 +22,7 @@
     "background.js",
     "content/**/*.js",
     "lib/**/*",
-    "analysis/**/*",
+    "core/**/*",
     "di/**/*",
     "data/**/*",
     "services/**/*",

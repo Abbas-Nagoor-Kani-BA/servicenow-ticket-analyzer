@@ -5,7 +5,7 @@ import { MSR_LISTS_REPO, SETTINGS_REPO } from "../../di/tokens.ts";
 import { ChipList } from "../../components/chip-list.ts";
 import type { MsrListsRepository } from "../../data/repositories/msr-lists-repository.ts";
 import { SettingsService } from "../../services/settings-service.ts";
-import { MSR_DEFAULT_LISTS } from "../../lib/msrchoices.js";
+import { MSR_DEFAULT_LISTS } from "../../core/msrchoices.js";
 
 /*
  * Composition root for the options page.

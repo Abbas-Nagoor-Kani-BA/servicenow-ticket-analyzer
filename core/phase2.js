@@ -9,7 +9,7 @@
  * @property {string} openedAtUtcRaw raw opened_at string in UTC (no suffix)
  */
 
-import { parseSnDisplayMs } from "../lib/sntime.js";
+import { parseSnDisplayMs } from "../core/sntime.js";
 
 function parseUtc(s) {
   if (!s) return NaN;

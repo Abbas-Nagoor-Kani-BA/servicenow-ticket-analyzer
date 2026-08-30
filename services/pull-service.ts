@@ -7,11 +7,11 @@ import type { TicketRepository } from "../data/repositories/ticket-repository.ts
 import type { TimelineRepository } from "../data/repositories/timeline-repository.ts";
 import type { TicketRow } from "../data/repositories/dataset-repository.ts";
 
-import { buildEncodedQuery } from "../lib/querybuilder.js";
-import { snStateMap, snTableLabel } from "../lib/statechoices.js";
-import { normalizeNames } from "../lib/names.js";
-import { mergeRows } from "../lib/rowmerge.js";
-import { analyzeAll } from "../analysis/phase2.js";
+import { buildEncodedQuery } from "../core/querybuilder.js";
+import { snStateMap, snTableLabel } from "../core/statechoices.js";
+import { normalizeNames } from "../core/names.js";
+import { mergeRows } from "../core/rowmerge.js";
+import { analyzeAll } from "../core/phase2.js";
 import { groupScopeOf, scopeGroups } from "./queue-scope.ts";
 
 export type ProgressFn = (stage: string, detail: string, extra?: Record<string, unknown>) => void;
