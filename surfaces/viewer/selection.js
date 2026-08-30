@@ -1,11 +1,11 @@
-import { $, columnOptionList, visibleCols } from "./00-core.js";
+import { $, columnOptionList, visibleCols } from "./core.js";
 import { showToast } from "../../lib/toast.js";
-import { currentRows, hasDataRows, parseLocalInput } from "./03-grid-data.js";
-import { cellValue, tsvCell } from "./15-clipboard.js";
-import { render, scheduleSave, setSelectionHooks } from "./30-grid.js";
-import { copyText } from "./85-shared.js";
-import { selStore, saveSel } from "./00-store.js";
-import { buildFillGrid, originRowValues, parseClipboardBlock, storedValue } from "./17-paste.js";
+import { currentRows, hasDataRows, parseLocalInput } from "./grid-data.js";
+import { cellValue, tsvCell } from "./clipboard.js";
+import { render, scheduleSave, setSelectionHooks } from "./grid.js";
+import { copyText } from "./shared.js";
+import { selStore, saveSel } from "./store.js";
+import { buildFillGrid, originRowValues, parseClipboardBlock, storedValue } from "./paste.js";
 
 setSelectionHooks({
   highlight: applySelHighlight,

@@ -1,8 +1,8 @@
 import * as MsrChoices from "../../core/msrchoices.js";
-import { el, setStatus } from "./00-core.js";
+import { el, setStatus } from "./core.js";
 import { SearchPicker } from "../../components/search-picker.ts";
-import { getMsrLists } from "./00-store.js";
-import { displayedValue, fmtInstant, parseLocalInput, render, scheduleSave } from "./30-grid.js";
+import { getMsrLists } from "./store.js";
+import { displayedValue, fmtInstant, parseLocalInput, render, scheduleSave } from "./grid.js";
 
 
 let ticketPopState = null;

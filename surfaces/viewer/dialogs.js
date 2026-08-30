@@ -1,11 +1,11 @@
 import { STORAGE } from "../../lib/keys.ts";
-import { $, setStatus } from "./00-core.js";
+import { $, setStatus } from "./core.js";
 import { Modal, hasOpenModal } from "../../components/modal.ts";
 import { CiDialog } from "../../components/ci-dialog.ts";
 import { MapDialog } from "../../components/map-dialog.ts";
-import { DEFAULT_EXPORT_MAP, EXPORT_FIELD_BY_ID, EXPORT_GROUPS } from "./10-exporter.js";
-import { getCiSplit, setCiSplit, setSavedMapPresent, syncSplitRadio, updateCiBtn, updateExportDots, closeConfigDialog } from "./05-config-state.js";
-import { clearSelection, hasSelection } from "./40-selection.js";
+import { DEFAULT_EXPORT_MAP, EXPORT_FIELD_BY_ID, EXPORT_GROUPS } from "./exporter.js";
+import { getCiSplit, setCiSplit, setSavedMapPresent, syncSplitRadio, updateCiBtn, updateExportDots, closeConfigDialog } from "./config-state.js";
+import { clearSelection, hasSelection } from "./selection.js";
 
 /*
  * Composition root for the viewer's dialogs.

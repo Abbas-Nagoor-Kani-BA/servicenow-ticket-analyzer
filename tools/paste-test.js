@@ -5,7 +5,7 @@ import {
   originRowValues,
   parseClipboardBlock,
   storedValue
-} from "../viewer/js/17-paste.js";
+} from "../surfaces/viewer/paste.js";
 
 test("parseClipboardBlock handles tab-separated blocks and trims", () => {
   const out = parseClipboardBlock("a\tb\nc\td\n");

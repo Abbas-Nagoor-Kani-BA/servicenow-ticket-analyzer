@@ -1,6 +1,6 @@
 import * as Journal from "../../core/journal.js";
-import { el } from "./00-core.js";
-import { fmtInstant } from "./30-grid.js";
+import { el } from "./core.js";
+import { fmtInstant } from "./grid.js";
 import { setTip } from "../../lib/tooltip.js";
 
 

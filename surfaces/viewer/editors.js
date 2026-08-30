@@ -1,11 +1,11 @@
-import { $, columnOptionList, visibleCols } from "./00-core.js";
+import { $, columnOptionList, visibleCols } from "./core.js";
 import { SearchPicker } from "../../components/search-picker.ts";
-import { displayedValue, findRowBySysId, parseLocalInput, render, scheduleSave } from "./30-grid.js";
-import { applySelHighlight, moveSel } from "./40-selection.js";
+import { displayedValue, findRowBySysId, parseLocalInput, render, scheduleSave } from "./grid.js";
+import { applySelHighlight, moveSel } from "./selection.js";
 
 let activeFinish = null;
 
-import { activityPaneEl } from "./60-activity.js";
+import { activityPaneEl } from "./activity.js";
 
 
 function createOptionPicker(td, row, key) {

@@ -1,9 +1,9 @@
 import { removeValue, saveValue } from "../../lib/storage.js";
 import { STORAGE } from "../../lib/keys.ts";
 import { showToast } from "../../lib/toast.js";
-import { setHiddenCols } from "./00-store.js";
-import { buildHead, load, render, resetColWidths } from "./30-grid.js";
-import { $, COLUMNS, hideStore, setStatus } from "./00-core.js";
+import { setHiddenCols } from "./store.js";
+import { buildHead, load, render, resetColWidths } from "./grid.js";
+import { $, COLUMNS, hideStore, setStatus } from "./core.js";
 
 
 function updateColsBtn() {

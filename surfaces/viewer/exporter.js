@@ -1,5 +1,5 @@
 import { buildReport } from "../../core/report.js";
-import { fmtInstant } from "./30-grid.js";
+import { fmtInstant } from "./grid.js";
 
 
 const TPL_SHEET_NAME = "all_ticket_details";

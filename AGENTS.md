@@ -195,7 +195,7 @@ There is no bundler or package manager for tests. Verify with node after every
 change:
 
 ```bash
-node --check background.js core/*.js lib/*.js viewer/js/*.js panel/*.js settings/settings.js content/content.js viewer/viewer.js && \
+node --check background.js core/*.js lib/*.js surfaces/viewer/*.js panel/*.js settings/settings.js content/content.js surfaces/viewer/index.js && \
 node -e "JSON.parse(require('fs').readFileSync('manifest.json'))"
 ```
 
@@ -304,8 +304,8 @@ component needs its own test; end-to-end coverage is not enough.
 - Audit availability depends on instance retention/roles; tickets missing audit
   rows are reported in the done-message count.
 - Remaining migration work is tracked in `docs/migration-plan.md`: the viewer
-  composition root, and finishing the TypeScript migration (most of `viewer/js`,
-  `panel/`, `settings/` and `lib/` are still `.js`).
+  composition root, and finishing the TypeScript migration (most of
+  `surfaces/viewer/`, `panel/`, `settings/` and `lib/` are still `.js`).
 - Possible future work: resume-from-checkpoint for huge pulls, derived duration
   columns, work-notes text export, additional tables (RITM, change).
 

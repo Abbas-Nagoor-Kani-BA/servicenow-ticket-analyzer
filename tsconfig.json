@@ -27,7 +27,7 @@
     "data/**/*",
     "services/**/*",
     "components/**/*",
-    "viewer/js/**/*",
+    "surfaces/**/*",
     "panel/*",
     "settings/*",
     "surfaces/**/*"

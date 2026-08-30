@@ -1,8 +1,8 @@
-import { $, visibleCols } from "./00-core.js";
-import { findRowBySysId, render } from "./30-grid.js";
-import { anyOverlayOpen, copySelectedRange, fillFromSelectionOrigin, getSelFocus, handlePaste, movePage, moveSel, moveToRowFirstLast, selectedTd, selectionBounds, setSelPoint, undoLast } from "./40-selection.js";
-import { openTicketPopup } from "./50-ticketpop.js";
-import { startEdit } from "./70-editors.js";
+import { $, visibleCols } from "./core.js";
+import { findRowBySysId, render } from "./grid.js";
+import { anyOverlayOpen, copySelectedRange, fillFromSelectionOrigin, getSelFocus, handlePaste, movePage, moveSel, moveToRowFirstLast, selectedTd, selectionBounds, setSelPoint, undoLast } from "./selection.js";
+import { openTicketPopup } from "./ticketpop.js";
+import { startEdit } from "./editors.js";
 
 
 let dragSelecting = false;

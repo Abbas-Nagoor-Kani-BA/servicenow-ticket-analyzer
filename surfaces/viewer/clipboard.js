@@ -1,7 +1,7 @@
 import * as MsrChoices from "../../core/msrchoices.js";
 import { buildReport } from "../../core/report.js";
-import { expStr } from "./10-exporter.js";
-import { fmtInstant } from "./30-grid.js";
+import { expStr } from "./exporter.js";
+import { fmtInstant } from "./grid.js";
 
 
 const msrWallSerial = wall => {

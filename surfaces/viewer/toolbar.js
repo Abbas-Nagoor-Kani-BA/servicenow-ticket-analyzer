@@ -2,18 +2,18 @@ import * as Markup from "../../lib/markup.js";
 import * as TemplateXml from "../../core/templatexml.js";
 import { STORAGE } from "../../lib/keys.ts";
 import { pad2 } from "../../lib/format.js";
-import { $, setStatus, el } from "./00-core.js";
+import { $, setStatus, el } from "./core.js";
 import {
   getCiSplit, setCiSplit, getSavedMapPresent, setSavedMapPresent,
   syncSplitRadio, closeConfigDialog, updateCiBtn, updateExportDots, setOnConfigChange
-} from "./05-config-state.js";
+} from "./config-state.js";
 import { showToast } from "../../lib/toast.js";
-import { EXPORT_FIELD_BY_ID, MAP_MAX_COL, TPL_COLUMNS } from "./10-exporter.js";
-import { buildMsrTsv } from "./15-clipboard.js";
-import { configModal, hideLetterPop, openCiDialog, openMapDialog } from "./25-dialogs.js";
-import { currentRows, getTotalRows, hasDataRows, fmtInstant } from "./30-grid.js";
+import { EXPORT_FIELD_BY_ID, MAP_MAX_COL, TPL_COLUMNS } from "./exporter.js";
+import { buildMsrTsv } from "./clipboard.js";
+import { configModal, hideLetterPop, openCiDialog, openMapDialog } from "./dialogs.js";
+import { currentRows, getTotalRows, hasDataRows, fmtInstant } from "./grid.js";
 import { buildSlaSummaryRows } from "../../core/slasummary.js";
-import { copyText } from "./85-shared.js";
+import { copyText } from "./shared.js";
 
 
 let tplInfo = null;

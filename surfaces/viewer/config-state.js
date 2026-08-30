@@ -1,5 +1,5 @@
 import { STORAGE } from "../../lib/keys.ts";
-import { $ } from "./00-core.js";
+import { $ } from "./core.js";
 
 let ciSplit = { enabled: false, groups: [] };
 let savedMapPresent = false;

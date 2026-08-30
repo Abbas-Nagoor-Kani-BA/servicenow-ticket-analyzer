@@ -3,11 +3,11 @@ import { extractHeuristic } from "../../core/aiextract.js";
 import { STORAGE } from "../../lib/keys.ts";
 import { pad2 } from "../../lib/format.js";
 import { showToast } from "../../lib/toast.js";
-import { $, columnOptionList, migrateLegacyResolutions, setStatus, visibleCols } from "./00-core.js";
+import { $, columnOptionList, migrateLegacyResolutions, setStatus, visibleCols } from "./core.js";
 import { DataGrid } from "../../components/data-grid.ts";
-import { currentRows, hasDataRows, parseLocalInput } from "./03-grid-data.js";
-import { dataStore, getColWidths, saveColWidths, setColWidths, setSelfPush } from "./00-store.js";
-import { attachSummaryToData, renderSummary, setRowsProvider } from "./16-summary.js";
+import { currentRows, hasDataRows, parseLocalInput } from "./grid-data.js";
+import { dataStore, getColWidths, saveColWidths, setColWidths, setSelfPush } from "./store.js";
+import { attachSummaryToData, renderSummary, setRowsProvider } from "./summary.js";
 
 function st() { return dataStore.getState(); }
 

@@ -1,5 +1,5 @@
-import { $, COLUMNS } from "./00-core.js";
-import { dataStore } from "./00-store.js";
+import { $, COLUMNS } from "./core.js";
+import { dataStore } from "./store.js";
 
 function st() { return dataStore.getState(); }
 

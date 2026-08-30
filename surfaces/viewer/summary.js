@@ -1,7 +1,7 @@
 import { buildSlaSummary } from "../../core/slasummary.js";
 import { rowOffsetMs } from "../../core/sntime.js";
 import { pad2 } from "../../lib/format.js";
-import { dataStore } from "./00-store.js";
+import { dataStore } from "./store.js";
 
 const $ = id => document.getElementById(id);
 

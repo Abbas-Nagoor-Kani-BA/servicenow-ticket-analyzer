@@ -1,6 +1,6 @@
 import * as MsrChoices from "../../core/msrchoices.js";
 import { CELL_MAX, cellShort, placePopupNear } from "../../lib/markup.js";
-import { uiStore, setMsrLists, getMsrLists } from "./00-store.js";
+import { uiStore, setMsrLists, getMsrLists } from "./store.js";
 
 
 /** @param {string} id @returns {any} */
