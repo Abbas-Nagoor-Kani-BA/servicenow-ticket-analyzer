@@ -1,11 +1,9 @@
 import * as MsrChoices from "../../core/msrchoices.ts";
 import { CELL_MAX, cellShort, placePopupNear } from "../../lib/markup.ts";
-import { buildReport as buildReportCore } from "../../core/report.ts";
-import {
-  buildSlaSummary as buildSlaSummaryCore,
-  buildSlaSummaryRows as buildSlaSummaryRowsCore
-} from "../../core/slasummary.ts";
 import { uiStore, setMsrLists, getMsrLists } from "./store.ts";
+import { ReportService } from "../../services/report-service.ts";
+
+const report = new ReportService();
 
 /** Rows are deserialized JSON from the pull pipeline; treat their fields as opaque. */
 export type ViewerRow = Record<string, any>;
@@ -103,28 +101,19 @@ function syncMsrLists(lists: unknown): void {
 
 /**
  * The core report builder wants a one-arg formatter; the viewer's instants need
- * the row for per-row instance offsets. This is the single place that adapts
- * the two — a non-identity fmt also changes derived SLA results, not just text.
+ * the row for per-row instance offsets. ReportService owns the adaptation — a
+ * non-identity fmt also changes derived SLA results, not just text.
  */
 function buildRep(row: ViewerRow, fmt: InstantFn): Record<string, any> {
-  return buildReportCore(
-    row as Parameters<typeof buildReportCore>[0],
-    fmt as unknown as NonNullable<Parameters<typeof buildReportCore>[1]>
-  ) as Record<string, any>;
+  return report.rep(row, fmt);
 }
 
 function buildSlaSummaryFor(rows: ViewerRow[] | null | undefined, fmt: InstantFn) {
-  return buildSlaSummaryCore(
-    (rows || null) as unknown as Parameters<typeof buildSlaSummaryCore>[0],
-    fmt as unknown as Parameters<typeof buildSlaSummaryCore>[1]
-  );
+  return report.slaSummary(rows, fmt);
 }
 
 function buildSlaSummaryRowsFor(rows: ViewerRow[] | null | undefined, fmt: InstantFn) {
-  return buildSlaSummaryRowsCore(
-    (rows || null) as unknown as Parameters<typeof buildSlaSummaryRowsCore>[0],
-    fmt as unknown as Parameters<typeof buildSlaSummaryRowsCore>[1]
-  );
+  return report.slaSummaryRows(rows, fmt);
 }
 
 export {
