@@ -43,6 +43,7 @@
     "services/connection-service.ts",
     "services/extract-service.ts",
     "services/report-service.ts",
+    "services/export-service.ts",
     "components/component.ts",
     "components/log-card.ts",
     "components/progress-card.ts",

@@ -1,8 +1,10 @@
-import * as Markup from "../../lib/markup.ts";
 import * as TemplateXml from "../../core/templatexml.ts";
 import type { TemplateCol } from "../../core/templatexml.ts";
 import { STORAGE } from "../../lib/keys.ts";
-import { pad2 } from "../../lib/format.ts";
+import {
+  b64FromBuffer, bufferFromB64, sanitizeFilePart
+} from "../../services/export-service.ts";
+import type { CiGroupRows, TplCol } from "../../services/export-service.ts";
 import { $, setStatus, el } from "./core.ts";
 import type { ViewerRow } from "./core.ts";
 import { buildSlaSummaryRowsFor } from "./core.ts";
@@ -11,8 +13,7 @@ import {
   syncSplitRadio, closeConfigDialog, updateCiBtn, updateExportDots, setOnConfigChange
 } from "./config-state.ts";
 import { showToast } from "../../lib/toast.ts";
-import { EXPORT_FIELD_BY_ID, MAP_MAX_COL, TPL_COLUMNS } from "./exporter.ts";
-import type { TplCol } from "./exporter.ts";
+import { exportSvc } from "./exporter.ts";
 import { buildMsrTsv } from "./clipboard.ts";
 import { configModal, hideLetterPop, openCiDialog, openMapDialog } from "./dialogs.ts";
 import { currentRows, getTotalRows, hasDataRows, fmtInstant } from "./grid.ts";
@@ -112,77 +113,12 @@ export function initToolbar(): void {
   });
 }
 
-function sanitizeFilePart(s: unknown): string {
-  return String(s).replace(/[^\w.-]+/g, "-").replace(/^-+|-+$/g, "") || "group";
-}
-
-type CiGroupRows = { name: string; rows: ViewerRow[] };
-
 function buildCiGroups(rows: ViewerRow[]): CiGroupRows[] {
-  const norm = (s: unknown): string => String(s ?? "").trim().toLowerCase();
-  const groupsCfg = getCiSplit().groups;
-  const bounds: Array<{ key: string; name: string; gi: number }> = [];
-  for (let gi = 0; gi < groupsCfg.length; gi++) {
-    const g = groupsCfg[gi];
-    for (const it of g.items) {
-      const key = norm(it);
-      if (key) bounds.push({ key, name: g.name, gi });
-    }
-  }
-  const byGroup = new Map<string, ViewerRow[]>();
-  const others: ViewerRow[] = [];
-  for (const r of rows) {
-    const k = norm(r.configItem);
-    let best: { key: string; name: string; gi: number } | null = null;
-    if (k) {
-      for (const b of bounds) {
-        if ((k.startsWith(b.key) || k.includes(b.key)) &&
-          (!best || b.key.length > best.key.length || (b.key.length === best.key.length && b.gi < best.gi))) {
-          best = b;
-        }
-      }
-    }
-    if (!best) {
-      others.push(r);
-    } else {
-      if (!byGroup.has(best.name)) byGroup.set(best.name, []);
-      byGroup.get(best.name)!.push(r);
-    }
-  }
-  const out = groupsCfg
-    .filter(g => byGroup.has(g.name))
-    .map(g => ({ name: g.name, rows: byGroup.get(g.name)! }));
-  if (others.length) out.push({ name: "Others", rows: others });
-  return out;
+  return exportSvc.buildCiGroups(rows, getCiSplit().groups);
 }
 
 function ciSplitDiagnostics(groups: CiGroupRows[], rows: ViewerRow[]): { total: number; others: number; emptyGroups: string[] } {
-  const names = new Set(groups.map(g => g.name));
-  const others = groups.find(g => g.name === "Others");
-  const emptyGroups = getCiSplit().groups
-    .filter(g => g.items.length && !names.has(g.name))
-    .map(g => g.name);
-  return {
-    total: rows.length,
-    others: others ? others.rows.length : 0,
-    emptyGroups
-  };
-}
-
-function b64FromBuffer(buf: ArrayBuffer): string {
-  const bytes = new Uint8Array(buf);
-  let bin = "";
-  for (let i = 0; i < bytes.length; i += 0x8000) {
-    bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000) as unknown as number[]);
-  }
-  return btoa(bin);
-}
-
-function bufferFromB64(b64: string): ArrayBuffer {
-  const bin = atob(b64);
-  const bytes = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-  return bytes.buffer;
+  return exportSvc.ciSplitDiagnostics(groups, rows, getCiSplit().groups);
 }
 
 async function loadTplInfo(): Promise<void> {
@@ -263,29 +199,11 @@ function updateSplitPreview(): void {
 }
 
 function tplColumnsFromMap(map: unknown): TplCol[] {
-  if (!map || typeof map !== "object") return TPL_COLUMNS;
-  const byCol = new Map<number, (r: ViewerRow, i: number) => unknown>();
-  for (const [fid, letter] of Object.entries(map as Record<string, string>)) {
-    const f = EXPORT_FIELD_BY_ID.get(fid);
-    const col = Markup.letterToColNum(letter);
-    if (!f || col < 1 || col > MAP_MAX_COL) continue;
-    byCol.set(col, f.get as (r: ViewerRow, i: number) => unknown);
-  }
-  if (!byCol.size) return TPL_COLUMNS;
-  const last = Math.max(MAP_MAX_COL, ...byCol.keys());
-  const out: TplCol[] = [];
-  for (let c = 1; c <= last; c++) {
-    out.push({ col: c, get: byCol.get(c) || (() => "") });
-  }
-  return out;
+  return exportSvc.tplColumnsFromMap(map);
 }
 
 function filledFilename(templateName: string, groupLabel?: string): string {
-  const d = new Date();
-  const stamp = `${d.getFullYear()}${pad2(d.getMonth() + 1)}${pad2(d.getDate())}-${pad2(d.getHours())}${pad2(d.getMinutes())}`;
-  const base = templateName.replace(/\.xlsx$/i, "");
-  const mid = groupLabel ? `_${sanitizeFilePart(groupLabel)}` : "";
-  return `${base}${mid}_filled_${stamp}.xlsx`;
+  return exportSvc.filledFilename(templateName, groupLabel);
 }
 
 function openConfigDialog(): void {

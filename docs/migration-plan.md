@@ -590,6 +590,9 @@ in detail in [`docs/roadmap.md`](roadmap.md).
 - [x] **Phase 9d** — `surfaces/viewer/` fully migrated `.js` → `.ts` (all 18 modules), typed explicitly, added to `tsconfig.strict.json`; importer specifiers flipped project-wide (incl. `tools/viewer-dom-test.ts`, `tools/paste-test.js`, `tools/ci-split-test.js`); viewer fmt functions typed via `InstantFn` and wired into core reports through `buildRep`/`buildSlaSummaryFor`/`buildSlaSummaryRowsFor` wrappers in `core.ts`; dialogs' `mapModal`/`letterPop`/`ciModal`/`configModal` stay live `let` bindings typed `Modal | null`; 227 tests green (incl. all 31 viewer DOM tests)
 - [x] **Phase 9e** — `panel/panel.js` → `panel/panel.ts` and `settings/settings.js` → `settings/settings.ts` (bootstrap + handlers typed; `build.mjs` entries and `tsconfig.strict.json` updated; panel now sends plain queue-name strings in RUN/COUNT messages, still accepted by `scopeGroups`); 227 tests green
 - [x] **Phase 9f** — `platform/background.ts` re-checked after the viewer shift: worker imports only `services`/`data`, unaffected; full gate re-run green. Only `.js` left in the source tree is `content/content.js` (deliberate exception) and `.js` test files under `tools/`
+- [x] **Phase 10c** — `services/extract-service.ts` extracted from `grid.ts`'s autoParse (heuristic classification + closure-note review); viewer keeps only status/toast messaging; `tools/extract-service-test.js` (7 checks) — the first service migration pilot; 228 tests green
+- [x] **Phase 10a** — `services/report-service.ts` extracted (viewer/core.ts's `buildRep`/`buildSlaSummaryFor`/`buildSlaSummaryRowsFor` now delegate; the single cast boundary between the viewer's two-arg instance-clock formatter and core's one-arg `MessageFormatter` lives in the service); `tools/report-service-test.js` pins the load-bearing coupling (non-identity fmt shifts derived SLA results); 229 tests green
+- [x] **Phase 10b** — `services/export-service.ts` extracted: template column map + field groups for the map dialog, per-CI-group split and diagnostics, MSR clipboard TSV layout, column-map pre-processing, filled-filename construction, base64 helpers. `surfaces/viewer/exporter.ts` / `clipboard.ts` are now thin composition bindings and `toolbar.ts` delegates, so viewer behavior and exported bytes are byte-identical; `tools/export-service-test.js` (33 checks); 230 tests green
 
 ## Deferred decisions
 
@@ -601,5 +604,5 @@ in detail in [`docs/roadmap.md`](roadmap.md).
 | Starting surface | Settled: **panel** |
 | Old doc deletion | **Done** (Phase 5b) — architecture.md and issues/001 deleted, AGENTS.md rewritten |
 | TS toolchain | **Proven** by the Phase 0 pilot — no fallback needed |
-| TS strictness ramp | Settled: opt-in per file; 40 TS files now on `tsconfig.strict.json` |
+| TS strictness ramp | Settled: opt-in per file; 83 TS files now on `tsconfig.strict.json` |
 | Viewer composition root | **Done** (Phase 6) — `surfaces/viewer/index.ts` calls `init*()` in the measured order; `viewer/js/` and the `NN-` prefixes are gone |
