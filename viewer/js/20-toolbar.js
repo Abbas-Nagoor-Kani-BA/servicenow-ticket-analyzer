@@ -10,7 +10,7 @@ import {
 import { showToast } from "../../lib/toast.js";
 import { EXPORT_FIELD_BY_ID, MAP_MAX_COL, TPL_COLUMNS } from "./10-exporter.js";
 import { buildMsrTsv } from "./15-clipboard.js";
-import { hideLetterPop, openCiDialog, openMapDialog } from "./25-dialogs.js";
+import { configModal, hideLetterPop, openCiDialog, openMapDialog } from "./25-dialogs.js";
 import { currentRows, getTotalRows, hasDataRows, fmtInstant } from "./30-grid.js";
 import { buildSlaSummaryRows } from "../../analysis/slasummary.js";
 import { copyText } from "./85-shared.js";
@@ -251,14 +251,11 @@ function filledFilename(templateName, groupLabel) {
 
 function openConfigDialog() {
   updateConfigSummary();
-  $("configModal").classList.remove("hidden");
+  configModal.open();
 }
 
 $("configClose").addEventListener("click", closeConfigDialog);
 $("configCancel").addEventListener("click", closeConfigDialog);
-$("configModal").addEventListener("click", e => {
-  if (e.target === $("configModal")) closeConfigDialog();
-});
 
 $("configExport").addEventListener("click", runExport);
 

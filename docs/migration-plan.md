@@ -219,6 +219,51 @@ still the input after two input events.
 
 ---
 
+## Phase 4d — Viewer: modal stack and CI dialog — COMPLETE
+
+**Result: gate green — typecheck 0 errors, lint 0 errors, 205/205 tests, build OK.**
+
+- [x] `components/modal.ts` — `Modal` base + a module-level open stack
+- [x] `components/ci-dialog.ts` — the "separate files per CI" editor
+- [x] `viewer/js/25-dialogs.js` 502 → 321 lines
+- [x] `tools/modal-test.ts` — 21 tests (stack/Escape cascade + CI dialog)
+
+The viewer's Escape handling was a hand-written if-chain over four overlays
+(`letterPop` → `ciModal` → `mapModal` → `configModal` → clearSelection). An
+if-chain can lose a branch and nothing notices. It is now a stack: the innermost
+open modal closes first, and a modal whose `escapeGuard` holds blocks everything
+below it too.
+
+### A regression the 31 viewer DOM tests did not see
+
+Wrapping only the CI dialog left `mapModal` and `configModal` opened by direct
+`classList` manipulation, so they never joined the stack — **Escape stopped
+closing either of them**, while all 31 viewer DOM tests stayed green. There is
+now a test that opens every overlay the viewer can open and asserts Escape
+closes it. That is the third time this migration has hit the same blind spot;
+see the note in 4b.
+
+Two smaller things found the same way:
+
+- The old `#ciClose` / `#ciCancel` handlers were removed with the inline code,
+  and `Modal` only closes on a backdrop click. The buttons are wired
+  explicitly: Save and Disable close only after their own persistence succeeds.
+- `configModal` is opened by `20-toolbar.js`, so it is exported and opened
+  through the Modal rather than by removing the class directly.
+
+### One behaviour worth knowing
+
+The group filter on save is `items.length || name`, so a **named** group with no
+items survives. That is deliberate — it stops a user losing a group they are
+still assembling — and it is pinned by a test because it reads like a bug.
+
+### Deferred
+
+`components/map-dialog.ts` (export column mapping, incl. the nested letter
+picker) is still inline in `25-dialogs.js`. It is the last viewer component.
+
+---
+
 ## Phase 4c — Viewer: data grid component — COMPLETE
 
 **Result: gate green — typecheck 0 errors, lint 0 errors, 184/184 tests, build OK.**

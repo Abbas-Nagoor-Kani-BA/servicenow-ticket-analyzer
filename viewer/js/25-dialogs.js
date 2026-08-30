@@ -1,7 +1,9 @@
 import * as Markup from "../../lib/markup.js";
 import { STORAGE } from "../../lib/keys.ts";
 import { setTip } from "../../lib/tooltip.js";
-import { $, el, setStatus } from "./00-core.js";
+import { $, setStatus } from "./00-core.js";
+import { Modal, hasOpenModal } from "../../components/modal.ts";
+import { CiDialog } from "../../components/ci-dialog.ts";
 import { DEFAULT_EXPORT_MAP, EXPORT_FIELD_BY_ID, EXPORT_GROUPS, MAP_MAX_COL } from "./10-exporter.js";
 import { getCiSplit, setCiSplit, setSavedMapPresent, syncSplitRadio, updateCiBtn, updateExportDots, closeConfigDialog } from "./05-config-state.js";
 import { clearSelection, hasSelection } from "./40-selection.js";
@@ -28,7 +30,7 @@ async function openMapDialog() {
   buildMapList();
   $("mapSearch").value = "";
   filterMapRows("");
-  $("mapModal").classList.remove("hidden");
+  mapModal.open();
   setTimeout(() => $("mapSearch").focus(), 0);
 }
 
@@ -108,7 +110,7 @@ function toggleLetterPop(fid, btn) {
   popTargetFid = fid;
   $("letterSearch").value = "";
   buildLetterOptions();
-  pop.classList.remove("hidden");
+  letterPop.open();
   const r = btn.getBoundingClientRect();
   const pw = pop.offsetWidth;
   const ph = pop.offsetHeight;
@@ -121,7 +123,7 @@ function toggleLetterPop(fid, btn) {
 }
 
 function hideLetterPop() {
-  $("letterPop").classList.add("hidden");
+  letterPop.close();
   popTargetFid = null;
 }
 
@@ -215,7 +217,7 @@ $("mapSave").addEventListener("click", async () => {
   }
   setSavedMapPresent(true);
   updateExportDots();
-  $("mapModal").classList.add("hidden");
+  mapModal.close();
   setStatus(`Export mapping saved — ${entries.length} field(s), columns ${lettersSpan(entries)}`);
 });
 
@@ -224,35 +226,13 @@ function lettersSpan(entries) {
   return cols.map(Markup.colLetter).join(", ");
 }
 
-$("mapCancel").addEventListener("click", () => $("mapModal").classList.add("hidden"));
-$("mapClose").addEventListener("click", () => $("mapModal").classList.add("hidden"));
-$("mapModal").addEventListener("click", e => {
-  if (e.target === $("mapModal")) $("mapModal").classList.add("hidden");
-});
+$("mapCancel").addEventListener("click", () => mapModal.close());
+$("mapClose").addEventListener("click", () => mapModal.close());
 document.addEventListener("keydown", e => {
+  // Modals registered with the Modal base handle Escape themselves, innermost
+  // first. This only runs when none of them did.
   if (e.key !== "Escape") return;
-  if (!$("letterPop").classList.contains("hidden")) {
-    e.preventDefault();
-    hideLetterPop();
-    return;
-  }
-  if (!$("ciModal").classList.contains("hidden")) {
-    e.preventDefault();
-    $("ciModal").classList.add("hidden");
-    syncSplitRadio();
-    return;
-  }
-  if (!$("mapModal").classList.contains("hidden") &&
-      !document.querySelector("td.edit-input input")) {
-    e.preventDefault();
-    $("mapModal").classList.add("hidden");
-    return;
-  }
-  if (!$("configModal").classList.contains("hidden")) {
-    e.preventDefault();
-    closeConfigDialog();
-    return;
-  }
+  if (hasOpenModal()) return;
   if (hasSelection() && !document.querySelector("td.edit-input") &&
       !document.querySelector(".msrPick")) {
     clearSelection();
@@ -270,217 +250,58 @@ $("mapReset").addEventListener("click", async () => {
   setStatus("Mapping reset — exports use the template's default layout until saved again");
 });
 
-let ciDraft = [];
-let ciDragSrc = null;
+// Escape used to be a hand-written if-chain over each overlay. Each is now a
+// Modal, so the stack closes them innermost-first and none can be skipped.
+const mapModal = new Modal($("mapModal"), {}, {
+  // A cell editor inside the grid must keep its own Escape.
+  escapeGuard: () => !!document.querySelector("td.edit-input input")
+});
+
+const letterPop = new Modal($("letterPop"), {}, {
+  backdropClose: false
+});
+
+const ciModal = new Modal($("ciModal"), {}, {
+  onClosed: () => syncSplitRadio()
+});
+
+const configModal = new Modal($("configModal"), {}, {
+  onClosed: () => closeConfigDialog()
+});
+
+const ciEditor = new CiDialog($("ciModal"), {}, {
+  onSave: async (value) => {
+    setCiSplit(value);
+    try {
+      await chrome.storage.local.set({ [STORAGE.ciSplit]: getCiSplit() });
+    } catch (err) {
+      throw err;
+    }
+    ciModal.close();
+    updateCiBtn();
+  },
+  onDisable: async () => {
+    setCiSplit({ enabled: false, groups: [] });
+    try {
+      await chrome.storage.local.remove(STORAGE.ciSplit);
+    } catch {}
+    ciModal.close();
+    updateCiBtn();
+  },
+  onClosed: () => {},
+  status: (message, isError) => setStatus(message, isError)
+});
+
+// Close and cancel are plain dismissals; Save and Disable close themselves
+// only after their own persistence succeeds.
+for (const id of ["ciClose", "ciCancel"]) {
+  $(id).addEventListener("click", () => ciModal.close());
+}
 
 function openCiDialog() {
-  ciDraft = getCiSplit().groups.map(g => ({ name: g.name, items: [...g.items] }));
-  $("ciEnabled").checked = getCiSplit().enabled;
-  renderCiGroups();
-  $("ciModal").classList.remove("hidden");
+  ciEditor.show(getCiSplit());
+  ciModal.open();
 }
-
-function nextGroupName() {
-  const used = new Set(ciDraft.map(g => g.name.toLowerCase()));
-  for (let i = 0; i < 26; i++) {
-    const n = `Group ${String.fromCharCode(65 + i)}`;
-    if (!used.has(n.toLowerCase())) return n;
-  }
-  return `Group ${ciDraft.length + 1}`;
-}
-
-
-function renderCiGroups() {
-  const board = $("groupBoard");
-  board.innerHTML = "";
-  ciDraft.forEach((g, gi) => {
-    const card = el("div", "ciGroupCard");
-    const head = el("div", "ciGroupHead");
-    const nameIn = el("input", "ciGroupName");
-    nameIn.value = g.name;
-    nameIn.placeholder = `Group ${gi + 1}`;
-    nameIn.addEventListener("change", () => {
-      const t = nameIn.value.trim();
-      if (t) g.name = t;
-      else nameIn.value = g.name;
-    });
-    const del = el("button", "ciDelGroup");
-    del.textContent = "✕";
-    setTip(del, "Delete this group");
-    del.addEventListener("click", () => {
-      ciDraft.splice(gi, 1);
-      renderCiGroups();
-    });
-    head.append(nameIn, del);
-    const list = el("div", "ciItems");
-    list.dataset.gi = String(gi);
-    list.addEventListener("dragover", e => {
-      e.preventDefault();
-      list.classList.add("dragOver");
-    });
-    list.addEventListener("dragleave", () => list.classList.remove("dragOver"));
-    list.addEventListener("drop", e => {
-      e.preventDefault();
-      list.classList.remove("dragOver");
-      dropCiItem(Number(list.dataset.gi));
-    });
-    g.items.forEach((it, ii) => {
-      const chip = el("div", "ciChip");
-      chip.draggable = true;
-      setTip(chip, "Drag to another group");
-      const lbl = el("span", "lbl");
-      lbl.textContent = it;
-      const rm = el("button", "rm");
-      rm.textContent = "✕";
-      setTip(rm, "Remove this configuration item");
-      rm.addEventListener("click", () => {
-        g.items.splice(ii, 1);
-        renderCiGroups();
-      });
-      chip.addEventListener("dragstart", () => {
-        ciDragSrc = { gi, ii };
-      });
-      chip.append(lbl, rm);
-      list.appendChild(chip);
-    });
-    const addRow = el("div", "ciAddRow");
-    const inp = document.createElement("input");
-    inp.placeholder = "Add configuration item";
-    const addBtn = document.createElement("button");
-    addBtn.textContent = "+";
-    setTip(addBtn, "Add to this group");
-    addBtn.addEventListener("click", () => commitCiInput(inp, g));
-    inp.addEventListener("keydown", ev => {
-      if (ev.key === "Enter") {
-        ev.preventDefault();
-        commitCiInput(inp, g);
-      }
-    });
-    inp.addEventListener("paste", ev => {
-      const txt = ev.clipboardData ? ev.clipboardData.getData("text") : "";
-      if (!txt || !/[\n,;]/.test(txt)) return;
-      ev.preventDefault();
-      const gi = ciDraft.indexOf(g);
-      let added = 0;
-      for (const p of txt.split(/[\n,;]+/)) {
-        if (addCiUnique(g, p)) added++;
-      }
-      if (added) {
-        renderCiGroups();
-        focusGroupInput(gi);
-      }
-    });
-    addRow.append(inp, addBtn);
-    card.append(head, list, addRow);
-    board.appendChild(card);
-  });
-}
-
-function addCiUnique(g, raw) {
-  const t = String(raw ?? "").trim();
-  if (!t) return false;
-  if (g.items.some(x => x.toLowerCase() === t.toLowerCase())) return false;
-  g.items.push(t);
-  return true;
-}
-
-function focusGroupInput(gi) {
-  $("groupBoard").querySelectorAll(".ciGroupCard")[gi]?.querySelector(".ciAddRow input")?.focus();
-}
-
-function commitCiInput(inp, g) {
-  const gi = ciDraft.indexOf(g);
-  let added = 0;
-  for (const p of inp.value.split(/[\n,;]+/)) {
-    if (addCiUnique(g, p)) added++;
-  }
-  inp.value = "";
-  if (added) {
-    renderCiGroups();
-    focusGroupInput(gi);
-  }
-}
-
-function dropCiItem(targetGi) {
-  if (!ciDragSrc || targetGi === ciDragSrc.gi) return;
-  const src = ciDraft[ciDragSrc.gi];
-  const tgt = ciDraft[targetGi];
-  const [item] = src.items.splice(ciDragSrc.ii, 1);
-  if (item && !tgt.items.some(x => x.toLowerCase() === item.toLowerCase())) {
-    tgt.items.push(item);
-  } else if (item) {
-    src.items.splice(ciDragSrc.ii, 0, item);
-  }
-  ciDragSrc = null;
-  renderCiGroups();
-}
-
-$("addGroupBtn").addEventListener("click", () => {
-  ciDraft.push({ name: nextGroupName(), items: [] });
-  renderCiGroups();
-});
-
-$("ciSave").addEventListener("click", async () => {
-  const enabled = $("ciEnabled").checked;
-  const seen = new Set();
-  const groups = ciDraft
-    .map(g => ({ name: String(g.name ?? "").trim(), items: [...g.items] }))
-    .filter(g => g.items.length || g.name);
-  groups.forEach((g, i) => {
-    if (!g.name) g.name = `Group ${i + 1}`;
-    let n = g.name;
-    let k = 2;
-    while (seen.has(n.toLowerCase())) n = `${g.name} ${k++}`;
-    seen.add(n.toLowerCase());
-    g.name = n;
-  });
-  if (enabled && !groups.length) {
-    setStatus("Add at least one group or turn the split off", true);
-    return;
-  }
-  if (enabled && !groups.some(g => g.items.length)) {
-    setStatus("Add at least one configuration item or turn the split off", true);
-    return;
-  }
-  setCiSplit({ enabled, groups });
-  try {
-    await chrome.storage.local.set({ [STORAGE.ciSplit]: getCiSplit() });
-  } catch (err) {
-    setStatus(`Save failed: ${err.message}`, true);
-    return;
-  }
-  $("ciModal").classList.add("hidden");
-  syncSplitRadio();
-  updateCiBtn();
-  setStatus(enabled
-    ? `Split enabled — one file per group (${groups.length} groups)`
-    : "Split disabled — exports stay a single file");
-});
-
-$("ciDisable").addEventListener("click", async () => {
-  setCiSplit({ enabled: false, groups: [] });
-  try {
-    await chrome.storage.local.remove(STORAGE.ciSplit);
-  } catch {}
-  $("ciModal").classList.add("hidden");
-  syncSplitRadio();
-  updateCiBtn();
-  setStatus("Split disabled — exports stay a single file");
-});
-$("ciCancel").addEventListener("click", () => {
-  $("ciModal").classList.add("hidden");
-  syncSplitRadio();
-});
-$("ciClose").addEventListener("click", () => {
-  $("ciModal").classList.add("hidden");
-  syncSplitRadio();
-});
-$("ciModal").addEventListener("click", e => {
-  if (e.target === $("ciModal")) {
-    $("ciModal").classList.add("hidden");
-    syncSplitRadio();
-  }
-});
 
 export {
   openMapDialog,
@@ -493,10 +314,8 @@ export {
   assignLetter,
   lettersSpan,
   openCiDialog,
-  nextGroupName,
-  renderCiGroups,
-  addCiUnique,
-  focusGroupInput,
-  commitCiInput,
-  dropCiItem
+  mapModal,
+  letterPop,
+  ciModal,
+  configModal
 };
