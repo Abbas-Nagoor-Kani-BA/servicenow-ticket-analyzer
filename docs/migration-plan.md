@@ -589,6 +589,7 @@ in detail in [`docs/roadmap.md`](roadmap.md).
 - [x] **Phase 9b** — `lib/` fully migrated `.js` → `.ts` (format, markup, picklist, servicenow, storage, store, toast, tooltip), typed, added to `tsconfig.strict.json`; all importer specifiers flipped; `servicenow.ts` takes `TransportLike` structurally; `onStorageChange` handler values loosen to `any` (arbitrary JSON); 227 tests green
 - [x] **Phase 9d** — `surfaces/viewer/` fully migrated `.js` → `.ts` (all 18 modules), typed explicitly, added to `tsconfig.strict.json`; importer specifiers flipped project-wide (incl. `tools/viewer-dom-test.ts`, `tools/paste-test.js`, `tools/ci-split-test.js`); viewer fmt functions typed via `InstantFn` and wired into core reports through `buildRep`/`buildSlaSummaryFor`/`buildSlaSummaryRowsFor` wrappers in `core.ts`; dialogs' `mapModal`/`letterPop`/`ciModal`/`configModal` stay live `let` bindings typed `Modal | null`; 227 tests green (incl. all 31 viewer DOM tests)
 - [x] **Phase 9e** — `panel/panel.js` → `panel/panel.ts` and `settings/settings.js` → `settings/settings.ts` (bootstrap + handlers typed; `build.mjs` entries and `tsconfig.strict.json` updated; panel now sends plain queue-name strings in RUN/COUNT messages, still accepted by `scopeGroups`); 227 tests green
+- [x] **Phase 9f** — `platform/background.ts` re-checked after the viewer shift: worker imports only `services`/`data`, unaffected; full gate re-run green. Only `.js` left in the source tree is `content/content.js` (deliberate exception) and `.js` test files under `tools/`
 
 ## Deferred decisions
 
