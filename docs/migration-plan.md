@@ -579,6 +579,10 @@ not a snapshot. Only `const`-destructuring at import time would break.
 remaining piece of the layering; the panel still sends `MSG.count` / `MSG.run`
 by hand. It became worthwhile now that the viewer has a composition root.
 
+Everything still to be done after Phase 6 — that bridge, the rest of the
+TypeScript migration, the last service extractions, and the feature backlog —
+is ordered in detail in [`docs/roadmap.md`](roadmap.md).
+
 ## Deferred decisions
 
 | Decision | Status |
@@ -589,5 +593,5 @@ by hand. It became worthwhile now that the viewer has a composition root.
 | Starting surface | Settled: **panel** |
 | Old doc deletion | **Done** (Phase 5b) — architecture.md and issues/001 deleted, AGENTS.md rewritten |
 | TS toolchain | **Proven** by the Phase 0 pilot — no fallback needed |
-| TS strictness ramp | Settled: opt-in per file; 39 TS files now on `tsconfig.strict.json` |
+| TS strictness ramp | Settled: opt-in per file; 40 TS files now on `tsconfig.strict.json` |
 | Viewer composition root | **Done** (Phase 6) — `surfaces/viewer/index.ts` calls `init*()` in the measured order; `viewer/js/` and the `NN-` prefixes are gone |

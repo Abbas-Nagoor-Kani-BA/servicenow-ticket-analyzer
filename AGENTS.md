@@ -314,9 +314,8 @@ component needs its own test; end-to-end coverage is not enough.
   only when the selected state's label is "Closed" and both dates are required.
 - Audit availability depends on instance retention/roles; tickets missing audit
   rows are reported in the done-message count.
-- Remaining migration work is tracked in `docs/migration-plan.md`: the viewer
-  composition root, and finishing the TypeScript migration (most of
-  `surfaces/viewer/`, `panel/`, `settings/` and `lib/` are still `.js`).
+- Remaining migration work is tracked in `docs/migration-plan.md`; the forward
+  plan (what is still left after Phase 6, in order) is `docs/roadmap.md`.
 - Possible future work: resume-from-checkpoint for huge pulls, derived duration
   columns, work-notes text export, additional tables (RITM, change).
 
@@ -326,6 +325,7 @@ component needs its own test; end-to-end coverage is not enough.
 |---|---|
 | `docs/layered-architecture.md` | The target architecture. Start here. |
 | `docs/migration-plan.md` | Phase-by-phase status and the gate. |
+| `docs/roadmap.md` | What remains after Phase 6, in order: leftovers, TS migration, services, features. |
 | `docs/invariants.md` | ADR-style record of non-obvious rules. |
 | `docs/timeline.md`, `docs/timeline-formats.md` | Timeline and SLA computation, datetime formats. |
 | `docs/filtering.md` | How filters become an encoded query. |
