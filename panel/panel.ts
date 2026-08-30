@@ -5,8 +5,11 @@ import { createPanel, describeFilterSet } from "../surfaces/panel/index.ts";
 import { showToast } from "../lib/toast.ts";
 import { initTooltips } from "../lib/tooltip.ts";
 
-/** @param {string} id @returns {any} */
-const $ = id => document.getElementById(id);
+import type { CondFieldDef } from "../components/condition-builder.ts";
+import type { LogLevel } from "../components/log-card.ts";
+import type { MsgProgress } from "../types/global.d.ts";
+
+const $ = (id: string): any => document.getElementById(id);
 
 const els = {
   instance: $("instance"),
@@ -21,14 +24,13 @@ const els = {
   viewBtn: $("viewBtn"),
   lastRun: $("lastRun")
 };
-function choiceList(key) {
+function choiceList(key: string): { value: string | number; label: string }[] {
   if (key === "states") return snStateChoices(els.ticketType.value);
   if (key === "incidentStates") return snStateChoices("incident");
   if (key === "priorities") return SN_PRIORITY_CHOICES;
   return [];
 }
-/** @type {{key:string,label:string,field:string,type:"ref"|"string"|"choice"|"date",choicesKey?:string,tables?:string[]}[]} */
-const COND_FIELDS = [
+const COND_FIELDS: CondFieldDef[] = [
   { key: "assignedTo", label: "Assigned to", field: "assigned_to", type: "ref" },
   { key: "parentIncident", label: "Parent incident", field: "u_parent_incident1", type: "ref", tables: ["incident"] },
   { key: "state", label: "State", field: "state", type: "choice", choicesKey: "states" },
@@ -50,16 +52,21 @@ const panel = createPanel({
   onFilterSetChange: () => refreshGenerated()
 });
 const { logCard, progressCard, conditions, filterSets, bridge } = panel;
-const logger = { log: (text, level) => logCard.log(text, level || "") };
+const logger = { log: (text: string, level?: LogLevel) => logCard.log(text, level || "") };
 let busy = false;
-let cfgQueues = [];
-let cfgMembers = [];
-const toEntry = (m) => {
+type Entry = { name: string; sysId: string };
+type PanelCond = { join: string; field: string; oper: string; value: string; value2: string };
+let cfgQueues: Entry[] = [];
+let cfgMembers: Entry[] = [];
+const toEntry = (m: unknown): Entry | null => {
   if (typeof m === "string") return { name: m, sysId: "" };
-  if (m && typeof m === "object" && m.name) return { name: String(m.name), sysId: String(m.sysId || "") };
+  if (m && typeof m === "object" && typeof (m as { name?: unknown }).name === "string") {
+    return { name: String((m as { name: unknown }).name), sysId: String((m as { name: unknown; sysId?: unknown }).sysId || "") };
+  }
   return null;
 };
-function legacySnGroupQueues() {
+const asEntries = (raw: unknown[]): Entry[] => raw.map(toEntry).filter((x): x is Entry => x !== null);
+function legacySnGroupQueues(): Entry[] {
   try {
     const raw = localStorage.getItem("snGroup");
     if (!raw) return [];
@@ -70,16 +77,30 @@ function legacySnGroupQueues() {
     return [];
   }
 }
-async function applyPluginSettings() {
+async function applyPluginSettings(): Promise<void> {
   const { pluginSettings: s } = await chrome.storage.local.get(STORAGE.pluginSettings);
   if (s) {
-    if (!els.instance.value && s.instanceUrl) els.instance.value = s.instanceUrl;
-    if (s.defaults?.ticketType && [...els.ticketType.options].some((o) => o.value === s.defaults.ticketType)) {
-      els.ticketType.value = s.defaults.ticketType;
+    const settings = s as {
+      instanceUrl?: unknown;
+      defaults?: {
+        ticketType?: unknown;
+        queues?: unknown[];
+        queueName?: unknown;
+        teamMembers?: unknown[];
+      };
+    };
+    if (!els.instance.value && settings.instanceUrl) els.instance.value = String(settings.instanceUrl);
+    if (settings.defaults?.ticketType && [...els.ticketType.options].some((o) => o.value === settings.defaults?.ticketType)) {
+      els.ticketType.value = String(settings.defaults.ticketType);
     }
-    const rawQueues = Array.isArray(s.defaults?.queues) && s.defaults.queues.length ? s.defaults.queues : s.defaults?.queueName ? [{ name: s.defaults.queueName, sysId: "" }] : legacySnGroupQueues();
-    cfgQueues = rawQueues.map(toEntry).filter(Boolean);
-    cfgMembers = (Array.isArray(s.defaults?.teamMembers) ? s.defaults.teamMembers : []).map(toEntry).filter(Boolean);
+    const rawQueues =
+      Array.isArray(settings.defaults?.queues) && settings.defaults!.queues!.length
+        ? settings.defaults!.queues!
+        : settings.defaults?.queueName
+          ? [{ name: String(settings.defaults.queueName), sysId: "" }]
+          : legacySnGroupQueues();
+    cfgQueues = asEntries(rawQueues);
+    cfgMembers = asEntries(Array.isArray(settings.defaults?.teamMembers) ? (settings.defaults!.teamMembers! as unknown[]) : []);
   }
   conditions.setTable(els.ticketType.value);
   refreshGenerated();
@@ -87,12 +108,12 @@ async function applyPluginSettings() {
 $("settingsBtn").addEventListener("click", () => chrome.runtime.openOptionsPage());
 initTooltips();
 panel.ready.then(() => refreshGenerated()).catch(() => {});
-chrome.storage.local.get(["snInstance", "lastRun"], async (cfg) => {
+chrome.storage.local.get(["snInstance", "lastRun"], async (cfg: { snInstance?: unknown; lastRun?: unknown }) => {
   await applyPluginSettings();
-  if (cfg.snInstance && !els.instance.value) els.instance.value = cfg.snInstance;
+  if (cfg.snInstance && !els.instance.value) els.instance.value = String(cfg.snInstance);
   const effective = els.instance.value || cfg.snInstance;
   if (effective) {
-    els.instance.value = effective;
+    els.instance.value = String(effective);
     refreshGenerated();
     connect();
   } else {
@@ -104,39 +125,40 @@ chrome.storage.local.get(["snInstance", "lastRun"], async (cfg) => {
     }
   }
   if (cfg.lastRun) {
-    els.lastRun.textContent = `Last export: ${cfg.lastRun.tickets} tickets for "${cfg.lastRun.group}" \xB7 ${cfg.lastRun.at.slice(0, 16).replace("T", " ")}`;
+    const lastRun = cfg.lastRun as { tickets?: unknown; group?: unknown; at?: string };
+    els.lastRun.textContent = `Last export: ${lastRun.tickets} tickets for "${lastRun.group}" \xB7 ${String(lastRun.at).slice(0, 16).replace("T", " ")}`;
   }
 });
-chrome.storage.onChanged.addListener((ch, area) => {
+chrome.storage.onChanged.addListener((ch: Record<string, { newValue?: unknown }>, area: string) => {
   if (area === "local") {
     if (ch.pluginSettings) applyPluginSettings();
     if (ch.lastRun) {
-      const cfg = ch.lastRun.newValue;
+      const cfg = ch.lastRun.newValue as { tickets?: unknown; group?: unknown; at?: string } | undefined;
       if (cfg) {
-        els.lastRun.textContent = `Last run: ${cfg.tickets} tickets for "${cfg.group}" \xB7 ${cfg.at.slice(0, 16).replace("T", " ")}`;
+        els.lastRun.textContent = `Last run: ${cfg.tickets} tickets for "${cfg.group}" \xB7 ${String(cfg.at).slice(0, 16).replace("T", " ")}`;
       } else {
         els.lastRun.textContent = "";
       }
     }
   }
 });
-async function detectInstanceFromTabs() {
+async function detectInstanceFromTabs(): Promise<string | null> {
   try {
     const tabs = await chrome.tabs.query({ url: "https://*.service-now.com/*" });
     if (!tabs.length) return null;
-    const recent = tabs.sort((a, b) => (b.lastAccessed || 0) - (a.lastAccessed || 0))[0];
+    type RecentTab = { lastAccessed?: number; url?: string };
+    const recent = tabs.sort((a: RecentTab, b: RecentTab) => (b.lastAccessed || 0) - (a.lastAccessed || 0))[0];
     return new URL(recent.url).origin;
   } catch {
     return null;
   }
 }
-function instanceUrl() {
+function instanceUrl(): string {
   return els.instance.value.trim();
 }
 $("addFilterBtn").addEventListener("click", async () => {
   try {
     const f = currentFilters();
-    delete f.onlyMyQueue;
     delete f.rawQuery;
     const outcome = await filterSets.add(f);
     if (outcome === "duplicate") {
@@ -150,36 +172,37 @@ $("addFilterBtn").addEventListener("click", async () => {
     logger.log(`Added filter ${total}: ${describeFilterSet(f, COND_FIELDS, (k) => choiceList(k))}`, "success");
     showToast(`Filter ${total} added`);
   } catch (err) {
-    logger.log(err.message, "error");
-    showToast(err.message, "error");
+    logger.log((err as Error).message, "error");
+    showToast((err as Error).message, "error");
   }
 });
 $("clearFilterListBtn").addEventListener("click", async () => {
   await filterSets.clear();
   refreshGenerated();
 });
-function requireInstance() {
+function requireInstance(): string {
   const url = instanceUrl();
   if (!/^https:\/\/.+/.test(url)) throw new Error("Enter a valid https instance URL");
   return url;
 }
-function currentFilters() {
+type PanelFilters = { table: string; conditions: PanelCond[]; rawQuery?: string };
+function currentFilters(): PanelFilters {
   return {
     table: els.ticketType.value,
-    conditions: conditions.conditions(),
+    conditions: conditions.conditions() as PanelCond[],
     rawQuery: els.rawQuery.value
   };
 }
-function configuredGroups() {
+function configuredGroups(): string[] {
   if (!cfgQueues.length) throw new Error("No queues configured \u2014 open Settings and add assignment group names, one per line");
-  const badComma = cfgQueues.find((g) => String(g).includes(","));
-  if (badComma) throw new Error(`Queue name "${badComma}" contains a comma \u2014 rename it in Settings`);
-  return cfgQueues;
+  const badComma = cfgQueues.find((g) => g.name.includes(","));
+  if (badComma) throw new Error(`Queue name "${badComma.name}" contains a comma \u2014 rename it in Settings`);
+  return cfgQueues.map((g) => g.name);
 }
-function savePrefs() {
+function savePrefs(): void {
   chrome.storage.local.set({ snInstance: instanceUrl() });
 }
-async function connect(manual = false) {
+async function connect(manual = false): Promise<void> {
   try {
     requireInstance();
     els.connect.disabled = true;
@@ -198,18 +221,18 @@ async function connect(manual = false) {
   } catch (err) {
     els.connState.textContent = "Not ready";
     els.connState.classList.remove("on");
-    logger.log(err.message, "error");
-    if (manual) showToast(err.message, "error");
+    logger.log((err as Error).message, "error");
+    if (manual) showToast((err as Error).message, "error");
   } finally {
     els.connect.disabled = false;
   }
 }
-function refreshGenerated() {
+function refreshGenerated(): void {
   try {
     const q = buildEncodedQuery(currentFilters());
     els.generatedQuery.textContent = q || `(no filters \u2014 all ${snTableLabel(els.ticketType.value)} you can read)`;
   } catch (e) {
-    els.generatedQuery.textContent = e.message;
+    els.generatedQuery.textContent = (e as Error).message;
   }
 }
 ["change", "input"].forEach((ev) => {
@@ -229,7 +252,7 @@ els.instance.addEventListener("change", () => {
   els.connState.textContent = "Not ready";
   els.connState.classList.remove("on");
 });
-function setBusy(state) {
+function setBusy(state: boolean): void {
   busy = state;
   els.preview.disabled = state;
   els.runBtn.disabled = state;
@@ -258,20 +281,20 @@ els.preview.addEventListener("click", async () => {
       lastQuery = res.encodedQuery || lastQuery;
       const label = sets.length > 1 ? `Preview set ${i + 1}/${sets.length}` : "Preview";
       logger.log(`${label}: ${res.total} tickets match`);
-      if (res.limit > 0 && res.total > res.limit) {
+      if (res.limit && res.limit > 0 && res.total! > res.limit) {
         overLimit++;
         logger.log(`${label}: ${res.total} tickets EXCEEDS the max-tickets limit (${res.limit}) \u2014 this set will be SKIPPED on run. Narrow it or raise the limit in Settings`, "error");
       } else {
-        pullable += res.total;
+        pullable += res.total!;
       }
     }
     progressCard.setLabel(overLimit ? `${pullable} pullable \xB7 ${overLimit} set(s) skipped by limit` : `${pullable} matching ticket${pullable === 1 ? "" : "s"}`);
     showToast(`Preview \u2014 ${pullable} matching ticket${pullable === 1 ? "" : "s"}`);
     if (lastQuery) logger.log(`Query: ${lastQuery}`);
   } catch (err) {
-    progressCard.setLabel(err.message);
-    logger.log(err.message, "error");
-    showToast(err.message, "error");
+    progressCard.setLabel((err as Error).message);
+    logger.log((err as Error).message, "error");
+    showToast((err as Error).message, "error");
   } finally {
     setBusy(false);
   }
@@ -292,20 +315,20 @@ els.runBtn.addEventListener("click", async () => {
     logger.log(`Run started with ${sets.length} filter set${sets.length > 1 ? "s" : ""}\u2026`);
   } catch (err) {
     setBusy(false);
-    progressCard.setLabel(err.message);
-    logger.log(err.message, "error");
-    showToast(err.message, "error");
+    progressCard.setLabel((err as Error).message);
+    logger.log((err as Error).message, "error");
+    showToast((err as Error).message, "error");
   }
 });
 $("viewBtn").addEventListener("click", () => {
   els.viewBtn.classList.remove("attention");
   openViewer();
 });
-let viewerTabId = null;
-chrome.tabs.onRemoved.addListener((tabId) => {
+let viewerTabId: number | null = null;
+chrome.tabs.onRemoved.addListener((tabId: number) => {
   if (tabId === viewerTabId) viewerTabId = null;
 });
-async function openViewer() {
+async function openViewer(): Promise<void> {
   const url = chrome.runtime.getURL("viewer/viewer.html");
   if (viewerTabId !== null) {
     try {
@@ -321,7 +344,7 @@ async function openViewer() {
   const tab = await chrome.tabs.create({ url });
   viewerTabId = tab.id;
 }
-bridge.onProgress((msg) => {
+bridge.onProgress((msg: MsgProgress) => {
   const detail = String(msg.detail ?? "");
   const level = progressCard.apply(msg);
 
@@ -340,13 +363,13 @@ bridge.onProgress((msg) => {
     showToast(`Run complete \u2014 ${msg.pulled ?? 0} ticket${msg.pulled === 1 ? "" : "s"} pulled`);
     setBusy(false);
     els.viewBtn.classList.add("attention");
-    chrome.storage.local.get(["lastRun"], (cfg) => {
+    chrome.storage.local.get(["lastRun"], (cfg: { lastRun?: unknown }) => {
       if (cfg.lastRun) {
-        els.lastRun.textContent = `Last run: ${cfg.lastRun.tickets} tickets for "${cfg.lastRun.group}" \xB7 ${cfg.lastRun.at.slice(0, 16).replace("T", " ")}`;
+        const lastRun = cfg.lastRun as { tickets?: unknown; group?: unknown; at?: string };
+        els.lastRun.textContent = `Last run: ${lastRun.tickets} tickets for "${lastRun.group}" \xB7 ${String(lastRun.at).slice(0, 16).replace("T", " ")}`;
       }
     });
     return;
   }
   logger.log(detail);
 });
-

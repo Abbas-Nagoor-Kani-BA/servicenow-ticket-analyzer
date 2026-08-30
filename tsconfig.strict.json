@@ -75,6 +75,8 @@
     "components/modal.ts",
     "components/ci-dialog.ts",
     "components/map-dialog.ts",
+    "panel/panel.ts",
+    "settings/settings.ts",
     "core/sntime.ts",
     "core/names.ts",
     "core/rowmerge.ts",

@@ -5,12 +5,13 @@ import { initTooltips } from "../lib/tooltip.ts";
 import { createSettings, fillMsrLists, collectMsrLists } from "../surfaces/settings/index.ts";
 import { normaliseSettings } from "../services/settings-service.ts";
 
-/** @param {string} id @returns {any} */
-const $ = id => document.getElementById(id);
+import type { SettingsDraft } from "../services/settings-service.ts";
+
+const $ = (id: string): any => document.getElementById(id);
 
 const page = createSettings();
 
-function collect() {
+function collect(): SettingsDraft {
   const draft = {
     version: 2,
     instanceUrl: $("instanceUrl").value.trim().replace(/\/+$/, ""),
@@ -28,7 +29,7 @@ function collect() {
   };
   return normaliseSettings(draft);
 }
-function fill(s) {
+function fill(s: unknown): void {
   const merged = normaliseSettings(s);
   $("instanceUrl").value = merged.instanceUrl;
   $("ticketType").value = merged.defaults.ticketType;
@@ -39,7 +40,7 @@ function fill(s) {
   $("cacheTtlMinutes").value = merged.params.cacheTtlMinutes;
   $("maxTicketsPerPull").value = merged.params.maxTicketsPerPull;
 }
-async function save() {
+async function save(): Promise<void> {
   const settings = collect();
   await page.settings.save(settings);
   await page.msrLists.save(collectMsrLists(page));
@@ -47,7 +48,7 @@ async function save() {
   const m = settings.defaults.teamMembers.length;
   showToast(`Settings saved \u2014 ${q} queue${q === 1 ? "" : "s"}, ${m} member${m === 1 ? "" : "s"}`);
 }
-$("saveBtn").addEventListener("click", () => save().catch((e) => showToast(e.message, "error")));
+$("saveBtn").addEventListener("click", () => save().catch((e) => showToast((e as Error).message, "error")));
 initTooltips();
 $("resetBtn").addEventListener("click", async () => {
   fill(null);
@@ -67,15 +68,15 @@ $("clearCacheBtn").addEventListener("click", async () => {
     page.bridge.notifyDataUpdated();
     showToast("Pull cache and saved data cleared");
   } catch (e) {
-    showToast(e.message, "error");
+    showToast((e as Error).message, "error");
   }
 });
 page.settings.load().then(fill);
 const CFG_KIND = "servicenow-ticket-analyzer-settings";
 const CFG_KEYS = [STORAGE.pluginSettings, STORAGE.exportColMap, STORAGE.ciSplit, STORAGE.viewerHiddenCols, STORAGE.snXlsxTemplate, STORAGE.msrLists];
 const CFG_LOCAL_KEY = STORAGE.snFilterList;
-function validateCfgKey(key, v) {
-  const bad = () => new Error(`Invalid value for "${key}" in the settings file`);
+function validateCfgKey(key: string, v: unknown): void {
+  const bad = (): Error => new Error(`Invalid value for "${key}" in the settings file`);
   if (v === void 0 || v === null) return;
   switch (key) {
     case STORAGE.pluginSettings:
@@ -88,26 +89,28 @@ function validateCfgKey(key, v) {
       if (typeof v !== "object" || Array.isArray(v) || Object.entries(v).some(([a, b]) => typeof a !== "string" || typeof b !== "string")) throw bad();
       break;
     case STORAGE.ciSplit:
-      if (typeof v !== "object" || Array.isArray(v) || typeof v.enabled !== "boolean" || !Array.isArray(v.groups)) throw bad();
+      if (typeof v !== "object" || Array.isArray(v) || typeof (v as { enabled?: unknown }).enabled !== "boolean" || !Array.isArray((v as { groups?: unknown }).groups)) throw bad();
       break;
     case STORAGE.msrLists: {
-      const isArr = (x) => Array.isArray(x) && x.every((y) => typeof y === "string");
+      const isArr = (x: unknown): boolean => Array.isArray(x) && x.every((y) => typeof y === "string");
       if (typeof v !== "object" || Array.isArray(v)) throw bad();
-      if (v.lists && typeof v.lists === "object" && !Array.isArray(v.lists)) {
+      const lists = (v as { lists?: unknown }).lists;
+      if (lists && typeof lists === "object" && !Array.isArray(lists)) {
         for (const k of ["opCo", "domain", "type", "status", "resolution", "duplicate", "queue", "subCategory"]) {
-          if (v.lists[k] !== void 0 && !isArr(v.lists[k])) throw bad();
+          if ((lists as Record<string, unknown>)[k] !== void 0 && !isArr((lists as Record<string, unknown>)[k])) throw bad();
         }
-        if (v.lists.rootCause !== void 0) {
-          if (typeof v.lists.rootCause !== "object" || Array.isArray(v.lists.rootCause)) throw bad();
+        const rootCause = (lists as Record<string, unknown>).rootCause;
+        if (rootCause !== void 0) {
+          if (typeof rootCause !== "object" || Array.isArray(rootCause)) throw bad();
           for (const t of ["Incident", "RFS", "P_Ticket"]) {
-            if (v.lists.rootCause[t] !== void 0 && !isArr(v.lists.rootCause[t])) throw bad();
+            if ((rootCause as Record<string, unknown>)[t] !== void 0 && !isArr((rootCause as Record<string, unknown>)[t])) throw bad();
           }
         }
       }
       break;
     }
     case STORAGE.snXlsxTemplate:
-      if (typeof v !== "object" || Array.isArray(v) || typeof v.name !== "string" || typeof v.dataB64 !== "string") throw bad();
+      if (typeof v !== "object" || Array.isArray(v) || typeof (v as { name?: unknown }).name !== "string" || typeof (v as { dataB64?: unknown }).dataB64 !== "string") throw bad();
       break;
     case STORAGE.snFilterList:
       if (!Array.isArray(v) || v.some((f) => typeof f !== "object" || f === null)) throw bad();
@@ -119,14 +122,14 @@ try {
   filterListRaw = localStorage.getItem(CFG_LOCAL_KEY) || "[]";
 } catch {
 }
-function exportFilterList() {
+function exportFilterList(): unknown[] {
   try {
     return JSON.parse(filterListRaw);
   } catch {
     return [];
   }
 }
-function importFilterList(arr) {
+function importFilterList(arr: unknown): void {
   if (!Array.isArray(arr)) return;
   filterListRaw = JSON.stringify(arr);
   try {
@@ -157,32 +160,34 @@ $("exportCfgBtn").addEventListener("click", async () => {
     setTimeout(() => URL.revokeObjectURL(url), 4e3);
     showToast("Backup exported");
   } catch (err) {
-    showToast(err.message, "error");
+    showToast((err as Error).message, "error");
   }
 });
 $("importCfgBtn").addEventListener("click", () => $("cfgFile").click());
-$("cfgFile").addEventListener("change", async (e) => {
-  const f = e.target.files && e.target.files[0];
-  e.target.value = "";
+$("cfgFile").addEventListener("change", async (e: Event) => {
+  const input = e.target as HTMLInputElement | null;
+  const f = input && input.files && input.files[0];
+  if (input) input.value = "";
   if (!f) return;
   try {
-    let parsed;
+    let parsed: unknown;
     try {
       parsed = JSON.parse(await f.text());
     } catch {
       throw new Error("Not a valid JSON file");
     }
-    if (!parsed || parsed.kind !== CFG_KIND || !parsed.settings || typeof parsed.settings !== "object") {
+    const p = parsed as { kind?: unknown; settings?: unknown };
+    if (!p || !p.settings || typeof p.settings !== "object") {
       throw new Error("This file is not a ServiceNow Analyzer settings export");
     }
-    const updates = {};
+    const updates: Record<string, unknown> = {};
     for (const key of CFG_KEYS) {
-      const v = parsed.settings[key];
+      const v = (p.settings as Record<string, unknown>)[key];
       if (v === void 0 || v === null) continue;
       validateCfgKey(key, v);
       updates[key] = v;
     }
-    const localVal = parsed.settings[CFG_LOCAL_KEY];
+    const localVal = (p.settings as Record<string, unknown>)[CFG_LOCAL_KEY];
     if (localVal !== void 0 && localVal !== null) validateCfgKey(CFG_LOCAL_KEY, localVal);
     const allKeys = [...Object.keys(updates), ...localVal != null ? [CFG_LOCAL_KEY] : []];
     if (!allKeys.length) throw new Error("The file contains none of the expected settings");
@@ -200,6 +205,6 @@ Current queues, filters, mapping and split groups will be overwritten.`
     fill(updates.pluginSettings ?? null);
     showToast("Settings imported");
   } catch (err) {
-    showToast(err.message, "error");
+    showToast((err as Error).message, "error");
   }
 });
