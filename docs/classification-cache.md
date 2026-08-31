@@ -55,4 +55,19 @@ a cached result is only reused for a genuinely identical input.
   results" checkbox + "Clear classification cache" button (wired via
   `surfaces/settings/index.ts` → `page.mlCache`). Tests: `settings-service-test.js`.
   Committed.
-- [ ] M6 — full gate + docs update.
+- [x] **M6 — full gate + docs**
+  Final release gate green: typecheck, lint, 284 tests, build. Docs updated;
+  all milestones committed on `feature/classification-cache`.
+
+## Result: how the cache works end-to-end
+
+- **Full cache** (`snAnalyzerClassCache`): deterministic results cached in
+  `ClassifierService.classifyCached`; ML results cached in the worker's
+  `classifyCached`. Key = `hash(notes + rootCauseLabels + resolutionLabels +
+  modelId)`, so an unchanged note is never re-inferred — across datasets and
+  page loads — while a changed note, a different ticket-type label list, or a
+  different model each get their own entry.
+- **Per-row cache**: `row.notesHash` (persisted in `lastData`) lets a row already
+  carrying both fields with unchanged notes be skipped in both passes.
+- **Opt-in**: `ml.cacheEnabled` (default true) toggle + "Clear classification
+  cache" button in Settings → ML classification card.
