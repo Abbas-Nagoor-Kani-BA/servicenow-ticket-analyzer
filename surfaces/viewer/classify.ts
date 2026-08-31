@@ -1,7 +1,7 @@
 import { loadOnce } from "../../lib/storage.ts";
 import { STORAGE } from "../../lib/keys.ts";
 import { dataStore, getMsrLists } from "./store.ts";
-import { msrType, rootCauseFor } from "../../core/msrchoices.ts";
+import { msrType, rootCauseFor, normResolution } from "../../core/msrchoices.ts";
 import { classifyMsr } from "../../core/msrcategorize.ts";
 
 /*
@@ -57,20 +57,21 @@ function makeStats(total: number): ClassifyStats {
   return { done: 0, total, notClassified: 0, solutionType: {}, rootCause: {} };
 }
 
-/** Records a row's values into the running stats and emits them. */
+/**
+ * Records live progress (done / notClassified). The value tallies are NOT kept
+ * here — they are recomputed from the committed rows by the viewer's
+ * `clsStatsShow` (deduped by sysId, valid MSR values only), so a row touched by
+ * BOTH the deterministic and ML passes in fallback mode is counted exactly once.
+ */
 function tally(
   stats: ClassifyStats,
   done: number,
   notClassified: number,
-  solutionType: string | null,
-  rootCause: string | null,
-  cb: ClassifyCallbacks
+  _solutionType: string | null,
+  _rootCause: string | null
 ): void {
   stats.done = done;
   stats.notClassified = notClassified;
-  if (solutionType) stats.solutionType[solutionType] = (stats.solutionType[solutionType] || 0) + 1;
-  if (rootCause) stats.rootCause[rootCause] = (stats.rootCause[rootCause] || 0) + 1;
-  cb.onStats(stats);
 }
 
 function buildInput(row: Record<string, any>) {
@@ -80,6 +81,24 @@ function buildInput(row: Record<string, any>) {
     rootCauseLabels: rootCauseFor(getMsrLists().rootCause, msrType(row.number)),
     resolutionLabels: getMsrLists().resolution
   };
+}
+
+function inList(list: string[], value: unknown): boolean {
+  if (value === null || value === undefined || value === "") return false;
+  const v = String(value);
+  return list.some((o) => o.toLowerCase() === v.toLowerCase());
+}
+
+/** A root cause cell is a real MSR category only if it is a member of this
+ *  ticket's root-cause list. Free-text analysis left by autoParse is NOT. */
+function hasValidRootCause(row: Record<string, any>): boolean {
+  const labels = rootCauseFor(getMsrLists().rootCause, msrType(row.number));
+  return inList(labels, row.rootCause);
+}
+
+/** A solution type cell is a real value only if it is in the resolution list. */
+function hasValidSolutionType(row: Record<string, any>): boolean {
+  return inList(getMsrLists().resolution, normResolution(row.solutionType));
 }
 
 /** Rows that actually carry notes worth classifying. */
@@ -97,9 +116,10 @@ function hashNotes(notes: string): string {
   return `n:${h.toString(16)}:${notes.length}`;
 }
 
-/** A row already carries both fields AND its note text is unchanged. */
+/** A row already carries BOTH real MSR categories AND its note text is unchanged.
+ *  Free-text root-cause analysis (from autoParse) does not count as classified. */
 function alreadyClassified(row: Record<string, any>, notes: string): boolean {
-  if (!row.rootCause || !row.solutionType) return false;
+  if (!hasValidRootCause(row) || !hasValidSolutionType(row)) return false;
   if (!row.notesHash) return false; // no recorded baseline -> assume it may have changed
   return row.notesHash === hashNotes(notes);
 }
@@ -120,17 +140,17 @@ function deterministicPass(
     if (!input.notes) {
       notClassified++;
       cb.onProgress(done, rows.length, notClassified);
-      tally(stats, done, notClassified, null, null, cb);
+      tally(stats, done, notClassified, null, null);
       continue;
     }
-    // Per-row cache: a row already carrying both fields AND with unchanged notes
-    // is left alone (no recompute), regardless of mode.
+    // Per-row cache: a row already carrying real MSR categories AND with
+    // unchanged notes is left alone (no recompute), regardless of mode.
     if (alreadyClassified(row, input.notes)) {
       cb.onProgress(done, rows.length, notClassified);
       cb.onStats(stats);
       continue;
     }
-    if (onlyBlank && row.rootCause && row.solutionType) {
+    if (onlyBlank && hasValidRootCause(row) && hasValidSolutionType(row)) {
       cb.onProgress(done, rows.length, notClassified);
       cb.onStats(stats);
       continue;
@@ -153,12 +173,13 @@ function deterministicPass(
     );
 
     // fallback mode keeps ML as the authority: only fill blanks, never overwrite
-    // an existing value with a regex one.
+    // an existing MSR category with a regex one. A free-text root-cause analysis
+    // (not a category) IS overwritten so the category gets set.
     if (onlyBlank) {
-      if (!row.rootCause && result.label) toRootCause = result.label;
-      else toRootCause = row.rootCause ?? null;
-      if (!row.solutionType && solution.label) toSolution = solution.label;
-      else toSolution = row.solutionType ?? null;
+      if (!hasValidRootCause(row) && result.label) toRootCause = result.label;
+      else toRootCause = hasValidRootCause(row) ? row.rootCause : null;
+      if (!hasValidSolutionType(row) && solution.label) toSolution = solution.label;
+      else toSolution = hasValidSolutionType(row) ? row.solutionType : null;
     }
 
     if (toRootCause !== row.rootCause || toSolution !== row.solutionType) {
@@ -168,7 +189,7 @@ function deterministicPass(
     row.notesHash = hashNotes(input.notes);
     cb.updateRow(row, toSolution, toRootCause, solution.confidence, result.confidence);
     cb.onProgress(done, rows.length, notClassified);
-    tally(stats, done, notClassified, toSolution, toRootCause, cb);
+    tally(stats, done, notClassified, toSolution, toRootCause);
   }
   return { changed, changedSysIds, notClassified };
 }
@@ -207,7 +228,7 @@ function mlPass(
           row.notesHash = hashNotes(String(row.closeNotes ?? "").trim());
           cb.updateRow(row, res.solutionType, res.rootCause, res.solutionConfidence, res.rootCauseConfidence);
           done++;
-          tally(stats, done, (preDoneUnclassified || 0) + msg.notClassified, res.solutionType, res.rootCause, cb);
+          tally(stats, done, (preDoneUnclassified || 0) + msg.notClassified, res.solutionType, res.rootCause);
         }
         // Live per-ticket progress, with the not-classified tally.
         cb.onProgress(preDone + msg.done, totalRows, (preDoneUnclassified || 0) + msg.notClassified);
@@ -278,7 +299,7 @@ export async function classifyRows(cb: ClassifyCallbacks): Promise<ClassifyRun> 
   if (useMl && mode === "fallback") {
     const d = deterministicPass(rows, true, cb, stats);
     changedSysIds.push(...d.changedSysIds);
-    const blanks = rowsWithNotes(rows).filter((r) => !r.rootCause || !r.solutionType);
+    const blanks = rowsWithNotes(rows).filter((r) => !hasValidRootCause(r) || !hasValidSolutionType(r));
     if (blanks.length) {
       stats.done = withNotes - blanks.length;
       await mlPass(blanks, mode, total, preDone, preDone, cb, changedSysIds, stats, modelId, cacheEnabled);
@@ -296,4 +317,4 @@ export async function classifyRows(cb: ClassifyCallbacks): Promise<ClassifyRun> 
   return { total, withNotes, classified: d.changed, changed: d.changed, changedSysIds: d.changedSysIds };
 }
 
-export { hashNotes, alreadyClassified };
+export { hashNotes, alreadyClassified, hasValidRootCause, hasValidSolutionType };

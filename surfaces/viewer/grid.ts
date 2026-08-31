@@ -1,5 +1,7 @@
 import { detectSnOffsetMs, rowOffsetMs } from "../../core/sntime.ts";
 import { STORAGE } from "../../lib/keys.ts";
+import { MSG } from "../../lib/keys.ts";
+import { broadcast } from "../../lib/storage.ts";
 import { pad2 } from "../../lib/format.ts";
 import { showToast } from "../../lib/toast.ts";
 import { $, columnOptionList, migrateLegacyResolutions, setStatus, visibleCols } from "./core.ts";
@@ -11,8 +13,14 @@ import { currentRows, hasDataRows, parseLocalInput } from "./grid-data.ts";
 import { dataStore, getColWidths, saveColWidths, setColWidths, setSelfPush } from "./store.ts";
 import { attachSummaryToData, renderSummary, setRowsProvider } from "./summary.ts";
 import { ExtractService } from "../../services/extract-service.ts";
+import { classifyRows, hasValidRootCause, hasValidSolutionType } from "./classify.ts";
+import type { ClassifyStats } from "./classify.ts";
+import { MlModelStore, modelById, modelByRepoId } from "../../data/ml-model-repository.ts";
 
 const extract = new ExtractService();
+
+let classifying = false;
+let lastClassifiedFingerprint = "";
 
 function st() { return dataStore.getState(); }
 
@@ -41,6 +49,7 @@ function load(d: ViewerData | null | undefined) {
     autoParse();
     migrated = migrateLegacyResolutions(data.rows);
     if (migrated) persistEdits();
+    classifyGrid();
   }
   if (!data || !data.rows.length) {
     $("wrap").classList.add("hidden");
@@ -103,6 +112,7 @@ export function initGrid() {
     afterRender: () => {
       selHooks.highlight();
       renderSummary();
+      currentModelLabel().then(writeModelLabel).catch(() => undefined);
     }
   });
 }
@@ -196,6 +206,183 @@ function autoParse(): number {
     showToast(`Extracted resolution details from ${stats.filled} ticket${stats.filled === 1 ? "" : "s"}`);
   }
   return stats.filled;
+}
+
+function clsProgressShow(done: number, total: number, notClassified = 0): void {
+  const el = $("clsProgress");
+  const fill = $("clsFill");
+  if (!el || !fill) return;
+  el.classList.remove("hidden");
+  const pct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
+  fill.style.width = `${pct}%`;
+  // Live status text only while running; the completion summary lives in the
+  // status bar (legend + classification counts), so we stop writing it here.
+  const remaining = Math.max(0, total - done);
+  const skipped = notClassified > 0 ? ` · ${notClassified} not able to process` : "";
+  $("status").textContent = done < total
+    ? `Classifying ticket ${done}/${total} (${remaining} left)${skipped}`
+    : "";
+}
+
+function clsProgressHide(): void {
+  const el = $("clsProgress");
+  if (el) el.classList.add("hidden");
+  const fill = $("clsFill");
+  if (fill) fill.style.width = "0%";
+}
+
+function clsUpdateRow(row: ViewerRow, solutionType: string | null, rootCause: string | null): void {
+  if (solutionType) row.solutionType = solutionType;
+  if (rootCause) row.rootCause = rootCause;
+}
+
+function dataFingerprint(data: ViewerData | null | undefined): string {
+  const rows = data && Array.isArray(data.rows) ? data.rows : [];
+  if (!rows.length) return "";
+  const first = rows[0];
+  return `${rows.length}:${String(first.sysId ?? "")}:${String(first.number ?? "")}`;
+}
+
+/** The id of the model selected in Settings (used to re-run classification when
+ *  the user switches models on already-loaded data). */
+async function currentModelId(): Promise<string> {
+  try {
+    const st = await chrome.storage.local.get(STORAGE.pluginSettings);
+    const ml = (st?.[STORAGE.pluginSettings] as any)?.ml;
+    return typeof ml?.modelId === "string" ? ml.modelId : "mobilebert";
+  } catch {
+    return "mobilebert";
+  }
+}
+
+async function currentModelLabel(): Promise<string> {
+  try {
+    const st = await chrome.storage.local.get(STORAGE.pluginSettings);
+    const ml = (st?.[STORAGE.pluginSettings] as any)?.ml;
+    const id = typeof ml?.modelId === "string" ? ml.modelId : "mobilebert";
+    const opt = modelById(id);
+    if (opt) return opt.label;
+    // Fallback: show whatever is actually cached.
+    const meta = await new MlModelStore().getMeta();
+    if (meta?.repoId) {
+      const byRepo = modelByRepoId(meta.repoId);
+      return byRepo ? byRepo.label : meta.repoId;
+    }
+    return "offline scorer";
+  } catch {
+    return "offline scorer";
+  }
+}
+
+/** Puts the active model name into the legend without touching the counts. */
+function writeModelLabel(label: string): void {
+  const bar = $("slaBar");
+  if (!bar) return;
+  let cls = bar.querySelector(".cls") as HTMLElement | null;
+  if (!cls) {
+    cls = document.createElement("span");
+    cls.className = "cls";
+    bar.appendChild(cls);
+  }
+  // Update the model marker in place if present, else prepend it; never append
+  // a second copy (this runs on every grid render).
+  const modelSpan = cls.querySelector(".model") as HTMLElement | null;
+  if (modelSpan) {
+    modelSpan.innerHTML = `Model <b>${label}</b>`;
+  } else {
+    cls.insertAdjacentHTML("afterbegin", `<span class="stat model">Model <b>${label}</b></span>`);
+  }
+}
+
+function clsStatsShow(stats: ClassifyStats): void {
+  const bar = $("slaBar");
+  if (!bar) return;
+  let cls = bar.querySelector(".cls") as HTMLElement | null;
+  if (!cls) {
+    cls = document.createElement("span");
+    cls.className = "cls";
+    bar.appendChild(cls);
+  }
+
+  // Count solution types / root causes from the committed rows (deduped by
+  // sysId), so the two stay consistent even when a row is refined by both the
+  // deterministic and ML passes in fallback mode.
+  const { stTotal, rcTotal } = tallyCommittedRows();
+
+  // The model label is owned by writeModelLabel (rendered on every grid render);
+  // preserve any existing model span rather than duplicating it here.
+  const modelHTML = cls.querySelector(".model")?.outerHTML ?? "";
+  const parts: string[] = [];
+  if (modelHTML) parts.push(modelHTML);
+  parts.push(`<span class="stat">Classified <b>${stats.done}/${stats.total}</b></span>`);
+  if (stats.notClassified > 0) {
+    parts.push(`<span class="stat nap">Not able to process <b>${stats.notClassified}</b></span>`);
+  }
+  if (stTotal > 0) parts.push(`<span class="stat">Solution type <b>${stTotal}</b></span>`);
+  if (rcTotal > 0) parts.push(`<span class="stat rc">Root cause <b>${rcTotal}</b></span>`);
+
+  cls.innerHTML = parts.join(" ");
+}
+
+/** Counts rows that have a valid solution type / root cause, deduped by sysId. */
+function tallyCommittedRows(): { stTotal: number; rcTotal: number } {
+  const rows = st().data?.rows || [];
+  const seen = new Set<string>();
+  let stTotal = 0;
+  let rcTotal = 0;
+  for (const row of rows) {
+    const sysId = String(row.sysId ?? "");
+    if (seen.has(sysId)) continue;
+    seen.add(sysId);
+    if (hasValidSolutionType(row)) stTotal++;
+    if (hasValidRootCause(row)) rcTotal++;
+  }
+  return { stTotal, rcTotal };
+}
+
+function clsStatsHide(): void {
+  const bar = $("slaBar");
+  const cls = bar?.querySelector(".cls");
+  if (cls) cls.innerHTML = "";
+}
+
+async function classifyGrid(): Promise<void> {
+  const data = st().data;
+  const fingerprint = dataFingerprint(data);
+  if (!fingerprint) return;
+  // Run classification once per dataset per model; repeat load()/save() echoes
+  // of the same data must not re-trigger it, but switching the model in
+  // Settings DOES re-run classification on the already-loaded rows with the new
+  // model (the run guard includes the model id).
+  const modelId = await currentModelId();
+  const runKey = `${fingerprint}::${modelId}`;
+  if (classifying || lastClassifiedFingerprint === runKey) return;
+  // A brand-new dataset or a model switch: reset the previous run's bar before
+  // starting.
+  if (lastClassifiedFingerprint !== runKey) { clsProgressHide(); clsStatsHide(); }
+  classifying = true;
+  try {
+    const modelLabel = await currentModelLabel();
+    // Let the side panel log know which model this classification run is using.
+    broadcast({ type: MSG.progress, stage: "diag", detail: `Classifying with ${modelLabel}` });
+    const run = await classifyRows({
+      onProgress: clsProgressShow,
+      onStats: (stats) => clsStatsShow(stats),
+      updateRow: (row, st, rc) => {
+        clsUpdateRow(row, st, rc);
+        if (grid) grid.updateRows([String(row.sysId ?? "")]);
+      }
+    });
+    await persistEdits();
+    if (run.changed) {
+      showToast(`Classified ${run.changed} ticket${run.changed === 1 ? "" : "s"} (${run.withNotes} with notes)`);
+    }
+    lastClassifiedFingerprint = runKey;
+  } catch (err) {
+    setStatus(`Classification failed: ${(err as Error).message}`, true);
+  } finally {
+    classifying = false;
+  }
 }
 
 export {

@@ -8,14 +8,17 @@ test("hashNotes is deterministic and sensitive to the note text", () => {
   assert.notEqual(hashNotes("Restarted the server"), hashNotes("Restarted the server now"));
 });
 
-test("alreadyClassified is true only when both fields set AND notes unchanged", () => {
+test("alreadyClassified is true only when both fields are real MSR values AND notes unchanged", () => {
   const notes = "Disk failure, replaced the drive.";
   const h = hashNotes(notes);
-  assert.equal(alreadyClassified({ rootCause: "Hardware", solutionType: "Workaround solution", notesHash: h }, notes), true);
+  const inc = { number: "INC001" };
+  assert.equal(alreadyClassified({ ...inc, rootCause: "Hardware", solutionType: "Workaround solution", notesHash: h }, notes), true);
   // Missing one field -> not fully classified.
-  assert.equal(alreadyClassified({ rootCause: "Hardware", solutionType: "", notesHash: h }, notes), false);
+  assert.equal(alreadyClassified({ ...inc, rootCause: "Hardware", solutionType: "", notesHash: h }, notes), false);
   // note changed -> must re-classify.
-  assert.equal(alreadyClassified({ rootCause: "Hardware", solutionType: "Workaround solution", notesHash: hashNotes("Different note") }, notes), false);
+  assert.equal(alreadyClassified({ ...inc, rootCause: "Hardware", solutionType: "Workaround solution", notesHash: hashNotes("Different note") }, notes), false);
   // No recorded baseline -> assume it may have changed.
-  assert.equal(alreadyClassified({ rootCause: "Hardware", solutionType: "Workaround solution" }, notes), false);
+  assert.equal(alreadyClassified({ ...inc, rootCause: "Hardware", solutionType: "Workaround solution" }, notes), false);
+  // Free-text root-cause analysis is NOT a valid category -> needs re-classification.
+  assert.equal(alreadyClassified({ ...inc, rootCause: "Drive failed after prolonged use" , solutionType: "Workaround solution", notesHash: h }, notes), false);
 });
