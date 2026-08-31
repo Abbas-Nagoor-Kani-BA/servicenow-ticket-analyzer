@@ -87,6 +87,23 @@ function rowsWithNotes(rows: Record<string, any>[]): Record<string, any>[] {
   return rows.filter((r) => String(r.closeNotes ?? "").trim());
 }
 
+/** FNV-1a hash of the note text, used to detect an unchanged note cheaply. */
+function hashNotes(notes: string): string {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < notes.length; i++) {
+    h ^= notes.charCodeAt(i);
+    h = (h * 0x01000193) >>> 0;
+  }
+  return `n:${h.toString(16)}:${notes.length}`;
+}
+
+/** A row already carries both fields AND its note text is unchanged. */
+function alreadyClassified(row: Record<string, any>, notes: string): boolean {
+  if (!row.rootCause || !row.solutionType) return false;
+  if (!row.notesHash) return false; // no recorded baseline -> assume it may have changed
+  return row.notesHash === hashNotes(notes);
+}
+
 function deterministicPass(
   rows: Record<string, any>[],
   onlyBlank: boolean,
@@ -104,6 +121,13 @@ function deterministicPass(
       notClassified++;
       cb.onProgress(done, rows.length, notClassified);
       tally(stats, done, notClassified, null, null, cb);
+      continue;
+    }
+    // Per-row cache: a row already carrying both fields AND with unchanged notes
+    // is left alone (no recompute), regardless of mode.
+    if (alreadyClassified(row, input.notes)) {
+      cb.onProgress(done, rows.length, notClassified);
+      cb.onStats(stats);
       continue;
     }
     if (onlyBlank && row.rootCause && row.solutionType) {
@@ -141,6 +165,7 @@ function deterministicPass(
       changed++;
       changedSysIds.push(String(row.sysId ?? ""));
     }
+    row.notesHash = hashNotes(input.notes);
     cb.updateRow(row, toSolution, toRootCause, solution.confidence, result.confidence);
     cb.onProgress(done, rows.length, notClassified);
     tally(stats, done, notClassified, toSolution, toRootCause, cb);
@@ -179,6 +204,7 @@ function mlPass(
           if (!row) continue;
           const before = row.rootCause !== res.rootCause || row.solutionType !== res.solutionType;
           if (before) changedSysIds.push(String(row.sysId ?? ""));
+          row.notesHash = hashNotes(String(row.closeNotes ?? "").trim());
           cb.updateRow(row, res.solutionType, res.rootCause, res.solutionConfidence, res.rootCauseConfidence);
           done++;
           tally(stats, done, (preDoneUnclassified || 0) + msg.notClassified, res.solutionType, res.rootCause, cb);
@@ -229,7 +255,12 @@ export async function classifyRows(cb: ClassifyCallbacks): Promise<ClassifyRun> 
   // ML-enabled "always": ML is the single source of truth. No deterministic
   // pass, so nothing is written ahead of the model.
   if (useMl && mode === "always") {
-    const targets = rowsWithNotes(rows);
+    // Per-row cache: only rows still lacking a value (or with changed notes) go
+    // to ML; already-classified, unchanged rows are skipped.
+    const targets = rowsWithNotes(rows).filter((r) => {
+      const notes = String(r.closeNotes ?? "").trim();
+      return !alreadyClassified(r, notes);
+    });
     stats.done = preDone;
     stats.notClassified = preDone;
     cb.onProgress(preDone, total, preDone);
@@ -264,3 +295,5 @@ export async function classifyRows(cb: ClassifyCallbacks): Promise<ClassifyRun> 
   cb.onStats(stats);
   return { total, withNotes, classified: d.changed, changed: d.changed, changedSysIds: d.changedSysIds };
 }
+
+export { hashNotes, alreadyClassified };

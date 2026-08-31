@@ -44,6 +44,10 @@ a cached result is only reused for a genuinely identical input.
   `classifyCached` checks it per input (miss → infer + put; hit → reuse + noteHit).
   `modelId`/`cacheEnabled` travel through the `classify` request. `surfaces/viewer/classify.ts`
   `mlPass` now sends them. Committed.
-- [ ] M4 — per-row `notesHash` skip in `surfaces/viewer/classify.ts` + `grid.ts`.
+- [x] **M4 — per-row notesHash skip**
+  `surfaces/viewer/classify.ts` adds `hashNotes`/`alreadyClassified`. A row already
+  carrying both fields AND with an unchanged note hash is skipped in the
+  deterministic pass and excluded from ML targets; `row.notesHash` is written on
+  classify and persists via `lastData`. Tests: `tools/per-row-cache-test.js`. Committed.
 - [ ] M5 — Settings toggle `ml.cacheEnabled` + "Clear classification cache" button.
 - [ ] M6 — full gate + docs update.
