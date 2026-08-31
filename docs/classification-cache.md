@@ -33,7 +33,12 @@ a cached result is only reused for a genuinely identical input.
   `data/classification-cache-repository.ts` (own IDB DB; `get/put/noteHit/stats/clear`;
   FNV-1a `hashKey`; bounded eviction) + `tools/classification-cache-test.js`.
   Committed.
-- [ ] M2 — deterministic cache wiring in `services/classifier-service.ts`.
+- [x] **M2 — deterministic cache wiring**
+  `services/classifier-service.ts` wraps the compute in `classifyCached` (cache hit
+  → reuse + `noteHit`; miss → compute + `put`), gated by `cacheEnabled` (default true)
+  and `modelId` ("deterministic"). The store degrades to a no-op when IndexedDB is
+  unavailable so it stays safe in plain node. Tests: cached reuse (compute runs once),
+  disabled path. Committed.
 - [ ] M3 — ML cache wiring in `worker/classifier-worker.ts` + `ml-classify.ts`.
 - [ ] M4 — per-row `notesHash` skip in `surfaces/viewer/classify.ts` + `grid.ts`.
 - [ ] M5 — Settings toggle `ml.cacheEnabled` + "Clear classification cache" button.

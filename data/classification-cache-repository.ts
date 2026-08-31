@@ -1,5 +1,5 @@
 import { createIdbDatabase, createMemoryDatabase } from "./idb.ts";
-import type { IdbDatabase } from "./idb.ts";
+import type { IdbDatabase, IdbStore } from "./idb.ts";
 import type { ClassifyOutcome } from "../services/classifier-service.ts";
 
 /*
@@ -77,20 +77,30 @@ export function hashKey(input: CacheKeyInput): string {
 export class ClassificationCacheStore implements ClassificationCacheRepository {
   static readonly deps = [] as const;
 
-  private readonly db: IdbDatabase;
+  private readonly db: IdbDatabase | null;
 
-  constructor(db: IdbDatabase = createIdbDatabase(CACHE_DB, CACHE_DB_VERSION, CACHE_STORE)) {
+  constructor(db: IdbDatabase | null = createDefaultDb()) {
     this.db = db;
   }
 
-  private entries() { return this.db.store("entries"); }
-  private meta() { return this.db.store("meta"); }
+  private disabled(): boolean { return this.db === null; }
+
+  private entries(): IdbStore {
+    if (!this.db) throw new Error("classification cache unavailable: no IndexedDB");
+    return this.db.store("entries");
+  }
+  private meta(): IdbStore {
+    if (!this.db) throw new Error("classification cache unavailable: no IndexedDB");
+    return this.db.store("meta");
+  }
 
   async get(input: CacheKeyInput): Promise<ClassifyCacheEntry | undefined> {
+    if (this.disabled()) return undefined;
     return this.entries().get<ClassifyCacheEntry | undefined>(hashKey(input));
   }
 
   async put(input: CacheKeyInput, entry: ClassifyCacheEntry): Promise<void> {
+    if (this.disabled()) return;
     const key = hashKey(input);
     const existing = await this.entries().get<ClassifyCacheEntry | undefined>(key);
     const count = await this.count();
@@ -102,6 +112,7 @@ export class ClassificationCacheStore implements ClassificationCacheRepository {
   }
 
   async noteHit(input: CacheKeyInput): Promise<void> {
+    if (this.disabled()) return;
     const key = hashKey(input);
     const entry = await this.entries().get<ClassifyCacheEntry | undefined>(key);
     if (entry) {
@@ -110,10 +121,12 @@ export class ClassificationCacheStore implements ClassificationCacheRepository {
   }
 
   async stats(): Promise<{ entries: number }> {
+    if (this.disabled()) return { entries: 0 };
     return { entries: await this.count() };
   }
 
   async clear(): Promise<void> {
+    if (this.disabled()) return;
     await this.entries().clear();
     await this.setCount(0);
   }
@@ -148,4 +161,11 @@ export class ClassificationCacheStore implements ClassificationCacheRepository {
 /** In-memory twin for tests: same store shape, no IndexedDB. */
 export function createMemoryClassificationCacheRepository(): ClassificationCacheRepository {
   return new ClassificationCacheStore(createMemoryDatabase(CACHE_STORE));
+}
+
+/** Default IDB-backed store, or null when IndexedDB is unavailable (e.g. node).
+ *  An injected memory store is always used verbatim. */
+function createDefaultDb(): IdbDatabase | null {
+  if (typeof indexedDB === "undefined") return null;
+  return createIdbDatabase(CACHE_DB, CACHE_DB_VERSION, CACHE_STORE);
 }
