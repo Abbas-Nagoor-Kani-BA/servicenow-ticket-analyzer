@@ -69,6 +69,19 @@
     color-scheme: dark;
   }
 
+  html { height: 100%; }
+  body.viewer-body {
+    margin: 0;
+    font-family: var(--font-sans);
+    font-size: 13px;
+    background: var(--color-bg);
+    color: var(--color-text);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
+
   [hidden] { display: none !important; }
 
   ::-webkit-scrollbar { width: 12px; height: 12px; }
@@ -298,7 +311,7 @@
 
 @layer components {
   .toolbar {
-    @apply flex-none flex gap-3 items-center px-3.5 py-2 sticky top-0 bg-bg z-[2] border-b border-line;
+    @apply flex-none flex gap-3 items-center px-3.5 py-2.5 sticky top-0 bg-bg z-[2] border-b border-line;
   }
   .tbLeft { @apply flex gap-2.5 items-center min-w-0 flex-shrink; }
   .tbRight { @apply flex gap-2 items-center ml-auto justify-end; }
@@ -308,11 +321,14 @@
     @apply text-left px-2.5 py-1.5 border-b border-line whitespace-nowrap overflow-hidden text-ellipsis relative;
   }
   thead th {
+    @apply text-left px-2.5 py-1.5 border-b border-line whitespace-nowrap overflow-hidden text-ellipsis relative;
+  }
+  #tbl thead th {
     @apply sticky top-0 bg-card cursor-pointer select-none text-[11.5px] uppercase tracking-wide text-muted z-[1];
   }
-  thead th:hover { color: #b4befe; }
-  thead th.sorted::after { content: " ▾"; color: #cba6f7; }
-  thead th.sorted.desc::after { content: " ▴"; }
+  #tbl thead th:hover { color: #b4befe; }
+  #tbl thead th.sorted::after { content: " ▾"; color: #cba6f7; }
+  #tbl thead th.sorted.desc::after { content: " ▴"; }
   tbody tr:hover { background: #313244; }
   th .colResize {
     @apply absolute top-0 right-0 bottom-0 w-2 cursor-col-resize z-[3];
@@ -350,11 +366,34 @@
   td.review::before { content: "⚠ "; color: #f9e2af; font-size: 11px; }
   td.copied { animation: copyflash 0.8s ease-out; }
 
-  #slaBar { @apply flex-none px-4.5 py-1 text-[11px] text-dim flex items-center gap-2; }
+  #slaBar {
+    @apply flex-none px-4.5 py-1.5 text-[11px] text-dim flex items-center gap-4 border-b border-line bg-card;
+    position: relative;
+    z-index: 1;
+  }
+  #slaBar .legend {
+    @apply flex items-center gap-2.5 min-w-0 flex-1 flex-wrap;
+  }
+  #slaBar .cls {
+    @apply flex items-center gap-3 ml-auto flex-shrink-0 whitespace-nowrap;
+  }
+  #slaBar .cls .stat { @apply flex items-center gap-1; }
+  #slaBar .cls .stat b { @apply text-accent font-semibold; }
+  #slaBar .cls .stat.rc b { @apply text-mauve; }
+  #slaBar .cls .stat.nap b { @apply text-peach; }
   .slaDot { @apply inline-block w-2 h-2 rounded-full; }
   .slaDot.r { @apply bg-bad; }
   .slaDot.m { @apply bg-peach; }
   .slaDot.rm { @apply bg-red; }
+
+  #clsProgress {
+    @apply flex-none h-1 bg-line relative overflow-hidden z-[2];
+  }
+  #clsProgress.hidden { display: none; }
+  #clsFill {
+    @apply h-full bg-accent transition-[width] duration-150 ease-linear;
+    width: 0%;
+  }
   #empty { @apply flex-1 pt-15 px-5 text-center text-dim text-sm; }
 
   .radioRow { @apply flex flex-col gap-1 px-2.5 py-1.5; }
@@ -422,7 +461,7 @@
   .trDate { @apply block text-accent font-mono text-[11.5px] mb-1; }
   .trText { @apply break-words text-[12.5px] leading-relaxed text-text; }
 
-  #tabs { @apply flex-none inline-flex gap-0.5 pt-1.5 px-4.5; }
+  #tabs { @apply flex-none inline-flex gap-0.5 pt-2 px-4.5 pb-1.5; }
   #tabs button.tab {
     @apply bg-card text-dim border border-line px-4 py-1.5 text-xs rounded-none font-semibold cursor-pointer inline-flex items-center gap-2;
   }

@@ -100,6 +100,86 @@ export class DataGrid extends Component<DataGridState, ComponentProps, DataGridD
   }
 
   /**
+   * Re-renders only the rows whose sysIds are in `changed`, rebuilding their
+   * `<tr>` in place. Unlike `render()` this never wipes the tbody, so it is the
+   * cheap path for a background classifier that updates a handful of rows per
+   * frame without disrupting scroll, selection or an in-progress edit.
+   *
+   * The caller owns the row values (it mutates the row objects first); this only
+   * reflects them into the DOM. Refuses to run while a cell editor is open, so
+   * the caret keeps its position.
+   */
+  updateRows(changed: Array<string | number>): void {
+    if (!changed.length) return;
+    if (document.querySelector("td.edit-input")) return;
+
+    const state = this.getState();
+    const tbody = this.refs.table.tBodies[0];
+    if (!tbody) return;
+
+    const wanted = new Set(changed.map((s) => String(s)));
+
+    // Legend counts must reflect ALL rows, not just the changed chunk, or the
+    // SLA/type footer flickers or disappears as the classifier walks the grid.
+    const breachCounts: BreachCounts = { r: 0, m: 0, rm: 0 };
+    const typeCounts: Record<string, number> = {};
+    for (const row of state.rows) {
+      const rowRep = buildReport(row as Parameters<typeof buildReport>[0], this.deps.fmtInstant as unknown as Parameters<typeof buildReport>[1]) as Record<string, any>;
+      const num = String(row.number ?? "");
+      if (num) typeCounts[rowRep.type || "Other"] = (typeCounts[rowRep.type || "Other"] || 0) + 1;
+      this.countBreach(rowRep, row, breachCounts);
+    }
+
+    // Rebuild only the changed rows in place; their cells are re-built with a
+    // throwaway counter so they do NOT re-increment the (already complete) set.
+    const frag = document.createDocumentFragment();
+    for (const row of state.rows) {
+      const sysId = String(row.sysId ?? "");
+      if (!wanted.has(sysId)) continue;
+      const trEl = document.createElement("tr");
+      trEl.dataset.sysId = sysId;
+      const rowRep = buildReport(row as Parameters<typeof buildReport>[0], this.deps.fmtInstant as unknown as Parameters<typeof buildReport>[1]) as Record<string, any>;
+      const durations = computeDurations(row);
+      const scratch: BreachCounts = { r: 0, m: 0, rm: 0 };
+      for (const [key, , cls] of state.cols) {
+        trEl.appendChild(this.buildCell(row, rowRep, durations, key, cls, scratch));
+      }
+      frag.appendChild(trEl);
+    }
+
+    // Replace each changed <tr> in place (match by sysId), preserving order and
+    // any rows the classifier did not touch.
+    for (const tr of Array.from(frag.children)) {
+      const rowEl = tr as HTMLElement;
+      const old = tbody.querySelector(`tr[data-sys-id="${rowEl.dataset.sysId}"]`);
+      if (old && old.parentNode) old.parentNode.replaceChild(rowEl, old);
+    }
+
+    this.updateFooter(state, typeCounts, breachCounts);
+    this.deps.afterRender();
+  }
+
+  /** Counts SLA breach markers for one row without touching the DOM. */
+  private countBreach(
+    rep: Record<string, any>,
+    row: GridRow,
+    counts: BreachCounts
+  ): void {
+    if (String(row.number ?? "").startsWith("INC")) {
+      const stateLabel = String(row.state ?? "").toLowerCase();
+      if (stateLabel.startsWith("close") || stateLabel.startsWith("resolv")) {
+        const breach = rep.slaBreach;
+        if (breach) {
+          for (const ch of String(breach)) {
+            const k = ch.toLowerCase();
+            if (k in counts) counts[k as keyof BreachCounts]++;
+          }
+        }
+      }
+    }
+  }
+
+  /**
    * Rebuilds only the header, e.g. after the column widths change.
    *
    * Takes the widths explicitly: reading them from state would use whatever
@@ -298,7 +378,8 @@ export class DataGrid extends Component<DataGridState, ComponentProps, DataGridD
     if (breachParts.length) parts.push("SLA breached: " + breachParts.join(" · "));
 
     if (parts.length) {
-      this.refs.slaBar.innerHTML = parts.join(" · ");
+      this.refs.slaBar.innerHTML = `<span class="legend">${parts.join(" · ")}</span>` +
+        `<span class="cls"></span>`;
       this.refs.slaBar.classList.remove("hidden");
     } else {
       this.refs.slaBar.classList.add("hidden");

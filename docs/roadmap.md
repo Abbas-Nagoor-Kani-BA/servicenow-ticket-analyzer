@@ -436,6 +436,48 @@ then close the gaps:
 
 ---
 
+## ML classifier — deferred improvements (recorded <date>, revisit later)
+
+The optional ML classifier (deterministic `core/msrcategorize.ts` + optional
+Transformers.js worker) works end-to-end, but the following observations were
+noted during testing and are deliberately parked. Each is small; pick any
+independently.
+
+### ML-a. Feed the model a scoped slice of the note, not the whole `close_notes`
+The zero-shot model currently receives the **entire** `close_notes` field
+verbatim (`surfaces/viewer/classify.ts` `buildInput` → `notes`). That includes
+the "Root cause category:" / "Solution type:" lines, which restate the answer
+and bias the model. Consider passing only the analysis/remedy portion (e.g. the
+"the issue / steps taken to resolve / Root cause analysis" sections) instead.
+
+### ML-b. Add a `hypothesis_template` to improve zero-shot confidence
+Labels are passed as raw MSR option strings (e.g. "Application bug"). Scores are
+often low (8–23%). A `hypothesis_template` like `"This is a {} issue"` usually
+sharpens zero-shot NLI. Set it on the `pipeline("zero-shot-classification", …)`
+call in `worker/ml-classify.ts` and re-measure confidence.
+
+### ML-c. Consider per-field confidence floors / show-both behavior
+`worker/ml-classify.ts` `pickBetter` keeps ML only when it strictly beats the
+deterministic score, and "always" mode slides ML as the authority. Decide the
+minimum confidence to accept (or to show a low-confidence "verify" cue) and
+whether to surface the deterministic candidate alongside the ML one.
+
+### ML-d. Enrich the input with the ticket's structured fields
+Only `close_notes` is sent today. Feeding `short_description`, `assignment_group`
+(or the resolved assignment-group display name), `priority`, and `state` as
+context could materially help — but keep the MSR-label contract intact.
+
+### ML-e. Reuse a single worker across runs
+Each classification spawns a fresh module worker (`surfaces/viewer/worker-client.ts`)
+and re-imports Transformers.js. Reusing one worker + a cached pipeline avoids
+the model re-init per run (matters on repeated Data View loads).
+
+### ML-f. Cap notes length before sending
+Long notes inflate inference time/latency; consider a token/char cap at
+`classify.ts` `buildInput` (the deterministic core already caps root-cause text).
+
+---
+
 ## Deferred decisions (revisit before starting the phase they gate)
 
 | Decision | Gated phase | Current answer |

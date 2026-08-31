@@ -251,3 +251,73 @@ test("afterRender runs exactly once per render", () => {
   grid.render({ ...state, rows: [] });
   assert.equal(rendered(), 2);
 });
+
+test("updateRows re-renders only the changed rows in place", () => {
+  const { grid, state, rendered } = setup({
+    rows: [
+      { sysId: "a", number: "INC0001", shortDescription: "Before", state: "Closed" },
+      { sysId: "b", number: "INC0002", shortDescription: "Keep me", state: "Closed" }
+    ],
+    total: 2
+  });
+  grid.render(state);
+
+  const rowsBefore = win.document.querySelectorAll("#tbl tbody tr");
+  assert.equal(rowsBefore.length, 2);
+
+  // Mutate row "a" in place, then updateRows must reflect it without touching "b".
+  state.rows[0].shortDescription = "After";
+  grid.updateRows(["a"]);
+
+  const trA = win.document.querySelector('#tbl tbody tr[data-sys-id="a"]') as HTMLElement;
+  const trB = win.document.querySelector('#tbl tbody tr[data-sys-id="b"]') as HTMLElement;
+  assert.equal(trA.children[1].textContent, "After");
+  assert.equal(trB.children[1].textContent, "Keep me");
+  assert.equal(win.document.querySelectorAll("#tbl tbody tr").length, 2);
+  assert.equal(rendered(), 2);
+});
+
+test("updateRows is a no-op with an empty change set", () => {
+  const { grid, state, rendered } = setup({ rows: [{ sysId: "a", number: "INC1" }], total: 1 });
+  grid.render(state);
+  grid.updateRows([]);
+  assert.equal(rendered(), 1);
+});
+
+test("updateRows is blocked while a cell editor is open", () => {
+  const { grid, state, rendered } = setup({ rows: [{ sysId: "a", number: "INC1", state: "Closed" }], total: 1 });
+  grid.render(state);
+
+  const td = win.document.querySelector("#tbl tbody tr td") as HTMLElement;
+  td.classList.add("edit-input");
+  td.innerHTML = "<input>";
+
+  state.rows[0].state = "Changed";
+  grid.updateRows(["a"]);
+  assert.equal(rendered(), 1);
+});
+
+test("updateRows keeps the legend when the changed subset has no breaches", () => {
+  // Two rows: one breached (legend would show), one not. Updating only the
+  // non-breached row must NOT hide the legend — counts come from ALL rows.
+  const breached = {
+    sysId: "b",
+    number: "INC0001",
+    priority: "2 - High",
+    state: "Resolved",
+    createdOn: "2026-08-10 09:00:00",
+    assignTimeUtcIso: "2026-08-10T01:00:00.000Z",
+    acknTimeUtcIso: "2026-08-10T02:00:00.000Z",
+    resolvedAt: "2026-08-10 15:00:00"
+  };
+  const { grid, state, $ } = setup({
+    rows: [breached, { sysId: "c", number: "INC0002", state: "Open" }],
+    total: 2
+  });
+  grid.render(state);
+  assert.equal($("slaBar").classList.contains("hidden"), false, "legend visible after render");
+
+  state.rows[1].solutionType = "Permanent solution";
+  grid.updateRows(["c"]);
+  assert.equal($("slaBar").classList.contains("hidden"), false, "legend still visible after updating a non-breach row");
+});

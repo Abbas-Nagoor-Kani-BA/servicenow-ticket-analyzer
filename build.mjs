@@ -21,7 +21,8 @@ const ENTRIES = [
   "surfaces/viewer/index.ts",
   "panel/panel.ts",
   "settings/settings.ts",
-  "content/content.js"
+  "content/content.js",
+  "worker/classifier-worker.ts"
 ].map(p => path.join(ROOT, p));
 
 const STATIC_COPY = [
@@ -30,7 +31,9 @@ const STATIC_COPY = [
   "panel/panel.html",
   "settings/settings.html",
   "styles/output.css",
-  ["lib/vendor/fflate.min.js", "lib/vendor/fflate.min.js"]
+  ["lib/vendor/fflate.min.js", "lib/vendor/fflate.min.js"],
+  ["node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.asyncify.wasm", "worker/ml-wasm/ort-wasm-simd-threaded.asyncify.wasm"],
+  ["node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.asyncify.mjs", "worker/ml-wasm/ort-wasm-simd-threaded.asyncify.mjs"]
 ];
 
 function copyStatic(outDir) {

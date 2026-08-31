@@ -5,10 +5,14 @@
   <title>ServiceNow Analyzer — Data</title>
   <link href="../styles/output.css" rel="stylesheet">
 </head>
-<body>
+<body class="viewer-body">
+  <div id="slaBar" class="hidden"></div>
+  <div id="clsProgress" class="hidden">
+    <div id="clsFill"></div>
+  </div>
   <div class="toolbar">
     <div class="tbLeft">
-      <input id="search" placeholder="Search number, state, group, assignee…">
+      <input id="search" class="w-[300px] max-w-[36vw] bg-card2 text-text border border-line rounded-md px-2.5 py-1.5 text-[13px] focus:border-accent focus:outline focus:outline-2 focus:outline-offset-0 focus:outline-accent" placeholder="Search number, state, group, assignee…">
       <span id="count"></span>
     </div>
     <div class="tbRight">
@@ -28,7 +32,6 @@
     </div>
     <input type="file" id="tplFile" accept=".xlsx" class="hidden">
   </div>
-  <div id="slaBar" class="hidden"></div>
   <div id="tabs" role="tablist">
     <button id="tabTickets" class="tab on" role="tab" aria-selected="true"><span class="g">☰</span> Tickets</button>
     <button id="tabSummary" class="tab" role="tab" aria-selected="false"><span class="g">Σ</span> Summary SLA</button>
