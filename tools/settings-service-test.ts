@@ -77,6 +77,13 @@ test("normaliseSettings coerces debugResponses to a boolean", () => {
   assert.equal(normaliseSettings({ params: { debugResponses: 0 } }).params.debugResponses, false);
 });
 
+test("normaliseSettings defaults cacheEnabled to true and rejects junk", () => {
+  assert.equal(normaliseSettings(null).ml.cacheEnabled, true);
+  assert.equal(normaliseSettings({ ml: {} }).ml.cacheEnabled, true);
+  assert.equal(normaliseSettings({ ml: { cacheEnabled: false } }).ml.cacheEnabled, false);
+  assert.equal(normaliseSettings({ ml: { cacheEnabled: "yes" } }).ml.cacheEnabled, true);
+});
+
 test("normaliseSettings does not mutate the defaults object", () => {
   normaliseSettings({ instanceUrl: "https://x", params: { cacheTtlMinutes: 60 } });
   assert.equal(SETTINGS_DEFAULTS.params.cacheTtlMinutes, 15);

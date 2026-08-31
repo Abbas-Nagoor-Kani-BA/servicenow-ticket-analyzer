@@ -49,5 +49,10 @@ a cached result is only reused for a genuinely identical input.
   carrying both fields AND with an unchanged note hash is skipped in the
   deterministic pass and excluded from ML targets; `row.notesHash` is written on
   classify and persists via `lastData`. Tests: `tools/per-row-cache-test.js`. Committed.
-- [ ] M5 — Settings toggle `ml.cacheEnabled` + "Clear classification cache" button.
+- [x] **M5 — Settings toggle + clear button**
+  `ml.cacheEnabled` (default true) added to the settings shape, `normaliseSettings`,
+  `PluginMl`, `collect()`/`fill()`. Settings ML card gains a "Cache classification
+  results" checkbox + "Clear classification cache" button (wired via
+  `surfaces/settings/index.ts` → `page.mlCache`). Tests: `settings-service-test.js`.
+  Committed.
 - [ ] M6 — full gate + docs update.

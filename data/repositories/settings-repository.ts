@@ -9,6 +9,13 @@ export type PluginParams = {
   maxTicketsPerPull?: number;
 };
 
+export type PluginMl = {
+  enabled?: boolean;
+  mode?: "always" | "fallback";
+  modelId?: string;
+  cacheEnabled?: boolean;
+};
+
 export type PluginDefaults = {
   ticketType?: string;
   queues?: string[];
@@ -20,6 +27,7 @@ export type PluginSettings = {
   instanceUrl: string;
   defaults: PluginDefaults;
   params?: PluginParams;
+  ml?: PluginMl;
 };
 
 export interface SettingsRepository {

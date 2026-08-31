@@ -1,4 +1,5 @@
 import { getDefaultDatabase } from "../data/idb.ts";
+import { ML_MODEL_CATALOG } from "../data/ml-model-repository.ts";
 import { STORAGE } from "../lib/keys.ts";
 import { showToast } from "../lib/toast.ts";
 import { initTooltips } from "../lib/tooltip.ts";
@@ -6,10 +7,25 @@ import { createSettings, fillMsrLists, collectMsrLists } from "../surfaces/setti
 import { normaliseSettings } from "../services/settings-service.ts";
 
 import type { SettingsDraft } from "../services/settings-service.ts";
+import type { MlModelOption } from "../data/ml-model-repository.ts";
 
 const $ = (id: string): any => document.getElementById(id);
 
 const page = createSettings();
+
+// Populate the model dropdown from the catalog (kept in sync with the worker's
+// supported set rather than hardcoded in HTML).
+(function populateModelSelect(): void {
+  const sel = $("mlModel");
+  for (const opt of ML_MODEL_CATALOG) {
+    const el = document.createElement("option");
+    el.value = opt.id;
+    el.textContent = opt.label;
+    el.title = opt.description;
+    sel.appendChild(el);
+  }
+  sel.value = ML_MODEL_CATALOG[0].id;
+})();
 
 function collect(): SettingsDraft {
   const draft = {
@@ -25,6 +41,12 @@ function collect(): SettingsDraft {
       debugResponses: $("debugResponses").checked,
       cacheTtlMinutes: $("cacheTtlMinutes").value,
       maxTicketsPerPull: $("maxTicketsPerPull").value
+    },
+    ml: {
+      enabled: $("mlEnabled").checked,
+      mode: $("mlMode").value === "always" ? "always" : "fallback",
+      modelId: $("mlModel").value || ML_MODEL_CATALOG[0].id,
+      cacheEnabled: $("mlCacheEnabled").checked
     }
   };
   return normaliseSettings(draft);
@@ -39,6 +61,10 @@ function fill(s: unknown): void {
   $("debugResponses").checked = merged.params.debugResponses;
   $("cacheTtlMinutes").value = merged.params.cacheTtlMinutes;
   $("maxTicketsPerPull").value = merged.params.maxTicketsPerPull;
+  $("mlEnabled").checked = merged.ml.enabled;
+  $("mlMode").value = merged.ml.mode;
+  $("mlCacheEnabled").checked = merged.ml.cacheEnabled;
+  if (ML_MODEL_CATALOG.some((m) => m.id === merged.ml.modelId)) $("mlModel").value = merged.ml.modelId;
 }
 async function save(): Promise<void> {
   const settings = collect();
@@ -71,6 +97,80 @@ $("clearCacheBtn").addEventListener("click", async () => {
     showToast((e as Error).message, "error");
   }
 });
+
+function selectedModel(): MlModelOption {
+  const id = $("mlModel").value;
+  const found = ML_MODEL_CATALOG.find((m) => m.id === id);
+  return found || ML_MODEL_CATALOG[0];
+}
+
+async function refreshMlStatus(): Promise<void> {
+  const opt = selectedModel();
+  const ready = await page.mlModel.matches(opt.spec);
+  const s = $("mlStatus");
+  if (!s) return;
+  s.textContent = ready ? "Model downloaded — ready" : "Not downloaded yet";
+  s.classList.toggle("text-good", ready);
+  s.classList.toggle("text-dim", !ready);
+  $("mlDownloadBtn").disabled = ready;
+}
+
+$("mlModel").addEventListener("change", () => {
+  // Persist the selection so the viewer/worker use this model, and refresh its
+  // download status.
+  save().catch((e) => showToast((e as Error).message, "error"));
+  refreshMlStatus().catch(() => undefined);
+});
+
+$("mlDownloadBtn").addEventListener("click", async () => {
+  const btn = $("mlDownloadBtn");
+  btn.disabled = true;
+  const status = $("mlStatus");
+  const spec = selectedModel().spec;
+  try {
+    status.textContent = "Downloading…";
+    const meta = await page.mlModel.download(spec, (p) => {
+      if (p.bytes !== undefined && p.bytes >= 0) {
+        status.textContent = `Downloading ${p.file} — ${p.bytes}%`;
+      } else {
+        status.textContent = `Downloading ${p.done}/${p.total}`;
+      }
+    });
+    const verify = await page.mlModel.matches(spec);
+    console.log("[settings] ML model download complete, matches=", verify, meta);
+    status.textContent = verify
+      ? `Model downloaded (${new Date(meta.savedAt).toISOString()})`
+      : "Download finished but not verified — retry";
+    showToast(verify ? "ML model downloaded and cached" : "Model download incomplete — retry", verify ? "info" : "error");
+  } catch (e) {
+    status.textContent = "Download failed";
+    console.error("[settings] ML model download failed", e);
+    showToast((e as Error).message, "error");
+  } finally {
+    await refreshMlStatus();
+  }
+});
+
+// The ML toggle and mode persist immediately, so the Data View picks them up
+// without requiring a full Save (which many users never press after toggling a
+// checkbox).
+for (const id of ["mlEnabled", "mlMode", "mlCacheEnabled"]) {
+  $(id).addEventListener("change", () => {
+    save().catch((e) => showToast((e as Error).message, "error"));
+  });
+}
+
+$("mlCacheClearBtn").addEventListener("click", async () => {
+  try {
+    const { entries } = await page.mlCache.stats();
+    await page.mlCache.clear();
+    showToast(`Classification cache cleared (${entries} entries removed)`);
+  } catch (e) {
+    showToast((e as Error).message, "error");
+  }
+});
+
+refreshMlStatus().catch(() => undefined);
 page.settings.load().then(fill);
 const CFG_KIND = "servicenow-ticket-analyzer-settings";
 const CFG_KEYS = [STORAGE.pluginSettings, STORAGE.exportColMap, STORAGE.ciSplit, STORAGE.viewerHiddenCols, STORAGE.snXlsxTemplate, STORAGE.msrLists];

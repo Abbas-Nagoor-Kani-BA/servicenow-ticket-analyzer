@@ -7,6 +7,10 @@ import type { MsrListsRepository } from "../../data/repositories/msr-lists-repos
 import { SettingsService } from "../../services/settings-service.ts";
 import { RemoteBridge } from "../../services/remote-bridge.ts";
 import { MSR_DEFAULT_LISTS } from "../../core/msrchoices.ts";
+import { MlModelStore } from "../../data/ml-model-repository.ts";
+import type { MlModelRepository } from "../../data/ml-model-repository.ts";
+import { ClassificationCacheStore } from "../../data/classification-cache-repository.ts";
+import type { ClassificationCacheRepository } from "../../data/classification-cache-repository.ts";
 
 /*
  * Composition root for the options page.
@@ -40,6 +44,8 @@ export type SettingsWiring = {
   bridge: RemoteBridge;
   settings: SettingsService;
   msrLists: MsrListsRepository;
+  mlModel: MlModelRepository;
+  mlCache: ClassificationCacheRepository;
   chips: Record<string, ChipList>;
   msrFieldIds: { lists: [string, string][]; rootCause: [string, string][] };
 };
@@ -69,6 +75,8 @@ export function createSettings(): SettingsWiring {
     bridge: container.resolve(REMOTE_BRIDGE),
     settings: new SettingsService(container.resolve(SETTINGS_REPO)),
     msrLists: container.resolve(MSR_LISTS_REPO),
+    mlModel: new MlModelStore(),
+    mlCache: new ClassificationCacheStore(),
     chips,
     msrFieldIds: { lists: MSR_LIST_FIELDS, rootCause: MSR_RC_FIELDS }
   };

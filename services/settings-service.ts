@@ -17,6 +17,12 @@ export type SettingsDraft = {
     cacheTtlMinutes: number;
     maxTicketsPerPull: number;
   };
+  ml: {
+    enabled: boolean;
+    mode: "always" | "fallback";
+    modelId: string;
+    cacheEnabled: boolean;
+  };
 };
 
 export const TICKET_TYPES = ["incident", "change_request", "problem", "sc_req_item", "sc_task"];
@@ -34,6 +40,12 @@ export const SETTINGS_DEFAULTS: SettingsDraft = {
     debugResponses: false,
     cacheTtlMinutes: 15,
     maxTicketsPerPull: 500
+  },
+  ml: {
+    enabled: false,
+    mode: "fallback",
+    modelId: "mobilebert",
+    cacheEnabled: true
   }
 };
 
@@ -77,6 +89,12 @@ export function normaliseSettings(raw: unknown): SettingsDraft {
   merged.params.cacheTtlMinutes = clampInt(merged.params.cacheTtlMinutes, 0, 10080, SETTINGS_DEFAULTS.params.cacheTtlMinutes);
   merged.params.maxTicketsPerPull = clampInt(merged.params.maxTicketsPerPull, 0, 1e5, SETTINGS_DEFAULTS.params.maxTicketsPerPull);
   merged.params.debugResponses = !!merged.params.debugResponses;
+
+  if (s.ml && typeof s.ml === "object") Object.assign(merged.ml, s.ml);
+  merged.ml.enabled = !!merged.ml.enabled;
+  if (merged.ml.mode !== "always") merged.ml.mode = "fallback";
+  if (typeof merged.ml.modelId !== "string" || !merged.ml.modelId) merged.ml.modelId = SETTINGS_DEFAULTS.ml.modelId;
+  if (typeof merged.ml.cacheEnabled !== "boolean") merged.ml.cacheEnabled = SETTINGS_DEFAULTS.ml.cacheEnabled;
 
   return merged;
 }

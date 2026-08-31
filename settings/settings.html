@@ -62,6 +62,39 @@
     </div>
   </div>
 
+  <div class="card-settings">
+    <h2 class="cardTitle">ML classification</h2>
+    <div class="hint mt-1">Optional machine-learning classifier that maps resolution notes to the MSR
+      Root cause and Solution type columns. Download the model once; it is cached locally and used offline
+      in the Data View. When disabled, the built-in offline scorer is used instead.</div>
+    <label class="flex items-center gap-1.5 mt-2">
+      <input id="mlEnabled" type="checkbox" class="w-auto">
+      Enable ML classification
+    </label>
+    <label class="block text-[11.5px] uppercase tracking-wider text-muted mt-3 mb-1.25">Model</label>
+    <select id="mlModel" class="select"></select>
+    <div class="hint mt-1">Choose which classifier to download. Larger models are more accurate but take longer to download.</div>
+    <label class="block text-[11.5px] uppercase tracking-wider text-muted mt-3 mb-1.25">Classification mode</label>
+    <select id="mlMode" class="select">
+      <option value="fallback">Fallback — only when the fast scorer is unsure</option>
+      <option value="always">Always — use ML for every ticket</option>
+    </select>
+    <div class="flex gap-2 flex-wrap mt-3.5 items-center">
+      <button id="mlDownloadBtn" class="btn">Download model</button>
+      <span id="mlStatus" class="text-dim text-xs">Not downloaded yet</span>
+    </div>
+    <label class="flex items-center gap-1.5 mt-3">
+      <input id="mlCacheEnabled" type="checkbox" class="w-auto">
+      Cache classification results
+    </label>
+    <div class="hint mt-1">Stores each classified note's outcome in a local cache, so an unchanged
+      note is never re-inferred on reload or across datasets. Turn off to always re-classify. This only affects
+      future runs; existing rows are already classified.</div>
+    <div class="flex gap-2 flex-wrap mt-2 items-center">
+      <button id="mlCacheClearBtn" class="btn">Clear classification cache</button>
+    </div>
+  </div>
+
   <div class="card-settings msrCard" style="grid-column:1/-1">
     <h2 class="cardTitle">MSR option lists</h2>
     <div class="hint mt-1">Allowed values for the MSR report dropdown columns (BA AO sheet). The data view
