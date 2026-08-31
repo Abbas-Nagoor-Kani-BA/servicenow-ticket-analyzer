@@ -39,7 +39,11 @@ a cached result is only reused for a genuinely identical input.
   and `modelId` ("deterministic"). The store degrades to a no-op when IndexedDB is
   unavailable so it stays safe in plain node. Tests: cached reuse (compute runs once),
   disabled path. Committed.
-- [ ] M3 — ML cache wiring in `worker/classifier-worker.ts` + `ml-classify.ts`.
+- [x] **M3 — ML cache wiring**
+  `worker/classifier-worker.ts` builds a `ClassificationCacheStore` per run and
+  `classifyCached` checks it per input (miss → infer + put; hit → reuse + noteHit).
+  `modelId`/`cacheEnabled` travel through the `classify` request. `surfaces/viewer/classify.ts`
+  `mlPass` now sends them. Committed.
 - [ ] M4 — per-row `notesHash` skip in `surfaces/viewer/classify.ts` + `grid.ts`.
 - [ ] M5 — Settings toggle `ml.cacheEnabled` + "Clear classification cache" button.
 - [ ] M6 — full gate + docs update.
