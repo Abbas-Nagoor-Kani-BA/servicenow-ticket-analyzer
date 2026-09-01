@@ -322,7 +322,7 @@ test("updateRows keeps the legend when the changed subset has no breaches", () =
   assert.equal($("slaBar").classList.contains("hidden"), false, "legend still visible after updating a non-breach row");
 });
 
-test("attention resolver adds the row tint and a marker on the number cell", () => {
+test("attention resolver adds per-cell markers on the hinted columns", () => {
   const { grid, state } = setup({
     rows: [
       { sysId: "a", number: "INC0001", state: "Closed", rootCause: "", solutionType: "" },
@@ -331,7 +331,7 @@ test("attention resolver adds the row tint and a marker on the number cell", () 
     total: 2,
     attention: (row) => {
       return String(row.sysId) === "a"
-        ? [{ id: "emptyPlan", label: "Missing plan data", detail: "No root cause or solution type" }]
+        ? [{ id: "emptyPlan", label: "Missing plan data", detail: "No root cause or solution type", columnHint: "state" }]
         : [];
     }
   });
@@ -341,23 +341,16 @@ test("attention resolver adds the row tint and a marker on the number cell", () 
   assert.equal(rows.length, 2);
   const flagged = rows.find((r) => r.dataset.sysId === "a") as HTMLElement;
   const clean = rows.find((r) => r.dataset.sysId === "b") as HTMLElement;
-  assert.ok(flagged.classList.contains("attention"), "flagged row carries the attention class");
+  assert.ok(!flagged.classList.contains("attention"), "flagged row carries no row-level attention class");
   assert.ok(!clean.classList.contains("attention"), "clean row carries no attention class");
-  assert.ok(flagged.querySelector("td.attention-mark"), "number cell shows the attention marker");
-  assert.ok(!clean.querySelector("td.attention-mark"), "clean number cell has no marker");
-  assert.ok(flagged.getAttribute("data-tip")?.includes("Missing plan data"), "row tooltip lists the flag");
 
-  const flaggedCells = [...flagged.querySelectorAll("td")];
-  assert.ok(flaggedCells.length > 0, "flagged row has cells");
-  for (const cell of flaggedCells) {
-    const tip = cell.getAttribute("data-tip") ?? "";
-    assert.ok(tip.length > 0, "cell has a tooltip");
-    assert.ok(tip.includes("Missing plan data"), "cell tooltip lists the attention reason");
+  const markedKeys = [...flagged.querySelectorAll("td.attention-mark")];
+  assert.equal(markedKeys.length, 1, "only the hinted column carries the per-cell marker");
+  for (const td of markedKeys) {
+    const tip = td.getAttribute("data-tip") ?? "";
+    assert.ok(tip.includes("Missing plan data"), "marked cell tooltip lists the attention reason");
   }
-  const cleanCells = [...clean.querySelectorAll("td")];
-  for (const cell of cleanCells) {
-    assert.ok(!(cell.getAttribute("data-tip") ?? "").includes("Missing plan data"), "clean row cells omit the attention reason");
-  }
+  assert.ok(!clean.querySelector("td.attention-mark"), "clean row has no markers");
 });
 
 test("updateRows honours the attention resolver", () => {
@@ -368,17 +361,17 @@ test("updateRows honours the attention resolver", () => {
     total: 1,
     attention: (row) => {
       return String(row.sysId) === "a" && !String(row.rootCause)
-        ? [{ id: "emptyPlan", label: "Missing plan data", detail: "No root cause" }]
+        ? [{ id: "emptyPlan", label: "Missing plan data", detail: "No root cause", columnHint: "state" }]
         : [];
     }
   });
   grid.render(state);
-  assert.equal(win.document.querySelector("tr.attention"), null, "no attention before edit");
+  assert.equal(win.document.querySelector("td.attention-mark"), null, "no markers before edit");
 
   state.rows[0].rootCause = "";
   state.rows[0].solutionType = "";
   grid.updateRows(["a"]);
-  const tr = win.document.querySelector("tr.attention") as HTMLElement;
-  assert.ok(tr, "row becomes attention-flagged after updateRows");
-  assert.equal(tr.dataset.sysId, "a");
+  const marked = win.document.querySelectorAll("td.attention-mark");
+  assert.equal(marked.length, 1, "hinted cell becomes attention-flagged after updateRows");
+  assert.equal(marked[0].closest("tr")?.getAttribute("data-sys-id"), "a");
 });

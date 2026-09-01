@@ -353,10 +353,8 @@
   td.review { box-shadow: inset 3px 0 0 #fab387; }
   td.review::before { content: "⚠ "; color: #f9e2af; font-size: 11px; }
 
-  /* Calclens: row-level "needs attention" marker + tint. */
-  tr.attention td { background: rgba(250, 179, 135, 0.07); }
-  tr.attention:hover td { background: rgba(250, 179, 135, 0.12); }
-  td.attention-mark { position: relative; }
+  /* Calclens: per-cell attention dot marker. */
+  td.attention-mark { position: relative; border-left: 2px solid #fab387; }
   td.attention-mark::before {
     content: "";
     @apply inline-block w-2 h-2 rounded-full bg-peach align-middle;

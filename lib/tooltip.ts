@@ -104,11 +104,11 @@ function onEnter(ev: MouseEvent): void {
     return;
   }
   const el = ev.target instanceof Element ? ev.target.closest("[data-tip]") : null;
+  if (el === currentEl) return;
+  hide();
   if (!(el instanceof HTMLElement)) return;
   lastX = ev.clientX;
   lastY = ev.clientY;
-  if (el === currentEl) return;
-  hide();
   currentEl = el;
   delayThenShow(el);
 }

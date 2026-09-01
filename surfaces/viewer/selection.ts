@@ -3,6 +3,7 @@ import type { ViewerRow, ViewerCol } from "./core.ts";
 import { currentRows, hasDataRows } from "./grid-data.ts";
 import { setSelectionHooks } from "./grid.ts";
 import { selStore, saveSel } from "./store.ts";
+import { getCalclensMode } from "./calclens-state.ts";
 
 type Bounds = { rows: ViewerRow[]; cols: ViewerCol[]; lo: number; hi: number; lc: number; hc: number };
 
@@ -140,6 +141,7 @@ function applySelHighlight(): void {
     tdEl.style.boxShadow = "";
   }
   selStore.setState({ prev: [] });
+  if (!getCalclensMode()) return;
   const focus = sel().focus;
   if (!focus || !hasDataRows()) return;
   const rows = currentRows();

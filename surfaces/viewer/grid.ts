@@ -153,7 +153,10 @@ function gridState(rows: ViewerRow[]): DataGridState {
     total: data ? data.rows.length : 0,
     sortKey,
     sortDir,
-    colWidths: getColWidths()
+    colWidths: getColWidths(),
+    // Always present so the Component.setState spread ({...prev, ...state})
+    // drops the previous resolver when Calclens is turned off.
+    attention: undefined
   };
   if (getCalclensMode()) {
     const { teamMembers, groupScope } = attentionCtx();

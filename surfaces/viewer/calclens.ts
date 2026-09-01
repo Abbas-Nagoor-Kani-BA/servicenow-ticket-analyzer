@@ -48,8 +48,7 @@ export function initCalclens(): void {
     setCalclensMode(next);
     btn.classList.toggle("calclens-on", next);
     render();
-    if (next) panel.show(null);
-    else panel.close();
+    if (!next) panel.close();
   });
 
   setOnCellFocus((info) => {
@@ -69,5 +68,4 @@ export function initCalclens(): void {
 
   // Reflect the persisted mode on boot.
   btn.classList.toggle("calclens-on", getCalclensMode());
-  if (getCalclensMode()) panel.show(null);
 }

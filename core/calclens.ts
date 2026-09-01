@@ -35,6 +35,8 @@ export type TimelineStep = {
   atLabel: string;
   /** Which field the event belongs to — drives the Lucide icon. */
   fieldIcon: TimelineFieldIcon;
+  /** Human label for the field that changed, e.g. "Priority". */
+  fieldLabel: string;
   from: string;
   to: string;
   /** True when this event is the one whose time the selected cell shows. */
@@ -156,6 +158,24 @@ function fieldIconOf(f: string): TimelineFieldIcon {
   return "state";
 }
 
+const FIELD_LABELS: Record<string, string> = {
+  assignment_group: "Assignment group",
+  assigned_to: "Assigned to",
+  state: "State",
+  priority: "Priority",
+  category: "Category",
+  subcategory: "Sub-category",
+  short_description: "Short description",
+  sys_created_by: "Opened by",
+  caller_id: "Caller"
+};
+
+/** Human label for a feed field name, falling back to a humanized raw name. */
+function fieldLabelOf(f: string): string {
+  if (FIELD_LABELS[f]) return FIELD_LABELS[f];
+  return f.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 function eventLabel(table: string, f: string, v: unknown): string {
   return f === "state" ? stateLabel(table, v) : str(v);
 }
@@ -177,6 +197,7 @@ function buildTimeline(ctx: ExplainCtx, row: Record<string, any>, table: string)
         atIso,
         atLabel: fmtOrRaw(ctx, row, atIso),
         fieldIcon: fieldIconOf(f),
+        fieldLabel: fieldLabelOf(f),
         from: eventLabel(table, f, ev.o),
         to: eventLabel(table, f, ev.n),
         selected: false

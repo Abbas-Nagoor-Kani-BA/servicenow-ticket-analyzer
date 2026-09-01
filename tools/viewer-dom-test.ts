@@ -250,7 +250,7 @@ test("Calclens drawer does not offer editing for non-derivation columns", { time
   calState.setCalclensMode(false);
 });
 
-test("Calclens ON flags attention rows with a marker and tooltip", { timeout: 8000 }, async () => {
+test("Calclens ON flags attention cells with a marker and tooltip", { timeout: 8000 }, async () => {
   const calState = await import("../surfaces/viewer/calclens-state.ts");
   const row = grid.currentRows()[0];
   row.rootCause = "";
@@ -259,18 +259,40 @@ test("Calclens ON flags attention rows with a marker and tooltip", { timeout: 80
   grid.render();
   await flush();
   const flagged = document.querySelector(`#tbl tbody tr[data-sys-id="aaa"]`);
-  assert.ok(flagged.classList.contains("attention"), "row is flagged as needing attention");
-  assert.ok(flagged.querySelector("td.attention-mark"), "number cell shows the attention marker");
-  const tip = flagged.getAttribute("data-tip");
-  assert.ok(tip && tip.includes("Needs attention") && tip.includes("Missing plan data"), "tooltip lists the fired rule");
-  for (const cell of flagged.querySelectorAll("td")) {
-    assert.ok((cell.getAttribute("data-tip") ?? "").includes("Missing plan data"), "every cell tooltip lists the attention reason");
+  assert.ok(!flagged.classList.contains("attention"), "row carries no row-level attention class");
+  const marked = [...flagged.querySelectorAll("td.attention-mark")];
+  assert.ok(marked.length >= 2, "hinted cells show the attention marker (rootCause + solutionType)");
+  for (const cell of marked) {
+    const tip = (cell.getAttribute("data-tip") ?? "");
+    assert.ok(tip.includes("Needs attention") && tip.includes("Missing plan data"), "marked cell tooltip lists the fired rule and detail");
   }
   calState.setCalclensMode(false);
+  grid.render();
+  await flush();
+  assert.equal(document.querySelector("#tbl tbody td.attention-mark"), null, "markers cleared when Calclens is toggled off");
+});
+
+test("tooltip hides when the hovered cell is re-rendered", { timeout: 8000 }, async () => {
+  const cell = document.querySelector(`#tbl tbody tr[data-sys-id="aaa"] td`);
+  assert.ok(cell, "a body cell exists to hover");
+  cell.dispatchEvent(new window.MouseEvent("mouseover", { bubbles: true, clientX: 300, clientY: 100 }));
+  const tipIn = () => {
+    const t = document.querySelector(".tip");
+    return !!t && t.classList.contains("in");
+  };
+  await new Promise((r) => setTimeout(r, 700)); // > SHOW_DELAY
+  assert.ok(tipIn(), "tooltip shown while hovering the cell");
+  grid.render();
+  await flush();
+  document.body.dispatchEvent(new window.MouseEvent("mouseover", { bubbles: true, clientX: 5, clientY: 5 }));
+  await flush();
+  assert.equal(tipIn(), false, "tooltip no longer stuck after the hovered cell is replaced");
 });
 
 test("single-cell selection + arrow navigation focuses the selected cell", { timeout: 8000 }, async () => {
+  const calState = await import("../surfaces/viewer/calclens-state.ts");
   const selModule = await import("../surfaces/viewer/selection.ts");
+  calState.setCalclensMode(true);
   await selModule.setSelPoint("aaa", "number", false);
   await flush();
   const numTd = document.querySelector(`#tbl tbody tr[data-sys-id="aaa"]`).children[0];
@@ -287,6 +309,7 @@ test("single-cell selection + arrow navigation focuses the selected cell", { tim
     .findIndex(td2 => td2.classList.contains("sel"));
   assert.equal(selCol, nextIdx, "arrow navigation moved the focus one cell right");
   assert.ok(rowAfter, "row still present after navigation");
+  calState.setCalclensMode(false);
 });
 
 test("derived duration columns render HMS from the timeline stamps", { timeout: 8000 }, async () => {

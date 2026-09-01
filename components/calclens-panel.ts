@@ -365,8 +365,7 @@ export class CalclensPanel extends Component<CalclensPanelState, ComponentProps,
   /** Field label + spaced arrow + brighter values on one line. */
   private renderDesc(ev: TimelineStep): HTMLElement {
     const wrap = el("span", "calclens-tl-desc");
-    const label = ev.fieldIcon === "group" ? "Assignment group" : ev.fieldIcon === "assignee" ? "Assigned to" : "Status";
-    wrap.appendChild(el("span", "calclens-tl-desc-label", label + ":"));
+    wrap.appendChild(el("span", "calclens-tl-desc-label", (ev.fieldLabel || "Field") + ":"));
     wrap.appendChild(el("span", "calclens-tl-desc-value", ev.from || "empty"));
     wrap.appendChild(el("span", "calclens-tl-arrow", "\u2192"));
     wrap.appendChild(el("span", "calclens-tl-desc-value", ev.to || "empty"));

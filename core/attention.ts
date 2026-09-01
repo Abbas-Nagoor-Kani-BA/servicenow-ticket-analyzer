@@ -28,6 +28,8 @@ export type AttentionFlag = {
   label: string;
   /** Extra detail, e.g. how many times the ticket bounced. */
   detail: string;
+  /** Grid column key(s) this flag relates to — drives per-cell dot markers. */
+  columnHint?: string | string[];
 };
 
 export type AttentionOpts = {
@@ -113,8 +115,8 @@ function distinctNames(row: Record<string, any>, field: string, set: Set<string>
   return out;
 }
 
-function flag(id: AttentionRuleId, label: string, detail: string): AttentionFlag {
-  return { id, label, detail };
+function flag(id: AttentionRuleId, label: string, detail: string, columnHint?: string | string[]): AttentionFlag {
+  return { id, label, detail, columnHint };
 }
 
 /**
@@ -137,7 +139,7 @@ export function computeAttention(row: Record<string, any>, opts: AttentionOpts =
   const teamAssignees = distinctNames(row, "assigned_to", team, ["n", "o"]);
   if (teamAssignees.length > t.maxTeamAssignees) {
     out.push(flag("multiAssignWithinTeam", "Multiple assignments in team",
-      `Assigned to ${teamAssignees.length} team members: ${teamAssignees.join(", ")}`));
+      `Assigned to ${teamAssignees.length} team members: ${teamAssignees.join(", ")}`, "assignedTo"));
   }
 
   // 2. Multiple queue changes within the team.
@@ -159,11 +161,11 @@ export function computeAttention(row: Record<string, any>, opts: AttentionOpts =
     const to = stateLabelOf(table, ev.n);
     if (isTerminalState(from) && !isTerminalState(to)) reopened = true;
   }
-  if (reopened) out.push(flag("reopened", "Reopened", "A closed/resolved ticket went back to an active state"));
+  if (reopened) out.push(flag("reopened", "Reopened", "A closed/resolved ticket went back to an active state", "state"));
 
   // 4. SLA breach.
   const breach = (opts.report as Record<string, any> | undefined)?.slaBreach;
-  if (breach) out.push(flag("slaBreach", "SLA breached", `Breach code: ${String(breach)}`));
+  if (breach) out.push(flag("slaBreach", "SLA breached", `Breach code: ${String(breach)}`, ["rep:responseSLA", "rep:resolutionSLA"]));
 
   // 5. Long single On Hold span.
   const suspend = Date.parse(String(row.suspendTimeUtcIso ?? "").replace(" ", "T"));
@@ -172,27 +174,27 @@ export function computeAttention(row: Record<string, any>, opts: AttentionOpts =
     const span = resume - suspend;
     if (span > t.maxOnHoldSpanMs) {
       const hours = Math.round(span / HOUR_MS);
-      out.push(flag("longOnHold", "Long On Hold", `Stayed On Hold ~${hours} hours`));
+      out.push(flag("longOnHold", "Long On Hold", `Stayed On Hold ~${hours} hours`, ["suspendTimeUtcIso", "resumeTimeUtcIso"]));
     }
   }
 
   // 6. Repeated On Hold.
   const holdCount = Number(row.onHoldCount) || 0;
-  if (holdCount > t.maxOnHoldCount) {
-    out.push(flag("repeatedOnHold", "Held On Hold repeatedly", `Went On Hold ${holdCount} times`));
+    if (holdCount > t.maxOnHoldCount) {
+    out.push(flag("repeatedOnHold", "Held On Hold repeatedly", `Went On Hold ${holdCount} times`, ["suspendTimeUtcIso", "resumeTimeUtcIso"]));
   }
 
   // 7. Slow pickup — no acknowledgement, or a long assign→acknowledge gap.
   const assignIso = String(row.assignTimeUtcIso ?? "");
   const acknIso = String(row.acknTimeUtcIso ?? "");
   if (assignIso && !acknIso) {
-    out.push(flag("slowPickup", "Never acknowledged", "Assigned but no team member ever picked it up"));
+    out.push(flag("slowPickup", "Never acknowledged", "Assigned but no team member ever picked it up", ["assignTimeUtcIso", "acknTimeUtcIso"]));
   } else if (assignIso && acknIso) {
     const a = Date.parse(assignIso.replace(" ", "T"));
     const b = Date.parse(acknIso.replace(" ", "T"));
     if (Number.isFinite(a) && Number.isFinite(b) && b >= a && b - a > t.maxPickupMs) {
       const hours = Math.round((b - a) / HOUR_MS);
-      out.push(flag("slowPickup", "Slow pickup", `Took ~${hours} hours to acknowledge`));
+      out.push(flag("slowPickup", "Slow pickup", `Took ~${hours} hours to acknowledge`, ["assignTimeUtcIso", "acknTimeUtcIso"]));
     }
   }
 
@@ -200,12 +202,24 @@ export function computeAttention(row: Record<string, any>, opts: AttentionOpts =
   const missingPlan: string[] = [];
   if (!String(row.rootCause ?? "").trim()) missingPlan.push("root cause");
   if (!String(row.solutionType ?? "").trim()) missingPlan.push("solution type");
-  if (missingPlan.length) out.push(flag("emptyPlan", "Missing plan data", `No ${missingPlan.join(" or ")}`));
+  if (missingPlan.length) out.push(flag("emptyPlan", "Missing plan data", `No ${missingPlan.join(" or ")}`, ["rootCause", "solutionType"]));
 
   // 9. Low-confidence parse.
-  if (row.parseReview) out.push(flag("lowConfidenceParse", "Low-confidence parse", "AI classification was low confidence"));
+  if (row.parseReview) out.push(flag("lowConfidenceParse", "Low-confidence parse", "AI classification was low confidence", ["solutionType", "rootCause"]));
 
   return out;
+}
+
+/** Returns true when a flag's columnHint includes the given grid column key. */
+function flagMatchesColumn(flag: AttentionFlag, key: string): boolean {
+  if (!flag.columnHint) return false;
+  if (typeof flag.columnHint === "string") return flag.columnHint === key;
+  return flag.columnHint.includes(key);
+}
+
+/** Filters flags to only those that apply to a specific column. */
+export function flagsForColumn(flags: AttentionFlag[], key: string): AttentionFlag[] {
+  return flags.filter((f) => flagMatchesColumn(f, key));
 }
 
 export { tableForNumber };

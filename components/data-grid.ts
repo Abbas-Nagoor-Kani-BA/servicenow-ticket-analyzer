@@ -5,6 +5,7 @@ import { setTip } from "../lib/tooltip.ts";
 import { buildReport } from "../core/report.ts";
 import { computeDurations } from "../core/durations.ts";
 import type { AttentionFlag } from "../core/attention.ts";
+import { flagsForColumn } from "../core/attention.ts";
 
 /** [key, label, cell class, default width] — matches COLUMNS in surfaces/viewer/core.ts. */
 export type GridColumn = readonly [string, string, string, number];
@@ -144,10 +145,6 @@ export class DataGrid extends Component<DataGridState, ComponentProps, DataGridD
       const rowRep = buildReport(row as Parameters<typeof buildReport>[0], this.deps.fmtInstant as unknown as Parameters<typeof buildReport>[1]) as Record<string, any>;
       const durations = computeDurations(row);
       const flags = state.attention ? state.attention(row) : [];
-      if (flags.length) {
-        trEl.classList.add("attention");
-        setTip(trEl, this.attentionTip(flags), "tip-warn");
-      }
       const scratch: BreachCounts = { r: 0, m: 0, rm: 0 };
       for (const [key, , cls] of state.cols) {
         trEl.appendChild(this.buildCell(row, rowRep, durations, key, cls, scratch, flags));
@@ -295,10 +292,6 @@ export class DataGrid extends Component<DataGridState, ComponentProps, DataGridD
       if (num) typeCounts[rep.type || "Other"] = (typeCounts[rep.type || "Other"] || 0) + 1;
 
       const flags = state.attention ? state.attention(row) : [];
-      if (flags.length) {
-        tr.classList.add("attention");
-        setTip(tr, this.attentionTip(flags), "tip-warn");
-      }
 
       for (const [key, , cls] of state.cols) {
         tr.appendChild(this.buildCell(row, rep, durations, key, cls, breachCounts, flags));
@@ -326,7 +319,8 @@ export class DataGrid extends Component<DataGridState, ComponentProps, DataGridD
   ): HTMLElement {
     const td = document.createElement("td");
     if (cls) td.className = cls;
-    if (flags.length && key === "number") td.classList.add("attention-mark");
+    const cellFlags = flagsForColumn(flags, key);
+    if (cellFlags.length) td.classList.add("attention-mark");
 
     let v: unknown;
     td.classList.add("calclens-cell");
@@ -376,9 +370,9 @@ export class DataGrid extends Component<DataGridState, ComponentProps, DataGridD
     const cisys = String(row.sysId ?? row.number ?? "");
     td.addEventListener("click", () => this.deps.onCellFocus({ sysId: cisys, key }));
 
-    if (flags.length) {
+    if (cellFlags.length) {
       const base = td.getAttribute("data-tip") ?? "";
-      setTip(td, `${base}\n\n${this.attentionTip(flags)}`, "tip-warn");
+      setTip(td, `${base}\n\n${this.attentionTip(cellFlags)}`, "tip-warn");
     }
 
     return td;
