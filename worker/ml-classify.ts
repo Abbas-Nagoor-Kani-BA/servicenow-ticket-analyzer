@@ -1,8 +1,15 @@
-import type { ClassifyFn, ClassifyRowInput, ClassifyCell } from "../services/classifier-service.ts";
+import type { ClassifyRowInput, ClassifyCell } from "../services/classifier-service.ts";
 import { deterministicClassify } from "../services/classifier-service.ts";
 import { MlModelStore, specForModelId } from "../data/ml-model-repository.ts";
 import type { MlModelSpec } from "../data/ml-model-repository.ts";
 import { STORAGE } from "../lib/keys.ts";
+
+/** A per-cell pick additionally carrying which engine produced it (for Calclens). */
+export type EnginePick = {
+  value: string | null;
+  confidence: number;
+  source: "ml" | "heuristic";
+};
 
 /** Reads the selected model id from the persisted settings. */
 async function selectedModelId(): Promise<string> {
@@ -145,32 +152,72 @@ async function loadMlClassifier(): Promise<MlClassifier | null> {
   };
 }
 
+/** Raw per-engine picks for one cell (both engines, pre-decision). Cached so the
+ *  verdict can be re-derived under whatever `pickExact` rule is current. */
+export type CellPicks = { ml: EnginePick | null; det: EnginePick };
+
+/** Combines the ML and deterministic picks for a cell into the decisive pick. */
+export function resolvePick(ml: EnginePick | null, det: EnginePick): EnginePick {
+  return ml && ml.value ? pickExact(ml, det) : { ...det, source: "heuristic" };
+}
+
 async function classifyWithMl(
   ml: MlClassifier,
   input: ClassifyRowInput
-): Promise<{ solutionType: ClassifyCell; rootCause: ClassifyCell }> {
+): Promise<{ solutionType: CellPicks; rootCause: CellPicks }> {
   const det = deterministicClassify(input);
+  const detSame = (c: ClassifyCell): EnginePick => ({ value: c.value, confidence: c.confidence, source: "heuristic" });
   const [rc, st] = await Promise.all([
     ml(input.notes, input.rootCauseLabels),
     ml(input.notes, input.resolutionLabels)
   ]);
   return {
-    rootCause: pickBetter({ value: rc.label, confidence: rc.confidence }, det.rootCause),
-    solutionType: pickBetter({ value: st.label, confidence: st.confidence }, det.solutionType)
+    rootCause: {
+      ml: { value: rc.label, confidence: rc.confidence, source: "ml" },
+      det: detSame(det.rootCause)
+    },
+    solutionType: {
+      ml: { value: st.label, confidence: st.confidence, source: "ml" },
+      det: detSame(det.solutionType)
+    }
   };
 }
 
-function pickBetter(ml: ClassifyCell, det: ClassifyCell): ClassifyCell {
-  if (!ml.value || ml.value === det.value) return det;
-  if (ml.confidence > det.confidence) return ml;
-  return det;
+/**
+ * Selects the winning engine for one cell.
+ *
+ * Decided by provenance, not by a confidence race: ML is authoritative whenever
+ * it produced a non-null label — the source is stamped "ml" so every cell the
+ * ML model classified shows as Source: ML. Only when ML returned no label at
+ * all does the deterministic (keyword) result fill the cell (source
+ * "heuristic"). This is what makes the ML source actually visible; the keyword
+ * scorer never overrides an ML label.
+ *
+ * `floor`/`margin` are retained only for back-compat callers that still pass
+ * them; they no longer gate the decision (a floor of 0 means "any ML label
+ * wins").
+ */
+export function pickExact(
+  ml: EnginePick,
+  det: EnginePick,
+  _o: { floor?: number; margin?: number } = {}
+): EnginePick {
+  if (ml.value !== null && ml.value !== undefined && ml.value !== "") {
+    return { value: ml.value, confidence: ml.confidence, source: "ml" };
+  }
+  return { value: det.value, confidence: det.confidence, source: "heuristic" };
 }
 
 /**
- * Builds the ML classify fn, or null when the model/runtime cannot be used.
- * The caller (the worker) falls back to the deterministic scorer on null.
+ * Builds a raw-picks classifier, or null when the model/runtime cannot be used.
+ * The caller (the worker) falls back to the deterministic scorer on null. The
+ * picks are cached per note/model; the caller derives the final verdict from
+ * them with `resolveOutcome`, so a changed decision rule never serves a stale
+ * verdict from the cache.
  */
-export async function createMlClassifier(): Promise<ClassifyFn | null> {
+export async function createMlPicker(): Promise<
+  ((input: ClassifyRowInput) => Promise<{ solutionType: CellPicks; rootCause: CellPicks }>) | null
+> {
   try {
     const ml = await loadMlClassifier();
     if (!ml) return null;
@@ -179,6 +226,17 @@ export async function createMlClassifier(): Promise<ClassifyFn | null> {
     console.warn("[classifier] ML setup failed; falling back to deterministic", err);
     return null;
   }
+}
+
+/** Turns raw per-cell picks into the final verdict outcome (one source per cell). */
+export function resolveOutcome(p: { solutionType: CellPicks; rootCause: CellPicks }): {
+  solutionType: EnginePick;
+  rootCause: EnginePick;
+} {
+  return {
+    rootCause: resolvePick(p.rootCause.ml, p.rootCause.det),
+    solutionType: resolvePick(p.solutionType.ml, p.solutionType.det)
+  };
 }
 
 export { pathFromUrl };

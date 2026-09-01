@@ -356,6 +356,27 @@ four rules' UTC ISO timestamps; surfaced as viewer `dur:` columns and a
   timestamps, never from raw datetimes in the report (keeps the TZ contract
   single-sourced).
 
+### 11e. Calclens attention flags
+
+**Status: Done (Phase 11e).** `core/attention.ts` `computeAttention` flags rows
+that need a human look when Calclens is ON: multiple assignments within the
+team, multiple queue changes within scope, reopened tickets, SLA breach, long
+or repeated On Hold, slow/no pickup, missing plan data, and low-confidence
+parse. The grid marks flagged rows (`tr.attention` tint + `td.attention-mark`
+dot) and lists the fired rules in the row tooltip.
+
+- Problem: with the grid read-only, a reviewer needed a quick signal for which
+  tickets to inspect in the Calclens drawer.
+- Work: a pure rule engine in `core/` (no DOM/I-O), wired as a `DataGridState`
+  `attention` resolver only when Calclens mode is ON; team membership and queue
+  scope come from Settings (`defaults.teamMembers`, `defaults.queues`), cached
+  once in the viewer.
+- Care: markers are a guide, not a metric — thresholds (`maxTeamAssignees`,
+  `maxOnHoldSpanMs`, `maxPickupMs`, ...) are constants in `core/attention.ts`
+  and overridable via `AttentionOpts.thresholds`. SLA breach is read from the
+  report the grid already builds; `fmtInstant` coupling is avoided by passing
+  the precomputed report in rather than recomputing.
+
 ### 11c. Work-notes text export
 
 - Problem: work notes / close notes are captured but not exported
@@ -399,12 +420,18 @@ Run export. Then:
 2. Open the CI-dialog, add a group, save; verify "Separate files" export
    produces one file per group.
 3. Escape cascade: open the map dialog, press Escape → it closes; open it
-   again, click in a grid cell editor, press Escape → the cell editor keeps
-   it (grid), not the modal.
-4. Copy/paste/copy-for-msr on a selection; Ctrl+C / Ctrl+V / Ctrl+Z.
+   again, open a picker from the Calclens drawer, press Escape → the picker
+   closes, not the modal.
+4. Copy-for-msr on the whole view; single-cell selection + arrow navigation
+   still highlights one cell and drives the Calclens drawer.
 5. Tab switching (`Ctrl+1` / `Ctrl+2` / `Ctrl+Tab`).
 6. Grid: sort by column, hide a column, change widths → reload the viewer →
    settings persist.
+7. Calclens: select a derivation cell, edit it from the drawer (picker for
+   solution type / root cause; date input below the summary + clickable
+   Timeline rows for the four timeline instants — click a row to stage a time,
+   the highlight moves, and only clicking **Save** applies + persists) → reload
+   → the edit persists and the derived durations / SLA / summary recalculate.
 
 ### 12b. Live timezone check
 

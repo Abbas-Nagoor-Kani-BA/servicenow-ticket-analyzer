@@ -97,7 +97,6 @@ export type ViewerHandlers = {
 export function wireViewer(handlers: ViewerHandlers) {
   const unData = onStorageChange([STORAGE.lastData], () => {
     if (dataStore.getState().selfPush) return;
-    if (document.querySelector("td.edit-input")) return;
     loadOnce<ViewerData>(STORAGE.lastData, null).then((d) => handlers.onData(d || null));
   });
   const unLists = onStorageChange([STORAGE.msrLists], (hit) => {

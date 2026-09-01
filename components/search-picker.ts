@@ -40,7 +40,7 @@ export type SearchPickerRefs = {
 };
 
 /**
- * Searchable option picker for the grid cell editors and the ticket popup.
+ * Searchable option picker for the Calclens drawer's derivation-column pickers.
  *
  * These were two near-identical ~130 line implementations (DEDUP-005) that had
  * already drifted: only one dismissed on an outside click, and they advanced

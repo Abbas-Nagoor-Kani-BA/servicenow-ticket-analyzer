@@ -274,6 +274,23 @@ export type Report = {
   metMaxResolutionSLA: string;
   slaBreach: string;
   analysedDate: string;
+
+  // Optional derivation detail (filled by buildReport for the Calclens drawer).
+  // These expose the same numbers already computed during the build so the
+  // explainer can show real arithmetic without re-deriving (keeps the TZ
+  // contract single-sourced).
+  respHours?: number;
+  respTarget?: number;
+  incHoursRaw?: number;
+  incCurrentRaw?: number;
+  resMinTarget?: number;
+  resMaxTarget?: number;
+  metMin?: string;
+  metMax?: string;
+  createdClock?: string;
+  assignedClock?: string;
+  acknClock?: string;
+  resolvedClock?: string;
 };
 
 export type MessageFormatter = (v: string) => string;
@@ -332,12 +349,36 @@ export function buildReport(row: WalkedRow, fmt?: MessageFormatter | null, now: 
     metMinResolutionSLA: metMin,
     metMaxResolutionSLA: metMax,
     slaBreach: breached.join(""),
-    analysedDate: analysedDateString(now)
+    analysedDate: analysedDateString(now),
+
+    respHours: Number.isNaN(respVal) ? undefined : respVal,
+    respTarget: respThreshold || undefined,
+    incHoursRaw: Number.isNaN(parseFloat(incidentHoursRaw)) ? undefined : parseFloat(incidentHoursRaw),
+    incCurrentRaw: Number.isNaN(incVal) ? undefined : incVal,
+    resMinTarget: slaPriority(row.priority) ? SLA_TABLE[slaPriority(row.priority)].min : undefined,
+    resMaxTarget: slaPriority(row.priority) ? SLA_TABLE[slaPriority(row.priority)].max : undefined,
+    metMin,
+    metMax,
+    createdClock: created,
+    assignedClock: assigned,
+    acknClock: ackn,
+    resolvedClock: resolved
   };
 
   row.__reportKey = keyInputs;
   row.__report = rep;
   return rep;
+}
+
+/** Response SLA target (in business hours) for a priority, or 0 if unknown. */
+export function responseTargetHours(priority: unknown): number {
+  return RESPONSE_SLA_TABLE[slaPriority(priority)] || 0;
+}
+
+/** Resolution SLA target window (min/max business hours) for a priority, or 0s. */
+export function resolutionTargetHours(priority: unknown): { min: number; max: number } {
+  const p = slaPriority(priority);
+  return p ? SLA_TABLE[p] : { min: 0, max: 0 };
 }
 
 export {

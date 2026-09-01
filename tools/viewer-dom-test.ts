@@ -2,8 +2,7 @@ import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  seedAll, seed, peek, flush, installSkeleton, getLastCopied, getDownloads, clearDownloads,
-  setClipboardText, clearClipboardText
+  seedAll, seed, peek, flush, installSkeleton, getLastCopied, getDownloads, clearDownloads
 } from "./helpers/dom-env.mjs";
 import fflate from "../lib/vendor/fflate.cjs";
 import { setFflate } from "../core/templatexml.ts";
@@ -32,12 +31,15 @@ const FIXTURE = {
     ],
     runs: [{ at: "2026-08-25T10:00:00Z", table: "incident", group: "APPSUP_TEST", pulled: 2 }]
   },
+  pluginSettings: {
+    defaults: { ticketType: "incident", queues: ["APPSUP_TEST"], teamMembers: ["John Doe", "Jane Smith"] }
+  },
   msrLists: undefined,
   viewerHiddenCols: [],
   viewerSel: null
 };
 
-let grid, clipboard, ticketpop;
+let grid, clipboard;
 
 before(async () => {
   installSkeleton();
@@ -45,7 +47,6 @@ before(async () => {
   await import("../surfaces/viewer/index.ts");
   grid = await import("../surfaces/viewer/grid.ts");
   clipboard = await import("../surfaces/viewer/clipboard.ts");
-  ticketpop = await import("../surfaces/viewer/ticketpop.ts");
   await flush();
 });
 
@@ -82,74 +83,210 @@ test("column header click sorts by that column", { timeout: 8000 }, async () => 
   assert.ok(/^INC/.test(firstNum), "first cell is a ticket number after sort");
 });
 
-test("cell edit commits to row + persists via scheduleSave", { timeout: 8000 }, async () => {
+test("grid body is permanently read-only (no inline editor on double-click)", { timeout: 8000 }, async () => {
   const tr = document.querySelector("#tbl tbody tr");
-  const sysId = tr.dataset.sysId;
-  const cols = [...tr.children];
-  // Priority column index (visible order)
   const prioIdx = [...document.querySelectorAll("#tbl thead th")]
     .findIndex(t => t.textContent.toLowerCase().includes("priority"));
-  const td = cols[prioIdx];
+  const td = tr.children[prioIdx];
+  assert.ok(td.classList.contains("calclens-cell"), "every body cell carries the calclens-cell class");
+  assert.ok(!td.classList.contains("editable"), "no editable cell path remains");
   td.dispatchEvent(new window.MouseEvent("dblclick", { bubbles: true }));
   await flush();
-  const input = td.querySelector("input");
-  assert.ok(input, "inline editor opened");
-  input.value = "2 - High";
-  input.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
-  await new Promise(r => setTimeout(r, 500)); // debounce persistEdits
-  const stored = peek("lastData");
-  const saved = stored.rows.find(r => r.sysId === sysId);
-  assert.equal(saved.priority, "2 - High", "persisted to chrome.storage.lastData");
-  const rowNow = grid.findRowBySysId(sysId);
-  assert.equal(rowNow.priority, "2 - High", "in-memory data updated");
-  const cellText = document.querySelector(`#tbl tbody tr[data-sys-id="${sysId}"]`)
-    .children[prioIdx].textContent;
-  assert.equal(cellText, "2 - High", "grid re-rendered with new value");
+  assert.equal(td.querySelector("input"), null, "double-click does not open an inline editor");
+  assert.equal(td.textContent.trim(), "3 - Moderate", "cell content unchanged");
 });
 
-test("option picker enforces strict list", { timeout: 8000 }, async () => {
-  const tr = document.querySelector("#tbl tbody tr");
-  const sysId = tr.dataset.sysId;
-  const solIdx = [...document.querySelectorAll("#tbl thead th")]
-    .findIndex(t => t.textContent.toLowerCase().includes("solution type"));
-  const td = document.querySelector(`#tbl tbody tr[data-sys-id="${sysId}"]`).children[solIdx];
-  td.dispatchEvent(new window.MouseEvent("dblclick", { bubbles: true }));
+test("Calclens date input does not persist until Save is clicked", { timeout: 8000 }, async () => {
+  const calState = await import("../surfaces/viewer/calclens-state.ts");
+  calState.setCalclensMode(true);
+  const row = grid.findRowBySysId("aaa");
+  row.assignTimeUtcIso = "";
+  grid.reportCellFocus({ sysId: "aaa", key: "assignTimeUtcIso" });
   await flush();
-  const pick = document.querySelector(".msrPick");
-  assert.ok(pick, "picker popup opened");
-  const searchIn = pick.querySelector(".msrPickSearch");
-  searchIn.value = "zzz-not-an-option";
-  searchIn.dispatchEvent(new window.Event("input", { bubbles: true }));
+  const body = document.getElementById("calclensBody");
+  assert.ok(body.querySelector(".calclens-edit-input.tlDate"), "drawer offers a date editor for a derivation column");
+  const input = body.querySelector(".calclens-edit-input.tlDate");
+  input.value = "05-08-2026 09:30:00";
+  input.dispatchEvent(new window.Event("input", { bubbles: true }));
   await flush();
-  searchIn.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
-  await flush();
-  const row = grid.findRowBySysId(sysId);
-  assert.notEqual(row.solutionType, "zzz-not-an-option", "strict list rejected garbage");
-  searchIn.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
-  await flush();
-  assert.equal(document.querySelector(".msrPick"), null, "popup closed after cancel path");
-});
-
-test("ticket popup edits timeline date in place", { timeout: 8000 }, async () => {
-  const tr = document.querySelector("#tbl tbody tr");
-  const row = grid.findRowBySysId(tr.dataset.sysId);
-  ticketpop.openTicketPopup(row);
-  await flush();
-  const pop = document.querySelector(".ticketPop");
-  assert.ok(pop, "ticket popup opened centered");
-  const tlInputs = pop.querySelectorAll("input.tlDate");
-  assert.equal(tlInputs.length, 4, "four timeline date inputs");
   const iso = new Date(2026, 7, 5, 9, 30, 0).toISOString();
-  tlInputs[0].value = "05-08-2026 09:30:00";
-  tlInputs[0].dispatchEvent(new window.Event("blur"));
-  await new Promise(r => setTimeout(r, 500));
-  assert.equal(row.assignTimeUtcIso, iso, "assignTime written as ISO");
-  const stored = peek("lastData").rows.find(r => r.sysId === tr.dataset.sysId);
-  assert.equal(stored.assignTimeUtcIso, iso, "persisted");
-  const esc = new window.KeyboardEvent("keydown", { key: "Escape", bubbles: true });
-  document.dispatchEvent(esc);
+  assert.equal(row.assignTimeUtcIso, "", "row unchanged until Save");
+  assert.notEqual(peek("lastData").rows.find(r => r.sysId === "aaa").assignTimeUtcIso, iso,
+    "not persisted before Save");
+  const saveBtn = body.querySelector(".calclens-edit-save");
+  assert.ok(saveBtn, "a Save button is offered");
+  saveBtn.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+  await new Promise(r => setTimeout(r, 500)); // debounce scheduleSave
+  assert.equal(row.assignTimeUtcIso, iso, "assignTime written as ISO after Save");
+  const stored = peek("lastData").rows.find(r => r.sysId === "aaa");
+  assert.equal(stored.assignTimeUtcIso, iso, "drawer edit persisted to chrome.storage.lastData");
+  const cell = document.querySelector("#tbl tbody tr[data-sys-id='aaa']");
+  const assignIdx = [...document.querySelectorAll("#tbl thead th")]
+    .findIndex(t => t.textContent.trim() === "Assign time");
+  assert.ok(cell.children[assignIdx].textContent.length > 0, "grid re-rendered with the edited timeline time");
+  calState.setCalclensMode(false);
+});
+
+test("Calclens timeline pick stages a time and only Save persists + toasts", { timeout: 8000 }, async () => {
+  const calState = await import("../surfaces/viewer/calclens-state.ts");
+  const row = grid.findRowBySysId("aaa");
+  row.assignTimeUtcIso = "";
+  row.activity = [
+    { f: "state", o: "New", n: "On Hold", atEpoch: Date.UTC(2026, 7, 5, 8, 0, 0) },
+    { f: "state", o: "On Hold", n: "In Progress", atEpoch: Date.UTC(2026, 7, 5, 11, 15, 0) }
+  ];
+  calState.setCalclensMode(true);
+  grid.reportCellFocus({ sysId: "aaa", key: "assignTimeUtcIso" });
   await flush();
-  assert.equal(document.querySelector(".ticketPop"), null, "Escape closed popup");
+  const body = document.getElementById("calclensBody");
+  const tlRows = body.querySelectorAll(".calclens-tl-row.pickable");
+  assert.equal(tlRows.length, 2, "every timeline row is clickable");
+  const pickIso = new Date(2026, 7, 5, 11, 15, 0).toISOString();
+  const pickRow = [...tlRows].find(r => r.querySelector(".calclens-tl-change").textContent.includes("In Progress"));
+  assert.ok(pickRow, "a row for the state->In Progress change exists");
+  pickRow.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+  await flush();
+  assert.equal(document.querySelector(".calclens-tl-row.selected .calclens-tl-time").textContent,
+    "05-08-2026 11:15:00", "clicking a timeline row highlights it as selected");
+  assert.equal(row.assignTimeUtcIso, "", "picking a row does not write the row in memory");
+  assert.notEqual(peek("lastData").rows.find(r => r.sysId === "aaa").assignTimeUtcIso, pickIso,
+    "not persisted before Save");
+  body.querySelector(".calclens-edit-save").dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+  await new Promise(r => setTimeout(r, 500)); // debounce scheduleSave
+  const stored = peek("lastData").rows.find(r => r.sysId === "aaa");
+  assert.equal(stored.assignTimeUtcIso, pickIso, "pick persisted after Save");
+  const toastTxt = [...document.querySelectorAll(".toast")].map(t => t.textContent).join(" | ");
+  assert.match(toastTxt, /Saved/, "a Saved toast confirms the edit");
+  calState.setCalclensMode(false);
+});
+
+test("Calclens groups same-timestamp changes under one timeline node", { timeout: 8000 }, async () => {
+  const calState = await import("../surfaces/viewer/calclens-state.ts");
+  const row = grid.findRowBySysId("aaa");
+  const sameEpoch = Date.UTC(2026, 7, 5, 11, 15, 0);
+  row.assignTimeUtcIso = "";
+  row.activity = [
+    { f: "state", o: "New", n: "On Hold", atEpoch: Date.UTC(2026, 7, 5, 8, 0, 0) },
+    { f: "assignment_group", o: "APPSUP_TEST", n: "PAYMENTS", atEpoch: sameEpoch },
+    { f: "state", o: "On Hold", n: "In Progress", atEpoch: sameEpoch }
+  ];
+  calState.setCalclensMode(true);
+  grid.reportCellFocus({ sysId: "aaa", key: "assignTimeUtcIso" });
+  await flush();
+  const body = document.getElementById("calclensBody");
+  const tlRows = body.querySelectorAll(".calclens-tl-row.pickable");
+  assert.equal(tlRows.length, 2, "two distinct timestamps => two grouped nodes");
+  const groups = [...tlRows].map(r => r.querySelectorAll(".calclens-tl-change").length);
+  assert.deepEqual(groups.map(String).sort(), ["1", "2"], "the shared timestamp appears once with two changes");
+  const clockIcons = body.querySelectorAll(".calclens-tl-row .calclens-tl-icn[data-icon='clock']");
+  assert.equal(clockIcons.length, 2, "each grouped node shows a clock icon");
+  calState.setCalclensMode(false);
+});
+
+test("Calclens timeline shows empty old value as 'empty'", { timeout: 8000 }, async () => {
+  const calState = await import("../surfaces/viewer/calclens-state.ts");
+  const row = grid.findRowBySysId("aaa");
+  row.assignTimeUtcIso = "";
+  row.activity = [
+    { f: "assigned_to", o: "", n: "John Doe", atEpoch: Date.UTC(2026, 7, 5, 9, 0, 0) }
+  ];
+  calState.setCalclensMode(true);
+  grid.reportCellFocus({ sysId: "aaa", key: "acknTimeUtcIso" });
+  await flush();
+  const body = document.getElementById("calclensBody");
+  const change = body.querySelector(".calclens-tl-change");
+  assert.ok(change, "a change line exists");
+  const desc = change.querySelector(".calclens-tl-desc");
+  const label = desc.querySelector(".calclens-tl-desc-label").textContent;
+  const values = [...desc.querySelectorAll(".calclens-tl-desc-value")].map(v => v.textContent);
+  assert.equal(label, "Assigned to:", "field label rendered");
+  assert.deepEqual(values, ["empty", "John Doe"], "empty old value shown as 'empty'");
+  calState.setCalclensMode(false);
+});
+
+test("Calclens discards an unsaved pick when moving to the next cell", { timeout: 8000 }, async () => {
+  const calState = await import("../surfaces/viewer/calclens-state.ts");
+  const row = grid.findRowBySysId("bbb");
+  row.assignTimeUtcIso = "";
+  row.activity = [
+    { f: "assignment_group", o: "APPSUP_TEST", n: "PAYMENTS", atEpoch: Date.UTC(2026, 7, 5, 9, 30, 0) }
+  ];
+  calState.setCalclensMode(true);
+  grid.reportCellFocus({ sysId: "bbb", key: "assignTimeUtcIso" });
+  await flush();
+  const body = document.getElementById("calclensBody");
+  const pickRow = [...body.querySelectorAll(".calclens-tl-row.pickable")][0];
+  pickRow.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+  await flush();
+  assert.equal(row.assignTimeUtcIso, "", "staged in memory only");
+  grid.reportCellFocus({ sysId: "bbb", key: "acknTimeUtcIso" });
+  await flush();
+  await new Promise(r => setTimeout(r, 500)); // debounce scheduleSave
+  assert.notEqual(peek("lastData").rows.find(r => r.sysId === "bbb").assignTimeUtcIso, new Date(2026, 7, 5, 9, 30, 0).toISOString(),
+    "moving to the next cell without Save does not persist the pick");
+  calState.setCalclensMode(false);
+});
+
+test("Calclens drawer shows a choice picker but not a date editor for solutionType", { timeout: 8000 }, async () => {
+  const calState = await import("../surfaces/viewer/calclens-state.ts");
+  calState.setCalclensMode(true);
+  grid.reportCellFocus({ sysId: "aaa", key: "solutionType" });
+  await flush();
+  const body = document.getElementById("calclensBody");
+  const section = body.querySelector(".calclens-edit");
+  assert.ok(section, "drawer offers an edit section for solutionType");
+  assert.ok(section.querySelector("input.calclens-edit-input:not(.tlDate)"), "choice column renders a picker input");
+  assert.equal(section.querySelector(".calclens-edit-input.tlDate"), null, "no date editor for a choice column");
+  calState.setCalclensMode(false);
+});
+
+test("Calclens drawer does not offer editing for non-derivation columns", { timeout: 8000 }, async () => {
+  const calState = await import("../surfaces/viewer/calclens-state.ts");
+  calState.setCalclensMode(true);
+  grid.reportCellFocus({ sysId: "aaa", key: "shortDescription" });
+  await flush();
+  const body = document.getElementById("calclensBody");
+  assert.equal(body.querySelector(".calclens-edit"), null, "no edit section for a read-only column");
+  calState.setCalclensMode(false);
+});
+
+test("Calclens ON flags attention rows with a marker and tooltip", { timeout: 8000 }, async () => {
+  const calState = await import("../surfaces/viewer/calclens-state.ts");
+  const row = grid.currentRows()[0];
+  row.rootCause = "";
+  row.solutionType = "";
+  calState.setCalclensMode(true);
+  grid.render();
+  await flush();
+  const flagged = document.querySelector(`#tbl tbody tr[data-sys-id="aaa"]`);
+  assert.ok(flagged.classList.contains("attention"), "row is flagged as needing attention");
+  assert.ok(flagged.querySelector("td.attention-mark"), "number cell shows the attention marker");
+  const tip = flagged.getAttribute("data-tip");
+  assert.ok(tip && tip.includes("Needs attention") && tip.includes("Missing plan data"), "tooltip lists the fired rule");
+  for (const cell of flagged.querySelectorAll("td")) {
+    assert.ok((cell.getAttribute("data-tip") ?? "").includes("Missing plan data"), "every cell tooltip lists the attention reason");
+  }
+  calState.setCalclensMode(false);
+});
+
+test("single-cell selection + arrow navigation focuses the selected cell", { timeout: 8000 }, async () => {
+  const selModule = await import("../surfaces/viewer/selection.ts");
+  await selModule.setSelPoint("aaa", "number", false);
+  await flush();
+  const numTd = document.querySelector(`#tbl tbody tr[data-sys-id="aaa"]`).children[0];
+  assert.ok(numTd.classList.contains("sel"), "selected cell is highlighted");
+  assert.ok(!numTd.classList.contains("numLink"), "number cell is a plain read-only cell (no detail popup)");
+  assert.equal(document.querySelector(".ticketPop"), null, "no ticket popup exists anymore");
+  const numIdx = [...document.querySelectorAll("#tbl thead th")]
+    .findIndex(t => t.textContent.trim() === "Number");
+  const nextIdx = numIdx + 1;
+  const rowAfter = grid.findRowBySysId("aaa");
+  selModule.moveSel(0, 1, false);
+  await flush();
+  const selCol = [...document.querySelector(`#tbl tbody tr[data-sys-id="aaa"]`).children]
+    .findIndex(td2 => td2.classList.contains("sel"));
+  assert.equal(selCol, nextIdx, "arrow navigation moved the focus one cell right");
+  assert.ok(rowAfter, "row still present after navigation");
 });
 
 test("derived duration columns render HMS from the timeline stamps", { timeout: 8000 }, async () => {
@@ -171,30 +308,16 @@ test("derived duration columns render HMS from the timeline stamps", { timeout: 
   assert.equal(cells[idxOf("Suspend total")].textContent, "1:15:00", "suspend total rendered as HMS");
 });
 
-test("number popup opens on click even when pointer capture retargets the event to tbody", { timeout: 8000 }, async () => {
-  const tbody = document.querySelector("#tbl tbody");
-  const numTd = Array.from(tbody.querySelector("tr").children)
-    .find(td => td.classList.contains("numLink"));
-  assert.ok(numTd, "numLink cell exists");
-  const originalEqp = document.elementFromPoint;
-  const hitTest = numTd;
-  document.elementFromPoint = (x, y) => {
-    assert.equal(x, 42);
-    return hitTest;
-  };
-  try {
-    tbody.dispatchEvent(new window.MouseEvent("click", {
-      bubbles: true, cancelable: true, button: 0, clientX: 42, clientY: 10
-    }));
-    await flush();
-    assert.ok(document.querySelector(".ticketPop"), "popup opened via hit-tested td despite tbody target");
-    const esc = new window.KeyboardEvent("keydown", { key: "Escape", bubbles: true });
-    document.dispatchEvent(esc);
-    await flush();
-    assert.equal(document.querySelector(".ticketPop"), null, "Escape closed popup");
-  } finally {
-    document.elementFromPoint = originalEqp;
-  }
+test("clicking a body cell reports it to Calclens (single-cell focus)", { timeout: 8000 }, async () => {
+  const calState = await import("../surfaces/viewer/calclens-state.ts");
+  calState.setCalclensMode(true);
+  const numTd = document.querySelector(`#tbl tbody tr[data-sys-id="bbb"]`).children[0];
+  numTd.dispatchEvent(new window.MouseEvent("click", { bubbles: true, button: 0 }));
+  await flush();
+  const body = document.getElementById("calclensBody");
+  assert.ok(body && body.textContent.length > 0, "Calclens panel populated after cell click");
+  assert.equal(document.querySelector(".ticketPop"), null, "cell click never opens a ticket popup");
+  calState.setCalclensMode(false);
 });
 
 test("summary SLA tab renders counts and persists summarySla", { timeout: 8000 }, async () => {
@@ -450,110 +573,19 @@ test("split preview in config popup shows per-group ticket counts", async () => 
   assert.doesNotMatch(joined, /no matching rows/, "no empty-group hint when both match");
 });
 
-let selModule = null;
-async function selectRect(keys, sysIds) {
-  if (!selModule) selModule = await import("../surfaces/viewer/selection.ts");
-  await selModule.setSelPoint(sysIds[0], keys[0], false);
-  await selModule.setSelPoint(sysIds[sysIds.length - 1], keys[keys.length - 1], true);
-}
-
-test("paste fills a selected 1x2 range with a 1x1 value and persists", { timeout: 8000 }, async () => {
-  if (!selModule) selModule = await import("../surfaces/viewer/selection.ts");
-  await selectRect(["shortDescription"], ["aaa", "bbb"]);
-  selModule.pasteIntoSelection([["hello"]]);
+test("cell copy/paste/undo are disabled: no fill handle and body edits are blocked", { timeout: 8000 }, async () => {
+  const selModule = await import("../surfaces/viewer/selection.ts");
+  assert.equal(document.getElementById("fillHandle"), null, "fill handle element removed");
+  assert.equal(document.querySelector("#tbl.selecting"), null, "no range-select mode class exists");
+  await selModule.setSelPoint("aaa", "shortDescription", false);
   await flush();
-  assert.equal(grid.findRowBySysId("aaa").shortDescription, "hello", "first row filled");
-  assert.equal(grid.findRowBySysId("bbb").shortDescription, "hello", "second row filled");
-  const cellA = document.querySelector("#tbl tbody tr[data-sys-id='aaa']").children[1].textContent;
-  assert.equal(cellA, "hello", "grid re-rendered with pasted value");
-});
-
-test("Ctrl+V pastes from the clipboard into the selected range", { timeout: 8000 }, async () => {
-  if (!selModule) selModule = await import("../surfaces/viewer/selection.ts");
-  await selectRect(["shortDescription"], ["aaa", "bbb"]);
-  setClipboardText("clip-paste");
+  document.body.dispatchEvent(new window.KeyboardEvent("keydown", { key: "c", ctrlKey: true, bubbles: true }));
+  await flush();
   document.body.dispatchEvent(new window.KeyboardEvent("keydown", { key: "v", ctrlKey: true, bubbles: true }));
   await flush();
-  assert.equal(grid.findRowBySysId("aaa").shortDescription, "clip-paste", "clipboard value applied");
-  assert.equal(grid.findRowBySysId("bbb").shortDescription, "clip-paste", "both rows applied");
-  clearClipboardText();
-});
-
-test("copy a block then paste tiles it vertically into a larger selection", { timeout: 8000 }, async () => {
-  if (!selModule) selModule = await import("../surfaces/viewer/selection.ts");
-  grid.findRowBySysId("aaa").shortDescription = "srcA";
-  grid.findRowBySysId("bbb").shortDescription = "srcB";
-  grid.render();
-  await selectRect(["shortDescription", "assignedTo"], ["aaa"]);
-  selModule.copySelectedRange();
-  assert.ok(selModule.getLastCopy(), "copy recorded an internal block");
-  await selectRect(["shortDescription", "assignedTo"], ["aaa", "bbb"]);
-  selModule.pasteIntoSelection(selModule.getLastCopy().values);
-  await flush();
-  assert.equal(grid.findRowBySysId("aaa").shortDescription, "srcA");
-  assert.equal(grid.findRowBySysId("bbb").shortDescription, "srcA", "one-row source tiled across both target rows");
-});
-
-test("picker-column paste stores the canonical option value", { timeout: 8000 }, async () => {
-  if (!selModule) selModule = await import("../surfaces/viewer/selection.ts");
-  await selectRect(["solutionType"], ["aaa", "bbb"]);
-  selModule.pasteIntoSelection([["workaround solution"]]);
-  await flush();
-  assert.equal(grid.findRowBySysId("aaa").solutionType, "Workaround solution", "canonical option stored");
-  assert.equal(grid.findRowBySysId("bbb").solutionType, "Workaround solution");
-});
-
-test("paste skips non-editable number column and reports the skip", { timeout: 8000 }, async () => {
-  if (!selModule) selModule = await import("../surfaces/viewer/selection.ts");
-  const before = grid.findRowBySysId("aaa").number;
-  await selectRect(["number", "shortDescription"], ["aaa"]);
-  const res = selModule.pasteIntoSelection([["X", "Y"]]);
-  await flush();
-  assert.equal(res.skipped, 1, "number column counted as skipped");
-  assert.equal(res.touched, 1, "shortDescription column filled");
-  assert.equal(grid.findRowBySysId("aaa").number, before, "number column unchanged");
-  assert.equal(grid.findRowBySysId("aaa").shortDescription, "Y", "adjacent editable column filled");
-});
-
-test("fill handle becomes visible when a selection exists and hides without one", async () => {
-  if (!selModule) selModule = await import("../surfaces/viewer/selection.ts");
-  await selectRect(["shortDescription"], ["aaa"]);
-  await flush();
-  const h = document.getElementById("fillHandle");
-  assert.ok(h, "fill handle element exists");
-  assert.ok(!h.classList.contains("hidden"), "handle visible with a selection");
-  await selModule.clearSelection();
-  await flush();
-  assert.ok(h.classList.contains("hidden"), "handle hidden after clear");
-});
-
-test("undo restores the pre-paste value after a paste", { timeout: 8000 }, async () => {
-  if (!selModule) selModule = await import("../surfaces/viewer/selection.ts");
-  grid.findRowBySysId("aaa").shortDescription = "original";
-  grid.findRowBySysId("bbb").shortDescription = "orig-b";
-  grid.render();
-  await selectRect(["shortDescription"], ["aaa", "bbb"]);
-  selModule.pasteIntoSelection([["changed"]]);
-  await flush();
-  assert.equal(grid.findRowBySysId("aaa").shortDescription, "changed", "paste applied");
-  assert.equal(grid.findRowBySysId("bbb").shortDescription, "changed", "paste applied both");
-  selModule.undoLast();
-  await flush();
-  assert.equal(grid.findRowBySysId("aaa").shortDescription, "original", "undo restored first row");
-  assert.equal(grid.findRowBySysId("bbb").shortDescription, "orig-b", "undo restored second row to its prior value");
-});
-
-test("Ctrl+Z undoes the last paste", { timeout: 8000 }, async () => {
-  if (!selModule) selModule = await import("../surfaces/viewer/selection.ts");
-  grid.findRowBySysId("aaa").shortDescription = "z-original";
-  grid.render();
-  await selectRect(["shortDescription"], ["aaa", "bbb"]);
-  selModule.pasteIntoSelection([["z-pasted"]]);
-  await flush();
-  assert.equal(grid.findRowBySysId("aaa").shortDescription, "z-pasted");
   document.body.dispatchEvent(new window.KeyboardEvent("keydown", { key: "z", ctrlKey: true, bubbles: true }));
   await flush();
-  assert.equal(grid.findRowBySysId("aaa").shortDescription, "z-original", "Ctrl+Z undid the paste");
+  assert.equal(grid.findRowBySysId("aaa").shortDescription, "First ticket", "Ctrl+C/V/Z leave the body untouched");
 });
 
 test("column-copy button removed from headers", async () => {

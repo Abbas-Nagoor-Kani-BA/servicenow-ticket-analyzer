@@ -344,27 +344,25 @@
   td.time, td.inst { @apply font-mono text-[12px] text-teal; }
   td.dur { @apply font-mono text-[12px] text-mauve; }
   td.empty-time { @apply text-faint; }
-  td.editable { cursor: text; }
-  td.editable:hover { box-shadow: inset 0 0 0 1px #585b70; }
   td:not(.editable):hover { box-shadow: inset 0 0 0 1px #585b70; }
-  td.edit-input { padding: 0 !important; }
-  td.edit-input input {
-    @apply w-full h-[calc(100%+1px)] border-0 bg-card2 text-yellow font-mono text-xs px-3 py-1.5 outline-2 outline-offset-[-2px] outline-accent;
-  }
-  td.edit-invalid input { outline-color: #f38ba8; }
   td.offlist { box-shadow: inset 0 0 0 1px rgba(250, 179, 135, 0.55); }
   td.sla-breach-r { @apply text-bad font-semibold; }
   td.sla-breach-m { @apply text-peach font-semibold; }
   td.sla-breach-rm { @apply text-red font-bold; }
   td.selr { background: rgba(137, 180, 250, 0.13); }
-  #tbl.selecting, #tbl.selecting td { user-select: none; }
-  #fillHandle {
-    @apply absolute w-3.5 h-3.5 bg-accent border-2 border-card2 rounded-[2px] cursor-crosshair z-[5];
-  }
-  td.selFill { background: rgba(137, 180, 250, 0.28); }
   td.review { box-shadow: inset 3px 0 0 #fab387; }
   td.review::before { content: "⚠ "; color: #f9e2af; font-size: 11px; }
-  td.copied { animation: copyflash 0.8s ease-out; }
+
+  /* Calclens: row-level "needs attention" marker + tint. */
+  tr.attention td { background: rgba(250, 179, 135, 0.07); }
+  tr.attention:hover td { background: rgba(250, 179, 135, 0.12); }
+  td.attention-mark { position: relative; }
+  td.attention-mark::before {
+    content: "";
+    @apply inline-block w-2 h-2 rounded-full bg-peach align-middle;
+    margin-right: 5px;
+    flex-shrink: 0;
+  }
 
   #slaBar {
     @apply flex-none px-4.5 py-1.5 text-[11px] text-dim flex items-center gap-4 border-b border-line bg-card;
@@ -443,23 +441,7 @@
   .noteEntry.sum::after { background: #cba6f7; }
   .noteItem.sum::after { background: #cba6f7; }
 
-  .ticketCol { @apply flex flex-col min-w-0 flex-1 gap-0.5 max-h-[440px] overflow-auto; }
-  .ticketPop .ticketCol:first-child { @apply flex-none w-[260px] border-r border-line pr-3; }
-  .paneHead { @apply text-[11px] font-bold text-accent uppercase tracking-wide px-0.5 pb-2 sticky top-[-8px] bg-card; }
-  .fieldLine { @apply flex flex-col gap-1 py-1.75 border-b border-line; }
-  .fieldLine .fl { @apply text-faint text-[11px] uppercase tracking-wide; }
-  .fieldLine .fv { @apply flex-1 break-words text-[12.5px] leading-relaxed text-text; }
-  .fieldLine .fvWrap { @apply flex-1 min-w-0; }
-  .fieldLine .fvEdit {
-    @apply w-full bg-card2 text-yellow border border-line rounded px-2 py-1 text-xs outline-none focus:border-accent;
-    font-family: inherit;
-    font-size: inherit;
-  }
-  .fieldLine .fvEdit.invalid { outline: 2px solid #f38ba8; outline-offset: -1px; }
   .tlDate { @apply font-mono text-[11.5px]; }
-  .trRow { @apply p-2 bg-card2 rounded mb-1.75; }
-  .trDate { @apply block text-accent font-mono text-[11.5px] mb-1; }
-  .trText { @apply break-words text-[12.5px] leading-relaxed text-text; }
 
   #tabs { @apply flex-none inline-flex gap-0.5 pt-2 px-4.5 pb-1.5; }
   #tabs button.tab {
@@ -570,6 +552,141 @@
   #cfgSplitPreview .pvRow.hint { @apply text-dim bg-transparent pt-1.5; }
   #cfgSplitPreview .pvCount { @apply font-semibold text-accent; }
   #cfgSplitPreview .pvZero { @apply text-bad; }
+
+  #calclensBtn { @apply border border-line; }
+  #calclensBtn.calclens-on {
+    @apply bg-accent text-card2 border-accent;
+  }
+
+  #calclensPanel { @apply fixed top-0 right-0 h-full w-[380px] z-40; }
+  #calclensPanel.calclens-drawer {
+    @apply flex flex-col bg-card2 border-l border-line shadow-2xl translate-x-full transition-transform duration-200;
+  }
+  #calclensPanel.calclens-drawer.open { translate: 0; }
+
+  .calclens-head {
+    @apply flex items-center justify-between px-4 py-3 border-b border-line flex-shrink-0;
+  }
+  .calclens-title { @apply font-semibold text-text text-[14px]; }
+  .calclens-close { @apply px-2 py-0.5 text-xs bg-line2 text-text rounded hover:bg-line; }
+
+  .calclens-body {
+    @apply flex-1 overflow-y-auto px-4 py-3 text-[12.5px] leading-relaxed space-y-3;
+  }
+  .calclens-empty { @apply text-dim; }
+
+  .calclens-badge {
+    @apply inline-block uppercase tracking-wide text-[10px] font-bold px-2 py-0.5 rounded-sm; 
+  }
+  .kind-raw { @apply bg-line2 text-dim; }
+  .kind-timeline { @apply bg-blue-500/15 text-blue-300; }
+  .kind-duration { @apply bg-purple-500/15 text-purple-300; }
+  .kind-report { @apply bg-yellow-500/15 text-yellow-300; }
+  .kind-classification { @apply bg-green-500/15 text-green-300; }
+
+  .calclens-value { @apply text-lg font-semibold text-text break-words; }
+
+  .calclens-field { @apply flex gap-2 items-baseline text-[12.5px]; }
+  .calclens-field-label { @apply w-[90px] flex-shrink-0 text-dim; }
+  .calclens-field-value { @apply text-text break-words; }
+
+  .calclens-section { @apply pt-1; }
+  .calclens-section-title { @apply text-[10px] uppercase tracking-wide text-dim font-bold mb-1; }
+
+  .calclens-inputs { @apply w-full text-[12px] border-collapse; }
+  .calclens-inputs td { @apply border-b border-line py-1 align-top; }
+  .calclens-input-label { @apply pr-3 text-dim w-[110px]; }
+  .calclens-input-value { @apply text-text break-words; }
+
+  .calclens-steps { @apply list-decimal pl-4; }
+  .calclens-steps li { @apply py-0.5; }
+  .calclens-steps .step-em { @apply font-semibold text-text; }
+
+  .calclens-warning { @apply text-bad py-0.5; }
+
+  /* Reusable Lucide icon-only button — the primitive for the button→icon migration. */
+  .icon-btn {
+    @apply inline-flex items-center justify-center w-[30px] h-[30px] rounded text-dim hover:text-text hover:bg-line flex-shrink-0;
+  }
+  .icon-btn .icon-btn-svg { @apply w-[16px] h-[16px]; }
+
+  /* Drawer inline icon sizing. */
+  .calclens-badge .cb-badge-icn { @apply inline-block w-[12px] h-[12px] align-[-1px]; }
+  .calclens-transition .cb-trans-icn { @apply inline-block w-[13px] h-[13px] mr-1 align-[-2px] text-accent; }
+  .calclens-warning .cb-warn-icn { @apply inline-block w-[12px] h-[12px] align-[-1px]; }
+
+  /* SLA easy digest. */
+  .calclens-digest { @apply rounded-md border border-line bg-card2 p-2.5; }
+  .digest-row { @apply flex items-center gap-2 py-0.5 text-[12.5px]; }
+  .digest-icn { @apply w-[13px] h-[13px] text-accent flex-shrink-0; }
+  .digest-label { @apply w-[54px] flex-shrink-0 text-dim; }
+  .digest-value { @apply flex-1 text-text font-semibold break-words; }
+  .digest-verdict { @apply inline-flex items-center gap-1.5 mt-2 px-2 py-0.5 rounded text-[12px] font-semibold; }
+  .digest-verdict .digest-verdict-icn { @apply w-[14px] h-[14px]; }
+  .digest-verdict.met { @apply bg-green-500/15 text-green-300; }
+  .digest-verdict.breach { @apply bg-red-500/15 text-red-300; }
+  .digest-verdict.unknown { @apply bg-line2 text-dim; }
+  .digest-line { @apply mt-2 text-[12px] text-dim leading-snug; }
+  .digest-src { @apply mt-2 border-t border-line pt-2; }
+  .digest-src .calclens-section-title { @apply mb-0.5; }
+  .digest-op { @apply mt-1 text-[11.5px] text-dim italic; }
+
+  /* Visual timeline strip. */
+  .calclens-timeline { @apply pl-1; }
+  .calclens-timeline .calclens-section-title { @apply mb-1.5; }
+  .calclens-tl { @apply flex flex-col; }
+  .calclens-tl-row { @apply relative flex items-start py-1.5; }
+  .calclens-tl-gutter { @apply relative flex-none w-7 flex justify-center pt-1; }
+  .calclens-tl-gutter::before {
+    content: "";
+    @apply absolute left-1/2 top-[26px] bottom-[-10px] w-px bg-line -translate-x-1/2;
+  }
+  .calclens-tl-row:last-child .calclens-tl-gutter::before { @apply hidden; }
+  .calclens-tl-gutter .calclens-tl-icn {
+    @apply w-[22px] h-[22px] p-[3px] box-border rounded-full bg-line2 text-dim;
+  }
+  .calclens-tl-row.selected .calclens-tl-icn { @apply bg-accent text-card2; }
+  .calclens-tl-gutter .calclens-tl-pick-icn { @apply hidden; }
+  .calclens-tl-row.pickable:hover .calclens-tl-icn,
+  .calclens-tl-row.pickable.selected .calclens-tl-icn { @apply hidden; }
+  .calclens-tl-row.pickable:hover .calclens-tl-pick-icn,
+  .calclens-tl-row.pickable.selected .calclens-tl-pick-icn { @apply block w-[22px] h-[22px] p-[3px] box-border rounded-full bg-accent text-card2; }
+  .calclens-tl-body { @apply flex-1 flex flex-col min-w-0 leading-snug ml-2; }
+  .calclens-tl-time { @apply text-[12px] font-semibold text-text whitespace-nowrap; }
+  .calclens-tl-changes { @apply flex flex-col mt-1 gap-1; }
+  .calclens-tl-change { @apply flex items-start gap-1.5 min-w-0; }
+  .calclens-tl-change-icn { @apply inline-block w-[13px] h-[13px] mt-px flex-none text-dim; }
+  .calclens-tl-desc { @apply text-[12px] text-dim break-words; }
+  .calclens-tl-desc-label { @apply mr-1 text-faint; }
+  .calclens-tl-desc-value { @apply text-text; }
+  .calclens-tl-arrow { @apply mx-1.5 text-accent; }
+  .calclens-tl-row.selected .calclens-tl-time { @apply text-accent; }
+
+  /* Drawer edit controls for the derivation columns. */
+  .calclens-edit { @apply mt-3 border-t border-line pt-2.5; }
+  .calclens-edit-control { @apply flex flex-col gap-1.5; }
+  .calclens-edit-input {
+    @apply w-full bg-card2 text-text border border-line rounded px-2 py-1.5 text-[12.5px] outline-none focus:border-accent;
+  }
+  .calclens-edit-input.tlDate { @apply font-mono text-[12px] text-yellow; }
+  .calclens-edit-input.invalid { outline: 2px solid #f38ba8; outline-offset: -1px; }
+  .calclens-edit-hint { @apply text-faint text-[11px] leading-snug; }
+  .calclens-edit-inputrow { @apply flex items-center gap-1.5; }
+  .calclens-edit-save {
+    @apply inline-flex items-center gap-1 flex-none px-2.5 py-1.5 rounded bg-accent text-card2 text-[12px] font-semibold hover:bg-accent2 cursor-pointer;
+  }
+  .calclens-edit-save .calclens-edit-save-icn { @apply inline-block w-[13px] h-[13px]; }
+
+  /* Pickable timeline rows: click a row to set the derived time. */
+  .calclens-tl-row.pickable { @apply cursor-pointer rounded px-1 hover:bg-line2/60; }
+  .calclens-tl-row.pickable:hover .calclens-tl-time { @apply text-accent; }
+  .calclens-tl-pick-icn {
+    @apply absolute left-0 top-1 w-[22px] h-[22px] p-[3px] box-border rounded-full bg-accent text-card2;
+    display: none;
+  }
+  .calclens-tl-row.pickable:hover .calclens-tl-pick-icn,
+  .calclens-tl-row.pickable.selected .calclens-tl-pick-icn { display: block; }
+  .calclens-tl-row.pickable.selected .calclens-tl-icn { display: none; }
 
   input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.8); }
 }

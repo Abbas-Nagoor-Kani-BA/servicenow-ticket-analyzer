@@ -22,7 +22,7 @@ code — it defines what each layer may and may not do.**
 ```
 core/        Pure domain. phase2 (the four timeline rules), report, slasummary,
              aiextract, querybuilder, sntime, statechoices, names, msrchoices,
-             rowmerge, journal, templatexml.
+             rowmerge, journal, templatexml, attention.
              No DOM, no chrome.*, no I/O. Runs standalone in plain node.
 data/        Everything that touches storage or the network.
   repositories/  ticket, timeline, settings, dataset, run-state, export-config,
@@ -48,8 +48,8 @@ panel/, settings/, platform/ (service worker), content/
 
 `surfaces/viewer/` is the viewer page's own composition root plus its modules
 (`core`, `store`, `grid-data`, `cols`, `config-state`, `exporter`, `clipboard`,
-`summary`, `paste`, `toolbar`, `dialogs`, `grid`, `selection`, `ticketpop`,
-`activity`, `editors`, `shared`, `interactions`). `surfaces/viewer/index.ts`
+`summary`, `toolbar`, `dialogs`, `grid`, `selection`,
+`activity`, `shared`, `interactions`). `surfaces/viewer/index.ts`
 calls each module's `init*()` in a fixed order and then boots. The modules still
 own the data stores and the export pipeline; their UI lives in `components/`.
 
@@ -245,6 +245,7 @@ Regression suites (`npm test` runs all of them):
 | `di-test.ts`, `repository-test.ts`, `pull-service-test.ts`, `settings-service-test.ts` | DI and services against fakes |
 | `extract-service-test.js`, `report-service-test.js`, `export-service-test.js` | the viewer-bound services: autoParse extraction, report/SLA adaptation (fmt→SLA coupling), export building |
 | `durations-test.js` | derived durations (assign→ackn, assign→resolve, suspend total) from the four rules' UTC timestamps |
+| `attention-test.js` | Calclens "needs attention" rule engine (multi-assign/reopen/on-hold/slow-pickup/empty-plan/breach/parse) |
 | `panel-components-test.ts`, `data-grid-test.ts`, `search-picker-test.ts`, `modal-test.ts`, `map-dialog-test.ts`, `settings-chips-test.js` | components |
 | `viewer-dom-test.js` | end-to-end viewer flow (happy-dom) |
 
@@ -323,7 +324,9 @@ component needs its own test; end-to-end coverage is not enough.
   plan (what is still left after Phase 6, in order) is `docs/roadmap.md`.
 - Possible future work: resume-from-checkpoint for huge pulls (Phase 11a),
   work-notes text export (Phase 11c), additional tables (RITM, change) (Phase 11d).
-  Derived duration columns shipped in Phase 11b (`core/durations.ts`).
+  Derived duration columns shipped in Phase 11b (`core/durations.ts`). Calclens
+  "needs attention" row flags shipped in Phase 11e (`core/attention.ts`; see
+  `docs/roadmap.md` 11e).
 
 ## Docs
 

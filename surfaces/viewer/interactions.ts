@@ -1,14 +1,7 @@
 import { $, visibleCols } from "./core.ts";
-import { findRowBySysId, render } from "./grid.ts";
-import { anyOverlayOpen, copySelectedRange, fillFromSelectionOrigin, getSelFocus, handlePaste, movePage, moveSel, moveToRowFirstLast, selectedTd, selectionBounds, setSelPoint, undoLast } from "./selection.ts";
-import { openTicketPopup } from "./ticketpop.ts";
-import { startEdit } from "./editors.ts";
-
-let dragSelecting = false;
-let dragMoved = false;
-let dragStartX = 0, dragStartY = 0;
-
-let fillDragging = false;
+import { render, reportCellFocus } from "./grid.ts";
+import { anyOverlayOpen, getSelFocus, movePage, moveSel, moveToRowFirstLast, setSelPoint } from "./selection.ts";
+import { getCalclensMode } from "./calclens-state.ts";
 
 function hitTestTd(e: MouseEvent | PointerEvent): HTMLElement | null {
   if (typeof document.elementFromPoint === "function" && e.clientX != null) {
@@ -22,108 +15,28 @@ function hitTestTd(e: MouseEvent | PointerEvent): HTMLElement | null {
   return t && t.closest ? t.closest("td") : null;
 }
 
-export function cellKeyAt(clientX: number, clientY: number): { sysId: string | undefined; key: string } | null {
-  const el = typeof document.elementFromPoint === "function" ? document.elementFromPoint(clientX, clientY) : null;
-  const td = el && el.closest ? el.closest("td") : null;
-  if (!td) return null;
-  const tr = td.parentElement;
-  if (!tr) return null;
-  const cols = visibleCols();
-  const ci = [...tr.children].indexOf(td);
-  if (ci < 0 || ci >= cols.length) return null;
-  return { sysId: tr.dataset.sysId, key: cols[ci][0] };
-}
-
-function stopDrag(): void {
-  if (dragSelecting) {
-    dragSelecting = false;
-    $("tbl").classList.remove("selecting");
-  }
+/** Report the current selection focus to the Calclens panel (inspect mode only). */
+function reportFocus(): void {
+  if (!getCalclensMode()) return;
+  const f = getSelFocus();
+  if (!f) return;
+  reportCellFocus({ sysId: f.sysId, key: f.key });
 }
 
 export function initInteractions(): void {
-  const tbody = $("tbl").tBodies[0];
-
-  tbody.addEventListener("pointerdown", (e: PointerEvent) => {
-    const t = e.target as HTMLElement | null;
-    const td = t && t.closest ? t.closest("td") : null;
+  // Single-cell selection: clicking any cell sets the focus point used by
+  // Calclens (and highlighted in the grid). No range selection, no drag.
+  $("tbl").addEventListener("click", (e: MouseEvent) => {
+    const td = hitTestTd(e);
     if (!td || e.button !== 0) return;
     const tr = td.parentElement;
     if (!tr) return;
     const cols = visibleCols();
     const ci = [...tr.children].indexOf(td);
     if (ci < 0 || ci >= cols.length) return;
-    dragSelecting = true;
-    dragMoved = false;
-    dragStartX = e.clientX;
-    dragStartY = e.clientY;
-    $("tbl").classList.add("selecting");
     setSelPoint(tr.dataset.sysId ?? "", cols[ci][0], false);
-    try { tbody.setPointerCapture(e.pointerId); } catch { /* ignored */ }
+    reportFocus();
   });
-
-  tbody.addEventListener("pointermove", (e: PointerEvent) => {
-    if (!dragSelecting) return;
-    if (Math.abs(e.clientX - dragStartX) + Math.abs(e.clientY - dragStartY) > 4) dragMoved = true;
-    const el = typeof document.elementFromPoint === "function" ? document.elementFromPoint(e.clientX, e.clientY) : null;
-    const td = el && el.closest ? el.closest("td") : null;
-    if (!td) return;
-    const tr = td.parentElement;
-    if (!tr) return;
-    const cols = visibleCols();
-    const ci = [...tr.children].indexOf(td);
-    if (ci < 0 || ci >= cols.length) return;
-    setSelPoint(tr.dataset.sysId ?? "", cols[ci][0], true);
-  });
-
-  tbody.addEventListener("pointerup", stopDrag);
-  tbody.addEventListener("pointercancel", stopDrag);
-  document.addEventListener("pointerup", stopDrag);
-
-  $("tbl").tBodies[0].addEventListener("click", (e: MouseEvent) => {
-    if (dragMoved || anyOverlayOpen() || document.querySelector(".msrPick")) return;
-    const td = hitTestTd(e);
-    if (!td || !td.classList.contains("numLink")) return;
-    const tr = td.parentElement;
-    if (!tr) return;
-    const row = findRowBySysId(tr.dataset.sysId);
-    if (row) openTicketPopup(row);
-  });
-
-  $("tbl").tBodies[0].addEventListener("dblclick", (e: MouseEvent) => {
-    const td = hitTestTd(e);
-    if (td) startEdit(td);
-  });
-
-  const handle = $("fillHandle");
-  if (handle) {
-    handle.addEventListener("pointerdown", (e: PointerEvent) => {
-      if (e.button !== 0) return;
-      const focus = getSelFocus();
-      if (!focus) return;
-      e.preventDefault();
-      e.stopPropagation();
-      fillDragging = true;
-      setSelPoint(focus.sysId, focus.key, false);
-      try { handle.setPointerCapture(e.pointerId); } catch { /* ignored */ }
-    });
-
-    handle.addEventListener("pointermove", (e: PointerEvent) => {
-      if (!fillDragging) return;
-      const cell = cellKeyAt(e.clientX, e.clientY);
-      if (!cell) return;
-      setSelPoint(cell.sysId ?? "", cell.key, true);
-    });
-
-    function stopFill(): void {
-      if (!fillDragging) return;
-      fillDragging = false;
-      const b = selectionBounds();
-      if (b) fillFromSelectionOrigin(b);
-    }
-    handle.addEventListener("pointerup", stopFill);
-    handle.addEventListener("pointercancel", stopFill);
-  }
 
   document.addEventListener("keydown", (e: KeyboardEvent) => {
     const t = e.target;
@@ -131,54 +44,21 @@ export function initInteractions(): void {
         (t.tagName === "INPUT" || t.tagName === "SELECT" || t.tagName === "TEXTAREA" || t.isContentEditable)) {
       return;
     }
-    if ((e.ctrlKey || e.metaKey) && (e.key === "c" || e.key === "C")) {
-      if (!anyOverlayOpen() && getSelFocus() && selectionBounds()) {
-        e.preventDefault();
-        copySelectedRange();
-      }
-      return;
-    }
-    if ((e.ctrlKey || e.metaKey) && (e.key === "v" || e.key === "V")) {
-      if (!anyOverlayOpen() && getSelFocus() && selectionBounds()) {
-        e.preventDefault();
-        handlePaste();
-      }
-      return;
-    }
-    if ((e.ctrlKey || e.metaKey) && (e.key === "z" || e.key === "Z")) {
-      if (!anyOverlayOpen()) {
-        e.preventDefault();
-        undoLast();
-      }
-      return;
-    }
     if (anyOverlayOpen()) return;
+    let moved = false;
     switch (e.key) {
-      case "ArrowDown": e.preventDefault(); moveSel(1, 0, e.shiftKey); break;
-      case "ArrowUp": e.preventDefault(); moveSel(-1, 0, e.shiftKey); break;
-      case "ArrowLeft": e.preventDefault(); moveSel(0, -1, e.shiftKey); break;
-      case "ArrowRight": e.preventDefault(); moveSel(0, 1, e.shiftKey); break;
-      case "Home": e.preventDefault(); moveToRowFirstLast(e.shiftKey, "first"); break;
-      case "End": e.preventDefault(); moveToRowFirstLast(e.shiftKey, "last"); break;
-      case "PageDown": e.preventDefault(); movePage(1, e.shiftKey); break;
-      case "PageUp": e.preventDefault(); movePage(-1, e.shiftKey); break;
-      case "Tab": if (!e.ctrlKey && !e.metaKey) { e.preventDefault(); moveSel(0, e.shiftKey ? -1 : 1, false); } break;
-      case "Enter":
-      case "F2": {
-        const td = selectedTd();
-        if (td) {
-          e.preventDefault();
-          startEdit(td);
-        }
-        break;
-      }
+      case "ArrowDown": e.preventDefault(); moveSel(1, 0, e.shiftKey); moved = true; break;
+      case "ArrowUp": e.preventDefault(); moveSel(-1, 0, e.shiftKey); moved = true; break;
+      case "ArrowLeft": e.preventDefault(); moveSel(0, -1, e.shiftKey); moved = true; break;
+      case "ArrowRight": e.preventDefault(); moveSel(0, 1, e.shiftKey); moved = true; break;
+      case "Home": e.preventDefault(); moveToRowFirstLast(e.shiftKey, "first"); moved = true; break;
+      case "End": e.preventDefault(); moveToRowFirstLast(e.shiftKey, "last"); moved = true; break;
+      case "PageDown": e.preventDefault(); movePage(1, e.shiftKey); moved = true; break;
+      case "PageUp": e.preventDefault(); movePage(-1, e.shiftKey); moved = true; break;
+      case "Tab": if (!e.ctrlKey && !e.metaKey) { e.preventDefault(); moveSel(0, e.shiftKey ? -1 : 1, false); moved = true; } break;
     }
+    if (moved) reportFocus();
   });
 
   $("search").addEventListener("input", render);
 }
-
-export {
-  dragSelecting,
-  dragMoved
-};

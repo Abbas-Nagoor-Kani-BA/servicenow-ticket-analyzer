@@ -1,6 +1,5 @@
 import { createIdbDatabase, createMemoryDatabase } from "./idb.ts";
 import type { IdbDatabase, IdbStore } from "./idb.ts";
-import type { ClassifyOutcome } from "../services/classifier-service.ts";
 
 /*
  * Durable per-note classification-result cache.
@@ -43,7 +42,9 @@ export type CacheKeyInput = {
 };
 
 export type ClassifyCacheEntry = {
-  outcome: ClassifyOutcome;
+  /** The raw per-engine picks for one input (ML + deterministic, pre-decision).
+   *  The engine stores it opaquely; the worker decides with the current rule. */
+  outcome: unknown;
   savedAt: number;
   /** Number of times this entry has been reused. Used for eviction priority. */
   hits: number;

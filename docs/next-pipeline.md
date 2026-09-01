@@ -10,6 +10,8 @@ text lives in `docs/roadmap.md` — this file is the running status list.
 - Phase 10a-10d (extract the viewer services: report, export, extract;
   timeline route decision = done-by-route).
 - Phase 11b (derived duration columns, `core/durations.ts`).
+- Calclens attention flags (`core/attention.ts`): row-level "needs attention"
+  markers when Calclens is ON.
 
 Gate after every change: `npm run typecheck && npm run lint && npm test && npm run build`.
 
@@ -26,7 +28,7 @@ Gate after every change: `npm run typecheck && npm run lint && npm test && npm r
 
 | Item | Status | How |
 |---|---|---|
-| 12a Manual smoke test | pending | Reload `dist/` at `chrome://extensions`, refresh the ServiceNow tab, Connect, Preview count, Run export. Exact checklist (map dialog, CI-split, Escape cascade, copy/paste, tabs, grid persistence) in `docs/roadmap.md`. |
+| 12a Manual smoke test | pending | Reload `dist/` at `chrome://extensions`, refresh the ServiceNow tab, Connect, Preview count, Run export. Exact checklist (map dialog, CI-split, Escape cascade, tabs, grid persistence, Calclens drawer editing) in `docs/roadmap.md`. |
 | 12b Live timezone check | pending | `TZ_INSTANCE=… TZ_USER=… TZ_PASS=… node tools/tz-live-check.js` (needs live credentials; run after anything touching timezone). |
 | 12c Component-test audit | gap open | The e2e viewer test misses component bugs; write a focused `tools/component-test.ts` for the `components/component.ts` base (build/patch/super-ordering traps). Other components already have focused tests. |
 

@@ -68,6 +68,7 @@ const copyPlugin = {
     build.onEnd(() => {
       copyStatic(OUT);
       copyDirRel("icons", OUT);
+      copyDirRel("lib/vendor/lucide", OUT);
     });
   }
 };

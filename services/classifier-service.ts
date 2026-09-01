@@ -115,7 +115,7 @@ export class ClassifierService {
     const hit = await this.cache?.get(key);
     if (hit) {
       await this.cache?.noteHit(key);
-      return hit.outcome;
+      return hit.outcome as ClassifyOutcome;
     }
     const out = await this.classify(input);
     await this.cache?.put(key, { outcome: out, savedAt: Date.now(), hits: 0 });

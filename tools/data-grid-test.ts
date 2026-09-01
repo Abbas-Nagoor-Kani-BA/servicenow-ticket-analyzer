@@ -159,7 +159,7 @@ test("a value outside the column option list is flagged", () => {
 
   const td = win.document.querySelectorAll("#tbl tbody tr td")[1] as HTMLElement;
   assert.ok(td.classList.contains("offlist"));
-  assert.ok(td.classList.contains("editable"));
+  assert.ok(td.classList.contains("calclens-cell"));
 });
 
 test("a value inside the option list is not flagged", () => {
@@ -320,4 +320,65 @@ test("updateRows keeps the legend when the changed subset has no breaches", () =
   state.rows[1].solutionType = "Permanent solution";
   grid.updateRows(["c"]);
   assert.equal($("slaBar").classList.contains("hidden"), false, "legend still visible after updating a non-breach row");
+});
+
+test("attention resolver adds the row tint and a marker on the number cell", () => {
+  const { grid, state } = setup({
+    rows: [
+      { sysId: "a", number: "INC0001", state: "Closed", rootCause: "", solutionType: "" },
+      { sysId: "b", number: "INC0002", state: "Closed", rootCause: "Application bug", solutionType: "Permanent solution" }
+    ],
+    total: 2,
+    attention: (row) => {
+      return String(row.sysId) === "a"
+        ? [{ id: "emptyPlan", label: "Missing plan data", detail: "No root cause or solution type" }]
+        : [];
+    }
+  });
+  grid.render(state);
+
+  const rows = [...win.document.querySelectorAll("#tbl tbody tr")];
+  assert.equal(rows.length, 2);
+  const flagged = rows.find((r) => r.dataset.sysId === "a") as HTMLElement;
+  const clean = rows.find((r) => r.dataset.sysId === "b") as HTMLElement;
+  assert.ok(flagged.classList.contains("attention"), "flagged row carries the attention class");
+  assert.ok(!clean.classList.contains("attention"), "clean row carries no attention class");
+  assert.ok(flagged.querySelector("td.attention-mark"), "number cell shows the attention marker");
+  assert.ok(!clean.querySelector("td.attention-mark"), "clean number cell has no marker");
+  assert.ok(flagged.getAttribute("data-tip")?.includes("Missing plan data"), "row tooltip lists the flag");
+
+  const flaggedCells = [...flagged.querySelectorAll("td")];
+  assert.ok(flaggedCells.length > 0, "flagged row has cells");
+  for (const cell of flaggedCells) {
+    const tip = cell.getAttribute("data-tip") ?? "";
+    assert.ok(tip.length > 0, "cell has a tooltip");
+    assert.ok(tip.includes("Missing plan data"), "cell tooltip lists the attention reason");
+  }
+  const cleanCells = [...clean.querySelectorAll("td")];
+  for (const cell of cleanCells) {
+    assert.ok(!(cell.getAttribute("data-tip") ?? "").includes("Missing plan data"), "clean row cells omit the attention reason");
+  }
+});
+
+test("updateRows honours the attention resolver", () => {
+  const { grid, state } = setup({
+    rows: [
+      { sysId: "a", number: "INC0001", state: "Closed", rootCause: "Application bug", solutionType: "Permanent solution" }
+    ],
+    total: 1,
+    attention: (row) => {
+      return String(row.sysId) === "a" && !String(row.rootCause)
+        ? [{ id: "emptyPlan", label: "Missing plan data", detail: "No root cause" }]
+        : [];
+    }
+  });
+  grid.render(state);
+  assert.equal(win.document.querySelector("tr.attention"), null, "no attention before edit");
+
+  state.rows[0].rootCause = "";
+  state.rows[0].solutionType = "";
+  grid.updateRows(["a"]);
+  const tr = win.document.querySelector("tr.attention") as HTMLElement;
+  assert.ok(tr, "row becomes attention-flagged after updateRows");
+  assert.equal(tr.dataset.sysId, "a");
 });

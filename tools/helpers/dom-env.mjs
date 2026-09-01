@@ -141,6 +141,7 @@ const SKELETON = `
       <input id="colSearch">
       <div id="colList"></div>
     </div>
+    <button id="calclensBtn" class="btn">Calclens</button>
     <button id="clearBtn">Clear</button>
   </div>
 </div>
@@ -151,7 +152,6 @@ const SKELETON = `
 </div>
   <div id="wrap">
     <table id="tbl"><thead></thead><tbody></tbody></table>
-    <div id="fillHandle"></div>
   </div>
 <div id="summaryWrap" class="hidden">
   <div id="sumMeta"></div>
@@ -229,6 +229,7 @@ const SKELETON = `
     </div>
   </div>
 </div>
+<div id="calclensPanel"></div>
 `;
 
 export function installSkeleton() {

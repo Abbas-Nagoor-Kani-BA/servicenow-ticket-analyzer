@@ -182,6 +182,17 @@ function deterministicPass(
       else toSolution = hasValidSolutionType(row) ? row.solutionType : null;
     }
 
+    // Stamp which engine produced each cell so Calclens can explain it truthfully.
+    // In fallback mode a field that was preserved (not newly produced here) keeps
+    // its existing source; in ML-off mode every produced field is heuristic.
+    const rcProduced = !!toRootCause && (onlyBlank ? !hasValidRootCause(row) : true);
+    const solProduced = !!toSolution && (onlyBlank ? !hasValidSolutionType(row) : true);
+    if (rcProduced) row.__rcSource = "heuristic";
+    if (solProduced) row.__solSource = "heuristic";
+    if (rcProduced) row.__rcConf = result.confidence;
+    if (solProduced) row.__solConf = solution.confidence;
+    if (!row.__modelId) row.__modelId = "deterministic";
+
     if (toRootCause !== row.rootCause || toSolution !== row.solutionType) {
       changed++;
       changedSysIds.push(String(row.sysId ?? ""));
@@ -199,6 +210,33 @@ function deterministicPass(
  *  bar, and `totalRows` is the denominator, so "Classifying 22/34" reads like
  *  the ticket list rather than a sub-count of note-bearing rows. Rows with no
  *  notes (`preDone`) are counted as not-classifiable. */
+/** Resolves the value/source/confidence to commit for one classification cell.
+ *  In `fallback` mode: a manual edit or an established ML result is preserved,
+ *  and a heuristic-scored cell is overwritten only by a clear ML win (the
+ *  worker returned source "ml"). Otherwise the worker's pick is applied as-is.
+ *  Pure, so it is unit-tested. */
+export function resolveApplyCell(
+  worker: { value: string | null; source?: string; confidence?: number },
+  current: { value: string | null; source?: unknown; confidence?: number },
+  fallback: boolean
+): { value: string | null; source: string; confidence: number } {
+  const wValue = worker.value ?? null;
+  const wSource = worker.source ?? "heuristic";
+  const wConf = Number(worker.confidence) || 0;
+  // Non-destructive: never erase an existing value when the worker returned no
+  // label for the cell. Keep the current value and its source/confidence marker.
+  if (wValue == null && current.value != null) {
+    return { value: current.value, source: String(current.source || "unrecorded"), confidence: Number(current.confidence) || 0 };
+  }
+  if (!fallback) return { value: wValue, source: wSource, confidence: wConf };
+  const mlWon = worker.source === "ml";
+  const keep = !!current.value && !(current.source === "heuristic" && mlWon);
+  if (keep) {
+    return { value: current.value, source: String(current.source || "unrecorded"), confidence: Number(current.confidence) || 0 };
+  }
+  return { value: wValue, source: wSource, confidence: wConf };
+}
+
 function mlPass(
   targets: Record<string, any>[],
   mode: "always" | "fallback",
@@ -223,12 +261,31 @@ function mlPass(
         for (const res of msg.results || []) {
           const row = targets.find((r) => String(r.sysId ?? "") === res.sysId);
           if (!row) continue;
-          const before = row.rootCause !== res.rootCause || row.solutionType !== res.solutionType;
+
+          const rc = resolveApplyCell(
+            { value: res.rootCause, source: res.rootCauseSource, confidence: res.rootCauseConfidence },
+            { value: row.rootCause, source: row.__rcSource, confidence: row.__rcConf },
+            mode === "fallback"
+          );
+          const sol = resolveApplyCell(
+            { value: res.solutionType, source: res.solutionSource, confidence: res.solutionConfidence },
+            { value: row.solutionType, source: row.__solSource, confidence: row.__solConf },
+            mode === "fallback"
+          );
+
+          const before = row.rootCause !== rc.value || row.solutionType !== sol.value;
           if (before) changedSysIds.push(String(row.sysId ?? ""));
           row.notesHash = hashNotes(String(row.closeNotes ?? "").trim());
-          cb.updateRow(row, res.solutionType, res.rootCause, res.solutionConfidence, res.rootCauseConfidence);
+          row.rootCause = rc.value;
+          row.solutionType = sol.value;
+          row.__rcSource = rc.source;
+          row.__solSource = sol.source;
+          row.__rcConf = rc.confidence;
+          row.__solConf = sol.confidence;
+          if (modelId) row.__modelId = modelId;
+          cb.updateRow(row, sol.value, rc.value, sol.confidence, rc.confidence);
           done++;
-          tally(stats, done, (preDoneUnclassified || 0) + msg.notClassified, res.solutionType, res.rootCause);
+          tally(stats, done, (preDoneUnclassified || 0) + msg.notClassified, sol.value, rc.value);
         }
         // Live per-ticket progress, with the not-classified tally.
         cb.onProgress(preDone + msg.done, totalRows, (preDoneUnclassified || 0) + msg.notClassified);
@@ -273,14 +330,15 @@ export async function classifyRows(cb: ClassifyCallbacks): Promise<ClassifyRun> 
   let changed = 0;
   const stats = makeStats(total);
 
-  // ML-enabled "always": ML is the single source of truth. No deterministic
-  // pass, so nothing is written ahead of the model.
+  // ML-enabled "always": ML is the single source of truth for classification,
+  // evaluated over EVERY note row — including rows that previously carried
+  // heuristic values, so they get re-run and ML-stamped. Only rows already
+  // ML-classified with unchanged notes are skipped (the feature cache makes
+  // repeats cheap regardless).
   if (useMl && mode === "always") {
-    // Per-row cache: only rows still lacking a value (or with changed notes) go
-    // to ML; already-classified, unchanged rows are skipped.
     const targets = rowsWithNotes(rows).filter((r) => {
       const notes = String(r.closeNotes ?? "").trim();
-      return !alreadyClassified(r, notes);
+      return !(r.__rcSource === "ml" && r.__solSource === "ml" && r.notesHash === hashNotes(notes));
     });
     stats.done = preDone;
     stats.notClassified = preDone;
@@ -295,19 +353,24 @@ export async function classifyRows(cb: ClassifyCallbacks): Promise<ClassifyRun> 
     return { total, withNotes, classified: targets.length, changed, changedSysIds };
   }
 
-  // ML-enabled "fallback": deterministic fills blanks, ML refines the rest.
+  // ML-enabled "fallback": heuristic fills blanks first; ML then evaluates every
+  // note row and overrides a value whenever it produced a label (the source is
+  // stamped "ml" by provenance, not by a confidence floor). A weak or wrong
+  // keyword-scored label can therefore be corrected by ML, while a manual edit
+  // or an established ML/confident result is preserved (see resolveApplyCell).
   if (useMl && mode === "fallback") {
     const d = deterministicPass(rows, true, cb, stats);
     changedSysIds.push(...d.changedSysIds);
-    const blanks = rowsWithNotes(rows).filter((r) => !hasValidRootCause(r) || !hasValidSolutionType(r));
-    if (blanks.length) {
-      stats.done = withNotes - blanks.length;
-      await mlPass(blanks, mode, total, preDone, preDone, cb, changedSysIds, stats, modelId, cacheEnabled);
+    const targets = rowsWithNotes(rows);
+    stats.done = preDone;
+    stats.notClassified = preDone;
+    if (targets.length) {
+      await mlPass(targets, mode, total, preDone, preDone, cb, changedSysIds, stats, modelId, cacheEnabled);
     }
-    cb.onProgress(total, total, preDone + blanks.length);
+    cb.onProgress(total, total, preDone);
     cb.onStats(stats);
     changed = changedSysIds.length;
-    return { total, withNotes, classified: withNotes, changed, changedSysIds };
+    return { total, withNotes, classified: targets.length, changed, changedSysIds };
   }
 
   // ML disabled: deterministic pass fills everything (non-blank rows are kept).

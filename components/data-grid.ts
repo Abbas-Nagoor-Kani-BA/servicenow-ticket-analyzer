@@ -4,6 +4,7 @@ import { cellShort } from "../lib/markup.ts";
 import { setTip } from "../lib/tooltip.ts";
 import { buildReport } from "../core/report.ts";
 import { computeDurations } from "../core/durations.ts";
+import type { AttentionFlag } from "../core/attention.ts";
 
 /** [key, label, cell class, default width] — matches COLUMNS in surfaces/viewer/core.ts. */
 export type GridColumn = readonly [string, string, string, number];
@@ -20,6 +21,9 @@ export type DataGridState = {
   sortKey: string | null;
   sortDir: number;
   colWidths: Record<string, number>;
+  /** Calclens: flags a row as needing attention; the grid only renders the
+   *  result, never computes it. When absent/undefined no rows are flagged. */
+  attention?: (row: GridRow) => AttentionFlag[];
 };
 
 export type DataGridDeps = {
@@ -37,6 +41,8 @@ export type DataGridDeps = {
   onWidthsChange: (widths: Record<string, number>) => void;
   /** Runs after the rows are in the DOM, e.g. to restore the selection. */
   afterRender: () => void;
+  /** Calclens: called when a cell is clicked, reporting the focused cell. */
+  onCellFocus: (info: { sysId: string; key: string } | null) => void;
 };
 
 export type DataGridRefs = {
@@ -65,9 +71,7 @@ let resizeState: { key: string; colEl: HTMLElement; startX: number; startW: numb
  * store. That module now owns the data and delegates the DOM here.
  *
  * `patch()` rebuilds the header, rows and footer together because all three
- * depend on the visible columns. It refuses to run while a cell editor is open,
- * which is what keeps an in-progress edit from being torn out from under the
- * user.
+ * depend on the visible columns. All body cells are read-only.
  */
 export class DataGrid extends Component<DataGridState, ComponentProps, DataGridDeps> {
   protected declare refs: DataGridRefs;
@@ -100,15 +104,14 @@ export class DataGrid extends Component<DataGridState, ComponentProps, DataGridD
   }
 
   /**
-   * Re-renders only the rows whose sysIds are in `changed`, rebuilding their
-   * `<tr>` in place. Unlike `render()` this never wipes the tbody, so it is the
-   * cheap path for a background classifier that updates a handful of rows per
-   * frame without disrupting scroll, selection or an in-progress edit.
-   *
-   * The caller owns the row values (it mutates the row objects first); this only
-   * reflects them into the DOM. Refuses to run while a cell editor is open, so
-   * the caret keeps its position.
-   */
+ * Re-renders only the rows whose sysIds are in `changed`, rebuilding their
+ * `<tr>` in place. Unlike `render()` this never wipes the tbody, so it is the
+ * cheap path for a background classifier that updates a handful of rows per
+ * frame without disrupting scroll or the selection.
+ *
+ * The caller owns the row values (it mutates the row objects first); this only
+ * reflects them into the DOM.
+ */
   updateRows(changed: Array<string | number>): void {
     if (!changed.length) return;
     if (document.querySelector("td.edit-input")) return;
@@ -140,9 +143,14 @@ export class DataGrid extends Component<DataGridState, ComponentProps, DataGridD
       trEl.dataset.sysId = sysId;
       const rowRep = buildReport(row as Parameters<typeof buildReport>[0], this.deps.fmtInstant as unknown as Parameters<typeof buildReport>[1]) as Record<string, any>;
       const durations = computeDurations(row);
+      const flags = state.attention ? state.attention(row) : [];
+      if (flags.length) {
+        trEl.classList.add("attention");
+        setTip(trEl, this.attentionTip(flags), "tip-warn");
+      }
       const scratch: BreachCounts = { r: 0, m: 0, rm: 0 };
       for (const [key, , cls] of state.cols) {
-        trEl.appendChild(this.buildCell(row, rowRep, durations, key, cls, scratch));
+        trEl.appendChild(this.buildCell(row, rowRep, durations, key, cls, scratch, flags));
       }
       frag.appendChild(trEl);
     }
@@ -286,8 +294,14 @@ export class DataGrid extends Component<DataGridState, ComponentProps, DataGridD
       const num = String(row.number ?? "");
       if (num) typeCounts[rep.type || "Other"] = (typeCounts[rep.type || "Other"] || 0) + 1;
 
+      const flags = state.attention ? state.attention(row) : [];
+      if (flags.length) {
+        tr.classList.add("attention");
+        setTip(tr, this.attentionTip(flags), "tip-warn");
+      }
+
       for (const [key, , cls] of state.cols) {
-        tr.appendChild(this.buildCell(row, rep, durations, key, cls, breachCounts));
+        tr.appendChild(this.buildCell(row, rep, durations, key, cls, breachCounts, flags));
       }
       frag.appendChild(tr);
     }
@@ -307,19 +321,20 @@ export class DataGrid extends Component<DataGridState, ComponentProps, DataGridD
     durations: Record<string, string>,
     key: string,
     cls: string,
-    breachCounts: BreachCounts
+    breachCounts: BreachCounts,
+    flags: AttentionFlag[] = []
   ): HTMLElement {
     const td = document.createElement("td");
     if (cls) td.className = cls;
+    if (flags.length && key === "number") td.classList.add("attention-mark");
 
     let v: unknown;
+    td.classList.add("calclens-cell");
     if (key.startsWith("rep:")) {
       v = rep[key.slice(4)] ?? "";
     } else if (key.startsWith("dur:")) {
       v = durations[key.slice(4)] ?? "";
     } else {
-      if (key !== "number") td.classList.add("editable");
-      else td.classList.add("numLink");
       v = row[key];
       if (cls === "inst") v = this.deps.fmtInstant(v as string, row);
       if ((cls === "time" || cls === "inst" || cls === "dur") && !v) td.classList.add("empty-time");
@@ -327,7 +342,7 @@ export class DataGrid extends Component<DataGridState, ComponentProps, DataGridD
 
     const text = v === null || v === undefined ? "" : String(v);
     td.textContent = cls ? text : cellShort(text);
-    setTip(td, text ? `${text}${td.classList.contains("editable") ? "\n— double-click to edit" : ""}` : "");
+    setTip(td, text ? `${text}\n— calclens: how this was derived` : "— calclens: how this was derived");
 
     if (key === "number" && text.startsWith("INC")) {
       const stateLabel = String(row.state ?? "").toLowerCase();
@@ -352,13 +367,27 @@ export class DataGrid extends Component<DataGridState, ComponentProps, DataGridD
       setTip(td, `⚠ Low-confidence parse — please verify\n\n${td.getAttribute("data-tip") ?? ""}`, "tip-warn");
     }
 
-    const options = td.classList.contains("editable") && text ? this.deps.columnOptions(key, row) : null;
+    const options = text ? this.deps.columnOptions(key, row) : null;
     if (options && options.length && !options.some((o) => String(o).toLowerCase() === text.toLowerCase())) {
       td.classList.add("offlist");
       setTip(td, `Value not in the MSR option list\n\n${td.getAttribute("data-tip") ?? ""}`, "tip-warn");
     }
 
+    const cisys = String(row.sysId ?? row.number ?? "");
+    td.addEventListener("click", () => this.deps.onCellFocus({ sysId: cisys, key }));
+
+    if (flags.length) {
+      const base = td.getAttribute("data-tip") ?? "";
+      setTip(td, `${base}\n\n${this.attentionTip(flags)}`, "tip-warn");
+    }
+
     return td;
+  }
+
+  /** Calclens: builds the tooltip body listing the attention flags for a row. */
+  private attentionTip(flags: AttentionFlag[]): string {
+    const lines = flags.map((f) => `\u2022 ${f.label} \u2014 ${f.detail}`).join("\n");
+    return `\u26a0 Needs attention\n\n${lines}`;
   }
 
   protected updateFooter(

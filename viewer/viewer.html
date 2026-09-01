@@ -17,6 +17,7 @@
     </div>
     <div class="tbRight">
       <span id="status"></span>
+      <button id="calclensBtn" class="btn" data-tip="Calclens — inspect how each value was derived and edit the derivation columns">Calclens</button>
       <button id="copyMsrBtn" class="btn" data-tip="Copy the current view as MSR 'BA AO' input columns (A–U) — paste onto rows whose formulas in V–AJ stay intact">Copy for MSR</button>
       <button id="colsBtn" class="btn" data-tip="Choose which columns are shown">Columns</button>
       <div id="colMenu" class="hidden">
@@ -41,7 +42,6 @@
       <thead></thead>
       <tbody></tbody>
     </table>
-    <div id="fillHandle" title="Drag to fill cells"></div>
   </div>
   <div id="summaryWrap" class="hidden">
     <div id="sumMeta"></div>
@@ -65,6 +65,7 @@
     </div>
   </div>
   <div id="empty" class="hidden">No pulled data yet — run a pull from the side panel first.</div>
+  <div id="calclensPanel"></div>
   <div id="mapModal" class="hidden">
     <div id="letterPop" class="hidden">
       <input id="letterSearch" placeholder="Search A–AN…">

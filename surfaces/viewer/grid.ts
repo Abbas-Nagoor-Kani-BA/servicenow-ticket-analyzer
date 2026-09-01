@@ -4,6 +4,8 @@ import { MSG } from "../../lib/keys.ts";
 import { broadcast } from "../../lib/storage.ts";
 import { pad2 } from "../../lib/format.ts";
 import { showToast } from "../../lib/toast.ts";
+import { normalizeNames } from "../../core/names.ts";
+import { computeAttention } from "../../core/attention.ts";
 import { $, columnOptionList, migrateLegacyResolutions, setStatus, visibleCols } from "./core.ts";
 import type { ViewerData, ViewerRow } from "./core.ts";
 import type { InstantFn } from "./core.ts";
@@ -16,6 +18,7 @@ import { ExtractService } from "../../services/extract-service.ts";
 import { classifyRows, hasValidRootCause, hasValidSolutionType } from "./classify.ts";
 import type { ClassifyStats } from "./classify.ts";
 import { MlModelStore, modelById, modelByRepoId } from "../../data/ml-model-repository.ts";
+import { getCalclensMode } from "./calclens-state.ts";
 
 const extract = new ExtractService();
 
@@ -39,6 +42,10 @@ let selHooks: SelHooks = {
 };
 
 function setSelectionHooks(h: Partial<SelHooks>) { selHooks = { ...selHooks, ...h }; }
+
+let onCellFocus: (info: { sysId: string; key: string } | null) => void = () => {};
+function setOnCellFocus(fn: (info: { sysId: string; key: string } | null) => void) { onCellFocus = fn; }
+function reportCellFocus(info: { sysId: string; key: string } | null) { onCellFocus(info); }
 
 function load(d: ViewerData | null | undefined) {
   selHooks.clearUndo();
@@ -91,6 +98,26 @@ const fmtInstant: InstantFn = (utcIso, row) => {
 
 let grid: DataGrid | null = null;
 
+// Lazily-loaded Calclens attention context (Settings teamMembers + queues),
+// cached once so gridState() stays synchronous.
+let attentionTeam: string[] = [];
+let attentionGroups: string[] = [];
+let attentionLoaded = false;
+
+function loadAttentionCtx(): void {
+  chrome.storage.local.get(STORAGE.pluginSettings).then((res: Record<string, unknown>) => {
+    const defaults = (res?.[STORAGE.pluginSettings] as any)?.defaults;
+    attentionTeam = normalizeNames(defaults?.teamMembers || []);
+    attentionGroups = normalizeNames(defaults?.queues || []);
+    attentionLoaded = true;
+  }).catch(() => { attentionLoaded = true; });
+}
+
+function attentionCtx(): { teamMembers: string[]; groupScope: string[] } {
+  if (!attentionLoaded) loadAttentionCtx();
+  return { teamMembers: attentionTeam, groupScope: attentionGroups };
+}
+
 export function initGrid() {
   setRowsProvider(() => currentRows());
   grid = new DataGrid($("wrap"), {}, {
@@ -105,6 +132,7 @@ export function initGrid() {
       else dataStore.setState({ sortKey: key, sortDir: 1 });
       render();
     },
+    onCellFocus: (info) => onCellFocus(info),
     onWidthsChange: (widths) => {
       setColWidths(widths);
       saveColWidths();
@@ -119,7 +147,7 @@ export function initGrid() {
 
 function gridState(rows: ViewerRow[]): DataGridState {
   const { data, sortKey, sortDir } = st();
-  return {
+  const state: DataGridState = {
     cols: visibleCols() as DataGridState["cols"],
     rows,
     total: data ? data.rows.length : 0,
@@ -127,6 +155,11 @@ function gridState(rows: ViewerRow[]): DataGridState {
     sortDir,
     colWidths: getColWidths()
   };
+  if (getCalclensMode()) {
+    const { teamMembers, groupScope } = attentionCtx();
+    state.attention = (row) => computeAttention(row, { teamMembers, groupScope });
+  }
+  return state;
 }
 
 /** Rebuilds only the header. render() does this too; this is for callers that
@@ -402,5 +435,7 @@ export {
   displayedValue,
   autoParse,
   resetColWidths,
-  setSelectionHooks
+  setSelectionHooks,
+  setOnCellFocus,
+  reportCellFocus
 };

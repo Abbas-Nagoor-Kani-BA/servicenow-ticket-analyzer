@@ -22,6 +22,7 @@ import { initCols } from "./cols.ts";
 import { initDialogs } from "./dialogs.ts";
 import { initToolbar, loadTplInfo } from "./toolbar.ts";
 import { initInteractions } from "./interactions.ts";
+import { initCalclens } from "./calclens.ts";
 import { anyOverlayOpen } from "./selection.ts";
 import { initTooltips } from "../../lib/tooltip.ts";
 
@@ -30,10 +31,7 @@ import { initTooltips } from "../../lib/tooltip.ts";
 import "./config-state.ts";
 import "./exporter.ts";
 import "./clipboard.ts";
-import "./paste.ts";
-import "./ticketpop.ts";
 import "./activity.ts";
-import "./editors.ts";
 import "./shared.ts";
 
 async function boot() {
@@ -43,6 +41,7 @@ async function boot() {
   initDialogs();
   initToolbar();
   initInteractions();
+  initCalclens();
 
   initTooltips(() => anyOverlayOpen());
   await hydrateStores();

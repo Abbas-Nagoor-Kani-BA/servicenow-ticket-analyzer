@@ -1,7 +1,7 @@
-// Shared mechanics for the MSR/option pickers used by the grid editors
-// (70-editors.js) and the ticket popup (50-ticketpop.js). Both had an
-// identical copy of the label/filter/paint/scroll logic; the shared
-// helpers below keep a single definition.
+// Shared mechanics for the MSR/option pickers. The picker previously had two
+// near-identical copies (grid cell editors, ticket popup) of the
+// label/filter/paint/scroll logic; the shared helpers below keep a single
+// definition. It is now used by the Calclens drawer's derivation pickers.
 
 export function pickCurNotInOptions(options: string[], cur: string | undefined): boolean {
   return !options.some(x => String(x).toLowerCase() === String(cur || "").toLowerCase());
