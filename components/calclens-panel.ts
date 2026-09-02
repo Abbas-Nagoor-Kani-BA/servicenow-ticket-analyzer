@@ -48,6 +48,8 @@ export type CalclensPanelDeps = {
   activityFor?: (row: Record<string, any>) => HTMLElement | null;
   /** Writes an edited value back to the row and persists. */
   onCommit?: (key: string, value: string, row: Record<string, any>) => void;
+  /** Jump the grid to another cell (e.g. click a key-moment chip to edit a derived time). */
+  onJumpToCell?: (sysId: string, key: string) => void;
 };
 
 /** The only grid columns editable from the drawer (the derivation columns). */
@@ -112,6 +114,8 @@ export class CalclensPanel extends Component<CalclensPanelState, ComponentProps,
     const value = el("div", "calclens-value", ex.value || "\u2014");
     body.appendChild(value);
 
+    if (ex.method) body.appendChild(this.renderMethod(ex.method));
+
     if (ex.counts) body.appendChild(this.renderCounts(ex.counts));
 
     if (ex.transition) {
@@ -171,6 +175,13 @@ export class CalclensPanel extends Component<CalclensPanelState, ComponentProps,
         list.appendChild(li);
       }
       wrap.appendChild(list);
+      body.appendChild(wrap);
+    }
+
+    if (ex.note) {
+      const wrap = el("div", "calclens-section");
+      wrap.appendChild(el("div", "calclens-section-title", ex.note.label));
+      wrap.appendChild(this.renderNote(ex.note.text));
       body.appendChild(wrap);
     }
 
@@ -354,7 +365,16 @@ export class CalclensPanel extends Component<CalclensPanelState, ComponentProps,
       if (marks.length) {
         const markRow = el("div", "calclens-tl-marks");
         for (const m of marks) {
-          markRow.appendChild(el("span", "calclens-tl-mark", `${m.label} \u00b7 ${m.time || grp.atLabel || ""}`));
+          const chip = el("button", "calclens-tl-mark", `${m.label} \u00b7 ${m.time || grp.atLabel || ""}`);
+          chip.type = "button";
+          if (this.deps.onJumpToCell) {
+            const sysId = String(this.getState().edit?.row?.sysId ?? "");
+            chip.addEventListener("click", (e) => {
+              e.stopPropagation();
+              this.deps.onJumpToCell?.(sysId, m.key);
+            });
+          }
+          markRow.appendChild(chip);
         }
         body.appendChild(markRow);
       }
@@ -410,6 +430,21 @@ export class CalclensPanel extends Component<CalclensPanelState, ComponentProps,
     const next = this.getState();
     const body = this.q<HTMLElement>(".calclens-body");
     if (body) this.renderBody(body, next.explanation, next.edit);
+  }
+
+  private renderNote(text: string): HTMLElement {
+    const pre = el("pre", "calclens-note");
+    pre.textContent = text;
+    return pre;
+  }
+
+  private renderMethod(m: Extract<Explanation["method"], object>): HTMLElement {
+    const wrap = el("span", `calclens-method kind-${m.kind}`);
+    const icnName = m.kind === "ml" ? "target" : m.kind === "heuristic" ? "tag" : "info";
+    wrap.appendChild(icon(icnName as any, "calclens-method-icn"));
+    wrap.appendChild(document.createTextNode(" " + m.label));
+    if (m.confidence) wrap.appendChild(el("b", "", " \u00b7 " + m.confidence));
+    return wrap;
   }
 
   private renderCounts(c: { assignments: number; states: number; groups: number }): HTMLElement {

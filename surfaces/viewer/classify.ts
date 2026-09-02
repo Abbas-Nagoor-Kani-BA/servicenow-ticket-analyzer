@@ -11,10 +11,10 @@ import { classifyMsr } from "../../core/msrcategorize.ts";
  * Modes (settings ml.mode):
  *   - heuristic -> deterministic only (core/msrcategorize), inline; no worker.
  *   - hybrid    -> deterministic first (fills likely labels), then the worker
- *                  (Transformers.js) refines every note row with ML.
- *   - ml        -> the worker classifies EVERY row; the deterministic pass is
- *                  skipped so regex results are never written ahead of, or in
- *                  place of, ML.
+ *                  (Transformers.js) fills any cells the scorer left blank.
+ *   - ml        -> the worker evaluates every note row; the deterministic
+ *                  cascade is still authoritative and ML fills the blanks. ml
+ *                  and hybrid therefore converge on the same verdict.
  *
  * Results stream back in chunks and are applied via `updateRow` (mapped onto
  * DataGrid.updateRows), so the view fills in incrementally. No DOM, no chrome.*
@@ -78,11 +78,13 @@ function tally(
 }
 
 function buildInput(row: Record<string, any>) {
+  const lists = getMsrLists();
   return {
     row,
     notes: String(row.closeNotes ?? "").trim(),
-    rootCauseLabels: rootCauseFor(getMsrLists().rootCause, msrType(row.number)),
-    resolutionLabels: getMsrLists().resolution
+    rootCauseLabels: rootCauseFor(lists.rootCause, msrType(row.number)),
+    resolutionLabels: lists.resolution,
+    hints: lists.hints
   };
 }
 
@@ -120,27 +122,66 @@ async function modelAvailable(modelId: string): Promise<boolean> {
 
 /** FNV-1a hash of the note text, used to detect an unchanged note cheaply. */
 function hashNotes(notes: string): string {
-  let h = 0x811c9dc5;
-  for (let i = 0; i < notes.length; i++) {
-    h ^= notes.charCodeAt(i);
-    h = (h * 0x01000193) >>> 0;
-  }
-  return `n:${h.toString(16)}:${notes.length}`;
+  return hashStr(notes, "n");
 }
 
-/** A row already carries BOTH real MSR categories AND its note text is unchanged.
- *  Free-text root-cause analysis (from autoParse) does not count as classified. */
-function alreadyClassified(row: Record<string, any>, notes: string): boolean {
+function hashStr(s: string, prefix: string): string {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = (h * 0x01000193) >>> 0;
+  }
+  return `${prefix}:${h.toString(16)}:${s.length}`;
+}
+
+/** A stable fingerprint of the MSR label lists that classification is scored
+ *  against (root-cause buckets + resolution + per-label keyword hints), so an
+ *  edited list is detected. */
+export function classificationListsFp(lists: unknown): string {
+  const rc = ((lists as any)?.rootCause) || {};
+  const hints = ((lists as any)?.hints) || {};
+  const parts: unknown[][] = [
+    rc.Incident || [],
+    rc.RFS || [],
+    rc.P_Ticket || [],
+    (lists as any)?.resolution || []
+  ];
+  const hintParts = Object.keys(hints)
+    .sort()
+    .map((k) => `${k}=${((hints as any)[k] || []).join("\u0000")}`);
+  const joined = [...parts.map((arr) => arr.join("\u0000")), hintParts.join("\u0001")].join("\u0002");
+  return hashStr(joined, "lists");
+}
+
+/** The classification context (model + label lists) that produced a row's value. */
+function runFp(modelId: string): string {
+  return `${modelId}::${classificationListsFp(getMsrLists())}`;
+}
+
+/** A row already carries BOTH real MSR categories AND its note text is unchanged
+ *  AND it was classified under the current context (model + label lists).
+ *  Free-text root-cause analysis (from autoParse) does not count as classified.
+ *  `fp` is the current `runFp()`; when undefined the context check is skipped
+ *  (legacy callers). */
+function alreadyClassified(row: Record<string, any>, notes: string, fp?: string): boolean {
   if (!hasValidRootCause(row) || !hasValidSolutionType(row)) return false;
   if (!row.notesHash) return false; // no recorded baseline -> assume it may have changed
+  if (fp !== undefined && row.__classFp !== fp) return false; // model/list changed the context
   return row.notesHash === hashNotes(notes);
+}
+
+/** Maps a heuristic stage to the source string stamped on a classified cell. */
+function sourceFor(level: "regex" | "keyword" | "cosine" | null): string {
+  return level === "regex" ? "regex" : level === "keyword" ? "keyword" : level === "cosine" ? "cosine" : "heuristic";
 }
 
 function deterministicPass(
   rows: Record<string, any>[],
   onlyBlank: boolean,
   cb: ClassifyCallbacks,
-  stats: ClassifyStats
+  stats: ClassifyStats,
+  modelId: string,
+  fp: string
 ): { changed: number; changedSysIds: string[]; notClassified: number } {
   let changed = 0;
   let notClassified = 0;
@@ -156,8 +197,10 @@ function deterministicPass(
       continue;
     }
     // Per-row cache: a row already carrying real MSR categories AND with
-    // unchanged notes is left alone (no recompute), regardless of mode.
-    if (alreadyClassified(row, input.notes)) {
+    // unchanged notes AND under the current context is left alone (no
+    // recompute), regardless of mode. A model/list change (fp mismatch) forces
+    // a re-run so a stale value from a previous run is not shown.
+    if (alreadyClassified(row, input.notes, fp)) {
       cb.onProgress(done, rows.length, notClassified);
       cb.onStats(stats);
       continue;
@@ -168,8 +211,8 @@ function deterministicPass(
       continue;
     }
 
-    const result = classifyMsr(input.notes, input.rootCauseLabels);
-    const solution = classifyMsr(input.notes, input.resolutionLabels);
+    const result = classifyMsr(input.notes, input.rootCauseLabels, { hints: getMsrLists().hints });
+    const solution = classifyMsr(input.notes, input.resolutionLabels, { hints: getMsrLists().hints });
 
     let toRootCause = result.label ?? row.rootCause ?? null;
     let toSolution = solution.label ?? row.solutionType ?? null;
@@ -184,9 +227,10 @@ function deterministicPass(
       `notes=${input.notes.slice(0, 80)}`
     );
 
-    // fallback mode keeps ML as the authority: only fill blanks, never overwrite
-    // an existing MSR category with a regex one. A free-text root-cause analysis
-    // (not a category) IS overwritten so the category gets set.
+    // fallback mode keeps the deterministic cascade as the authority: only fill
+    // blanks, never overwrite an existing MSR category with a new one. A
+    // free-text root-cause analysis (not a category) IS overwritten so the
+    // category gets set.
     if (onlyBlank) {
       if (!hasValidRootCause(row) && result.label) toRootCause = result.label;
       else toRootCause = hasValidRootCause(row) ? row.rootCause : null;
@@ -196,14 +240,15 @@ function deterministicPass(
 
     // Stamp which engine produced each cell so Calclens can explain it truthfully.
     // In fallback mode a field that was preserved (not newly produced here) keeps
-    // its existing source; in ML-off mode every produced field is heuristic.
+    // its existing source; otherwise the produced field carries its heuristic stage.
     const rcProduced = !!toRootCause && (onlyBlank ? !hasValidRootCause(row) : true);
     const solProduced = !!toSolution && (onlyBlank ? !hasValidSolutionType(row) : true);
-    if (rcProduced) row.__rcSource = "heuristic";
-    if (solProduced) row.__solSource = "heuristic";
+    if (rcProduced) row.__rcSource = sourceFor(result.level);
+    if (solProduced) row.__solSource = sourceFor(solution.level);
     if (rcProduced) row.__rcConf = result.confidence;
     if (solProduced) row.__solConf = solution.confidence;
     if (!row.__modelId) row.__modelId = "deterministic";
+    row.__classFp = fp;
 
     if (toRootCause !== row.rootCause || toSolution !== row.solutionType) {
       changed++;
@@ -222,11 +267,13 @@ function deterministicPass(
  *  bar, and `totalRows` is the denominator, so "Classifying 22/34" reads like
  *  the ticket list rather than a sub-count of note-bearing rows. Rows with no
  *  notes (`preDone`) are counted as not-classifiable. */
-/** Resolves the value/source/confidence to commit for one classification cell.
- *  In `fallback` mode: a manual edit or an established ML result is preserved,
- *  and a heuristic-scored cell is overwritten only by a clear ML win (the
- *  worker returned source "ml"). Otherwise the worker's pick is applied as-is.
- *  Pure, so it is unit-tested. */
+/**
+ * Resolves the value/source/confidence to commit for one classification cell.
+ * The worker verdict is already decisive (deterministic cascade authoritatively
+ * fills whatever it can, ML follows for the blanks), so in `fallback` mode a
+ * value is preserved only when the worker genuinely produced nothing new.
+ * Pure, so it is unit-tested.
+ */
 export function resolveApplyCell(
   worker: { value: string | null; source?: string; confidence?: number },
   current: { value: string | null; source?: unknown; confidence?: number },
@@ -259,7 +306,8 @@ function mlPass(
   changedSysIds: string[],
   stats: ClassifyStats,
   modelId: string,
-  cacheEnabled: boolean
+  cacheEnabled: boolean,
+  fp: string
 ): Promise<void> {
   return import("./worker-client.ts").then(({ spawnClassifierWorker }) => {
     const w = spawnClassifierWorker();
@@ -294,6 +342,7 @@ function mlPass(
           row.__solSource = sol.source;
           row.__rcConf = rc.confidence;
           row.__solConf = sol.confidence;
+          row.__classFp = fp;
           if (modelId) row.__modelId = modelId;
           cb.updateRow(row, sol.value, rc.value, sol.confidence, rc.confidence);
           done++;
@@ -339,6 +388,7 @@ export async function classifyRows(cb: ClassifyCallbacks): Promise<ClassifyRun> 
 
   const withNotes = rowsWithNotes(rows).length;
   const preDone = total - withNotes; // note-less rows: not classifiable
+  const fp = runFp(modelId);
   const changedSysIds: string[] = [];
   let changed = 0;
   const stats = makeStats(total);
@@ -346,7 +396,7 @@ export async function classifyRows(cb: ClassifyCallbacks): Promise<ClassifyRun> 
   // ML was requested but the model isn't cached: degrade to the built-in scorer
   // and tell the user, so the worker never has to (misleadingly) warn mid-run.
   if (mode !== "heuristic" && !(await modelAvailable(modelId))) {
-    const d = deterministicPass(rows, false, cb, stats);
+    const d = deterministicPass(rows, false, cb, stats, modelId, fp);
     cb.onProgress(total, total, d.notClassified);
     cb.onStats(stats);
     return {
@@ -359,22 +409,22 @@ export async function classifyRows(cb: ClassifyCallbacks): Promise<ClassifyRun> 
     };
   }
 
-  // ML-only: ML is the single source of truth for classification, evaluated
-  // over EVERY note row — including rows that previously carried heuristic
-  // values, so they get re-run and ML-stamped. Only rows already ML-classified
-  // with unchanged notes are skipped (the feature cache makes repeats cheap
-  // regardless).
+  // ML-only: the worker evaluates EVERY note row — including rows that already
+  // carried heuristic values, so they get re-run. The deterministic cascade is
+  // still authoritative and ML fills the blanks, so the verdicts match hybrid.
+  // Rows already classified under the current context (model + lists) with
+  // unchanged notes are skipped (the feature cache makes repeats cheap anyway).
   if (mode === "ml") {
     const targets = rowsWithNotes(rows).filter((r) => {
       const notes = String(r.closeNotes ?? "").trim();
-      return !(r.__rcSource === "ml" && r.__solSource === "ml" && r.notesHash === hashNotes(notes));
+      return !(r.__rcSource === "ml" && r.__solSource === "ml" && r.__classFp === fp && r.notesHash === hashNotes(notes));
     });
     stats.done = preDone;
     stats.notClassified = preDone;
     cb.onProgress(preDone, total, preDone);
     cb.onStats(stats);
     if (targets.length) {
-      await mlPass(targets, "always", total, preDone, preDone, cb, changedSysIds, stats, modelId, cacheEnabled);
+      await mlPass(targets, "always", total, preDone, preDone, cb, changedSysIds, stats, modelId, cacheEnabled, fp);
     }
     cb.onProgress(total, total, preDone);
     cb.onStats(stats);
@@ -383,18 +433,16 @@ export async function classifyRows(cb: ClassifyCallbacks): Promise<ClassifyRun> 
   }
 
   // Hybrid: heuristic fills blanks first; ML then evaluates every note row and
-  // overrides a value whenever it produced a label (the source is stamped "ml"
-  // by provenance, not by a confidence floor). A weak or wrong keyword-scored
-  // label can therefore be corrected by ML, while a manual edit or an
-  // established ML/confident result is preserved (see resolveApplyCell).
+  // fills any cell the scorer left blank (the deterministic cascade stays
+  // authoritative, so an established heuristic value is never overridden).
   if (mode === "hybrid") {
-    const d = deterministicPass(rows, true, cb, stats);
+    const d = deterministicPass(rows, true, cb, stats, modelId, fp);
     changedSysIds.push(...d.changedSysIds);
     const targets = rowsWithNotes(rows);
     stats.done = preDone;
     stats.notClassified = preDone;
     if (targets.length) {
-      await mlPass(targets, "fallback", total, preDone, preDone, cb, changedSysIds, stats, modelId, cacheEnabled);
+      await mlPass(targets, "fallback", total, preDone, preDone, cb, changedSysIds, stats, modelId, cacheEnabled, fp);
     }
     cb.onProgress(total, total, preDone);
     cb.onStats(stats);
@@ -403,7 +451,7 @@ export async function classifyRows(cb: ClassifyCallbacks): Promise<ClassifyRun> 
   }
 
   // Heuristic-only: deterministic pass fills everything (non-blank rows kept).
-  const d = deterministicPass(rows, false, cb, stats);
+  const d = deterministicPass(rows, false, cb, stats, modelId, fp);
   cb.onProgress(total, total, d.notClassified);
   cb.onStats(stats);
   return { total, withNotes, classified: d.changed, changed: d.changed, changedSysIds: d.changedSysIds };

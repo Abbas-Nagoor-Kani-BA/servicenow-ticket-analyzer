@@ -11,8 +11,45 @@ export type MsrListSet = {
   duplicate: string[];
   subCategory: string[];
   rootCause: RootCauseLists;
+  /** Keyword / hint phrases the classifier matches per category label. */
+  hints: Record<string, string[]>;
 };
-export type MsrListOverrides = Partial<Omit<MsrListSet, "rootCause">> & { rootCause?: Partial<RootCauseLists> };
+export type MsrListOverrides = Partial<Omit<MsrListSet, "rootCause" | "hints">>
+  & { rootCause?: Partial<RootCauseLists>; hints?: Record<string, string[]> };
+
+/** Keyword / hint phrases the classifier matches per category label (keys are
+ *  the normalised label). Shipped as defaults; users may extend them in Settings. */
+export const DEFAULT_HINTS: Record<string, string[]> = {
+  "application bug": ["application bug", "code defect", "code bug", "software defect", "defect", "bug", "coding error", "compilation error"],
+  "application performance": ["application performance", "slow application", "app slow", "performance issue", "slowness", "response time"],
+  "database performance": ["database performance", "db performance", "slow database", "db slow", "sql performance", "query performance", "db slowness"],
+  "server performance": ["server performance", "server slow", "high cpu", "cpu usage", "memory leak", "out of memory", "server slowness"],
+  hardware: ["hardware", "hard drive", "disk failure", "disk", "memory module", "power supply", "motherboard", "processor", "ram", "ssd", "barcode scanner", "kiosk"],
+  environment: ["environment", "environmental", "power issue", "datacenter", "data centre", "air conditioning", "temperature"],
+  "interface data error": ["interface data", "data error", "stream issue", "feed failure", "iif", "mapping error", "data mismatch"],
+  "interfacing application error": ["interfacing application", "interface error", "upstream application", "downstream application", "connected application", "peer application"],
+  "network issue": ["network", "connectivity", "latency", "packet loss", "bandwidth", "dns", "routing", "vpn", "lan", "wan", "connection issue"],
+  firewall: ["firewall", "blocked port", "port blocked", "proxy"],
+  "certificate expiry": ["certificate expiry", "certificate expired", "cert expiry", "certificate", "ssl", "tls", "expired certificate"],
+  "user error data": ["incorrect data", "wrong data", "bad data", "user typo", "mistyped", "misentered", "data entry error"],
+  "user error procedure": ["user procedure", "wrong procedure", "incorrect process", "process gap", "step missed", "procedure", "user error", "manual error", "human error", "business process", "wrong process"],
+  "false alert": ["false alert", "false positive", "spurious alert", "false alarm", "alert was false"],
+  "user query": ["user query", "clarification", "how to", "how do", "usage question", "user question", "query"],
+  "information request": ["information request", "info request", "request for information", "please provide", "information required", "need details"],
+  "user access issue": ["access issue", "access denied", "cannot access", "can't access", "permission denied", "no access", "access problem", "suddenly stopped"],
+  "password reset": ["password reset", "reset password", "forgot password", "password"],
+  "job schedule scheduler error": ["job failed", "scheduler", "scheduled job", "batch job", "job error", "cron", "job schedule"],
+  "external 3rd party": ["third party", "3rd party", "external", "sap", "oracle", "aurea", "amadeus", "sita", "vendor", "supplier"],
+  "duplicate incident": ["duplicate incident", "duplicate ticket", "already reported", "existing incident", "duplicate"],
+  "not an issue": ["not an issue", "no issue", "not a problem", "working as designed", "works as expected", "no problem found", "everything works"],
+  "invalid issue": ["invalid issue", "not ours", "wrongly assigned", "misassigned", "invalid ticket", "incorrectly assigned", "mistakenly assigned", "reassign"],
+  "dependent application failure": ["dependent application", "dependency failure", "dependent app", "caml", "cirrus", "fico", "loreto", "iag"],
+  "configuration issue": ["configuration issue", "misconfiguration", "config issue", "wrong parameter", "config change", "incorrectly configured", "missing config", "config"],
+  "workaround solution": ["workaround", "temporary fix", "temp fix", "interim", "until vendor", "until patch", "restart", "reboot", "monitoring", "temporary"],
+  "permanent solution": ["permanent", "code change", "root", "fixed", "replaced", "corrected", "patched", "permanent fix", "reconfigured", "implemented"],
+  "verification only": ["verification only", "verify", "confirmed working", "verification", "checked", "tested", "validation"],
+  "not applicable": ["not applicable", "n/a", "na", "not apply", "not applicable"]
+};
 
 const MSR_DEFAULT_LISTS: MsrListSet = {
   opCo: ["BA", "IB", "EI"],
@@ -62,7 +99,8 @@ const MSR_DEFAULT_LISTS: MsrListSet = {
       "Interfacing application error", "Network issue", "Firewall", "Certificate expiry",
       "User error - data"
     ]
-  }
+  },
+  hints: { ...DEFAULT_HINTS }
 };
 
 function normList(arr: unknown): string[] {
@@ -94,7 +132,8 @@ function mergeMsrLists(overrides: MsrListOverrides | null | undefined): MsrListS
       Incident: [...MSR_DEFAULT_LISTS.rootCause.Incident],
       RFS: [...MSR_DEFAULT_LISTS.rootCause.RFS],
       P_Ticket: [...MSR_DEFAULT_LISTS.rootCause.P_Ticket]
-    }
+    },
+    hints: { ...MSR_DEFAULT_LISTS.hints }
   };
   if (!overrides || typeof overrides !== "object") return base;
   for (const key of ["opCo", "domain", "type", "queue", "status", "resolution", "duplicate", "subCategory"] as const) {
@@ -106,6 +145,12 @@ function mergeMsrLists(overrides: MsrListOverrides | null | undefined): MsrListS
     for (const t of ["Incident", "RFS", "P_Ticket"] as const) {
       const v = (rc as Record<string, unknown>)[t];
       if (Array.isArray(v)) base.rootCause[t] = normList(v);
+    }
+  }
+  const hints = (overrides as { hints?: Record<string, unknown> }).hints;
+  if (hints && typeof hints === "object") {
+    for (const [label, arr] of Object.entries(hints)) {
+      if (Array.isArray(arr)) base.hints[label] = normList(arr);
     }
   }
   return base;

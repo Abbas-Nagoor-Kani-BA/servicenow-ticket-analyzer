@@ -43,10 +43,10 @@ type ChunkResult = {
     number: string;
     solutionType: string | null;
     solutionConfidence: number;
-    solutionSource: "ml" | "heuristic";
+    solutionSource: "ml" | "heuristic" | "regex" | "keyword" | "cosine";
     rootCause: string | null;
     rootCauseConfidence: number;
-    rootCauseSource: "ml" | "heuristic";
+    rootCauseSource: "ml" | "heuristic" | "regex" | "keyword" | "cosine";
   }>;
 };
 
@@ -146,6 +146,7 @@ function keyFor(input: ClassifyRowInput, modelId: string): CacheKeyInput {
     notes: input.notes,
     rootCauseLabels: input.rootCauseLabels,
     resolutionLabels: input.resolutionLabels,
+    hints: input.hints,
     modelId
   };
 }
@@ -159,7 +160,7 @@ async function classifyCached(
   useMl: PickFn | null,
   cache: ClassificationCacheStore | null,
   modelId: string
-): Promise<{ solutionType: { value: string | null; confidence: number; source: "ml" | "heuristic" }; rootCause: { value: string | null; confidence: number; source: "ml" | "heuristic" } }> {
+): Promise<{ solutionType: { value: string | null; confidence: number; source: "ml" | "heuristic" | "regex" | "keyword" | "cosine" }; rootCause: { value: string | null; confidence: number; source: "ml" | "heuristic" | "regex" | "keyword" | "cosine" } }> {
   const key = keyFor(input, modelId);
   if (cache) {
     const hit = await cache.get(key);
@@ -176,7 +177,11 @@ async function classifyCached(
     picks = await useMl(input);
   } else {
     const det = deterministicClassify(input);
-    const detSame = (c: ClassifyCell): EnginePick => ({ value: c.value, confidence: c.confidence, source: "heuristic" });
+    const detSame = (c: ClassifyCell): EnginePick => ({
+      value: c.value,
+      confidence: c.confidence,
+      source: c.level === "regex" ? "regex" : c.level === "keyword" ? "keyword" : c.level === "cosine" ? "cosine" : "heuristic"
+    });
     picks = {
       rootCause: { ml: null, det: detSame(det.rootCause) },
       solutionType: { ml: null, det: detSame(det.solutionType) }

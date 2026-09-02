@@ -6,7 +6,8 @@
  * grid body is always read-only; the drawer also edits the derivation columns.
  */
 import { $, columnOptionList, visibleCols } from "./core.ts";
-import { findRowBySysId, fmtInstant, parseLocalInput, render, scheduleSave, setOnCellFocus } from "./grid.ts";
+import { findRowBySysId, fmtInstant, parseLocalInput, render, reportCellFocus, scheduleSave, setOnCellFocus } from "./grid.ts";
+import { setSelPoint } from "./selection.ts";
 import { getMsrLists } from "./store.ts";
 import { getCalclensMode, setCalclensMode } from "./calclens-state.ts";
 import { explainCell } from "../../core/calclens.ts";
@@ -42,6 +43,10 @@ export function initCalclens(): void {
         const ex = explainCell(row, key, { fmtInstant, msrLists: getMsrLists() });
         panel.show(ex, { row, key, cls: colClass(key) });
       } catch { /* keep the drawer as-is */ }
+    },
+    onJumpToCell: (sysId, key) => {
+      setSelPoint(sysId, key, false);
+      reportCellFocus({ sysId, key });
     }
   });
 

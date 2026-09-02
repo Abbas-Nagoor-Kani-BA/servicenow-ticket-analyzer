@@ -84,6 +84,13 @@ $("msrResetBtn").addEventListener("click", async () => {
   await page.msrLists.clear();
   showToast("MSR lists restored to defaults");
 });
+$("kwResetBtn")?.addEventListener("click", async () => {
+  const defaults = (page.settings.defaultMsrLists().hints || {}) as Record<string, string[]>;
+  for (const [label, chip] of Object.entries(page.kwChips)) {
+    chip.setValues(defaults[label] || []);
+  }
+  showToast("Classifier keywords restored to defaults");
+});
 page.msrLists.load().then((stored) => fillMsrLists(page, page.settings.msrLists(stored)));
 $("clearCacheBtn").addEventListener("click", async () => {
   try {
@@ -202,6 +209,13 @@ function validateCfgKey(key: string, v: unknown): void {
           if (typeof rootCause !== "object" || Array.isArray(rootCause)) throw bad();
           for (const t of ["Incident", "RFS", "P_Ticket"]) {
             if ((rootCause as Record<string, unknown>)[t] !== void 0 && !isArr((rootCause as Record<string, unknown>)[t])) throw bad();
+          }
+        }
+        const hints = (lists as Record<string, unknown>).hints;
+        if (hints !== void 0) {
+          if (typeof hints !== "object" || Array.isArray(hints)) throw bad();
+          for (const [label, arr] of Object.entries(hints as Record<string, unknown>)) {
+            if (typeof label !== "string" || !isArr(arr)) throw bad();
           }
         }
       }

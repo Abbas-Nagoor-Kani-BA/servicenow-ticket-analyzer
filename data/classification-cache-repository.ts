@@ -37,6 +37,8 @@ export type CacheKeyInput = {
   rootCauseLabels: string[];
   /** Solution-type (resolution) candidates. */
   resolutionLabels: string[];
+  /** Keyword/hint phrases per label that the determinist scorer used. */
+  hints?: Record<string, string[]>;
   /** The model that produced the result (catalog id, or "deterministic"). */
   modelId: string;
 };
@@ -61,10 +63,17 @@ export interface ClassificationCacheRepository {
 
 /** Canonical FNV-1a hash of the key parts. Dependency-free and fast. */
 export function hashKey(input: CacheKeyInput): string {
+  const hints = input.hints
+    ? Object.keys(input.hints)
+        .sort()
+        .map((k) => `${k}=${(input.hints![k] || []).join(",")}`)
+        .join("\u0002")
+    : "";
   const key = [
     input.notes,
     input.rootCauseLabels.join("\u0000"),
     input.resolutionLabels.join("\u0000"),
+    hints,
     input.modelId
   ].join("\u0001");
   let h = 0x811c9dc5;

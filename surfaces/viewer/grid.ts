@@ -12,10 +12,10 @@ import type { InstantFn } from "./core.ts";
 import { DataGrid } from "../../components/data-grid.ts";
 import type { DataGridState } from "../../components/data-grid.ts";
 import { currentRows, hasDataRows, parseLocalInput } from "./grid-data.ts";
-import { dataStore, getColWidths, saveColWidths, setColWidths, setSelfPush } from "./store.ts";
+import { dataStore, getColWidths, getMsrLists, saveColWidths, setColWidths, setSelfPush } from "./store.ts";
 import { attachSummaryToData, renderSummary, setRowsProvider } from "./summary.ts";
 import { ExtractService } from "../../services/extract-service.ts";
-import { classifyRows, hasValidRootCause, hasValidSolutionType } from "./classify.ts";
+import { classifyRows, classificationListsFp, hasValidRootCause, hasValidSolutionType } from "./classify.ts";
 import type { ClassifyStats } from "./classify.ts";
 import { MlModelStore, modelById, modelByRepoId } from "../../data/ml-model-repository.ts";
 import { getCalclensMode } from "./calclens-state.ts";
@@ -402,10 +402,13 @@ async function classifyGrid(): Promise<void> {
   // Settings DOES re-run classification on the already-loaded rows with the new
   // model (the run guard includes the model id).
   const modelId = await currentModelId();
-  const runKey = `${fingerprint}::${modelId}`;
+  // The run guard must also account for the MSR label lists: editing them while
+  // keeping the same model would otherwise skip re-classification and leave the
+  // previous run's (now stale) values on screen.
+  const runKey = `${fingerprint}::${modelId}::${classificationListsFp(getMsrLists())}`;
   if (classifying || lastClassifiedFingerprint === runKey) return;
-  // A brand-new dataset or a model switch: reset the previous run's bar before
-  // starting.
+  // A brand-new dataset, a model switch, or a list edit: reset the previous run's
+  // bar before starting.
   if (lastClassifiedFingerprint !== runKey) { clsProgressHide(); clsStatsHide(); }
   classifying = true;
   try {

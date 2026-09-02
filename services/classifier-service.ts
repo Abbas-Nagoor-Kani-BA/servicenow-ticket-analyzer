@@ -1,6 +1,5 @@
 import { classifyMsr } from "../core/msrcategorize.ts";
-import type { MsrScore } from "../core/msrcategorize.ts";
-import { msrType, rootCauseFor } from "../core/msrchoices.ts";
+import type { MsrScore } from "../core/msrcategorize.ts";import { msrType, rootCauseFor } from "../core/msrchoices.ts";
 import type { MsrListSet } from "../core/msrchoices.ts";
 import { ClassificationCacheStore } from "../data/classification-cache-repository.ts";
 import type { ClassificationCacheRepository, CacheKeyInput } from "../data/classification-cache-repository.ts";
@@ -30,11 +29,15 @@ export type ClassifyRowInput = {
   notes: string;
   rootCauseLabels: string[];
   resolutionLabels: string[];
+  /** Keyword/hint phrases per label, from the MSR lists. */
+  hints?: Record<string, string[]>;
 };
 
 export type ClassifyCell = {
   value: string | null;
   confidence: number;
+  /** Which heuristic stage produced the value (regex/keyword/cosine). */
+  level?: MsrScore["level"];
 };
 
 /** The compute per row: notes + the two candidate lists -> both fields. */
@@ -71,11 +74,19 @@ export type ClassifyServiceDeps = {
 
 /** Deterministic compute: root cause -> per-type list, solution type -> resolution. */
 export const deterministicClassify: ClassifyFn = (input) => {
-  const rootCause = classifyMsr(input.notes, input.rootCauseLabels);
-  const solutionType = classifyMsr(input.notes, input.resolutionLabels);
+  const rootCause = classifyMsr(input.notes, input.rootCauseLabels, { hints: input.hints });
+  const solutionType = classifyMsr(input.notes, input.resolutionLabels, { hints: input.hints });
   return {
-    solutionType: { value: solutionType.label, confidence: solutionType.confidence },
-    rootCause: { value: rootCause.label, confidence: rootCause.confidence }
+    solutionType: {
+      value: solutionType.label,
+      confidence: solutionType.confidence,
+      level: solutionType.level
+    },
+    rootCause: {
+      value: rootCause.label,
+      confidence: rootCause.confidence,
+      level: rootCause.level
+    }
   };
 };
 
@@ -101,6 +112,7 @@ export class ClassifierService {
       notes: input.notes,
       rootCauseLabels: input.rootCauseLabels,
       resolutionLabels: input.resolutionLabels,
+      hints: input.hints,
       modelId: this.modelId
     };
   }
@@ -139,7 +151,8 @@ export class ClassifierService {
         row,
         notes,
         rootCauseLabels: rcLabels,
-        resolutionLabels: resLabels
+        resolutionLabels: resLabels,
+        hints: lists.hints
       });
     }
     return inputs;

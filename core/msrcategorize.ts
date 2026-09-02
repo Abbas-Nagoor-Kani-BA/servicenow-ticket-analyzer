@@ -14,11 +14,15 @@
  * best and second-best label, so ties collapse to null rather than guessing.
  */
 
+import { DEFAULT_HINTS } from "./msrchoices.ts";
+
 export type MsrScore = {
   /** Best-matching candidate label, or null when nothing clears the bar. */
   label: string | null;
   /** 0..1 confidence. 0 means "no evidence at all". */
   confidence: number;
+  /** Which stage of the cascade produced the label. */
+  level: "regex" | "keyword" | "cosine" | null;
   /** Per-label totals, for diagnostics. */
   scores: Record<string, number>;
 };
@@ -28,18 +32,28 @@ export type ClassifyMsrOptions = {
   minScore?: number;
   /** Minimum winning confidence (0..1). Below this, we return null. */
   minConfidence?: number;
-  /** Override/augment hints per label (e.g. learned corrections). */
+  /** Override/augment hint phrases per label (keyed by normalised label). When a
+   *  label has an override it is used as-is (authoritative) over the defaults. */
   hints?: Record<string, string[]>;
+  /** Override/augment regex patterns per label (authoritative over defaults). */
+  regex?: Record<string, RegExp[]>;
+  /** Allow the first (exact regex) stage. Turn off to rely on keyword/cosine. */
+  useRegex?: boolean;
   /** Weight of the TF-IDF cosine term relative to the keyword hint count. */
   cosineWeight?: number;
 };
 
 const COSINE_WEIGHT = 2;
+const KEYWORD_MIN_HITS = 2;
+const COS_MIN = 0.15;
+const COS_MARGIN = 0.05;
 
 const DEFAULTS: Required<ClassifyMsrOptions> = {
   minScore: 1,
   minConfidence: 0.32,
   hints: {},
+  regex: {},
+  useRegex: true,
   cosineWeight: COSINE_WEIGHT
 };
 
@@ -168,44 +182,56 @@ function cosineScores(note: string[], docs: string[][]): number[] {
 }
 
 /**
- * Scores `text` against the candidate labels. Each label's hint list is its
- * strongest evidence; a hint can be a single word or a short phrase, matched
- * token-adjacently so "user error" is not satisfied by "user" several words
- * away.
+ * Scores `text` against the candidate labels as a three-stage cascade:
+ *   1. regex  — exact word-boundary patterns over the whole note (any match wins).
+ *   2. keywork — fuzzy hint-phrase hit-count (best >= 2 and > runner-up).
+ *   3. cosine — TF-IDF cosine of the note vs each label's hint document.
+ * The first stage with a clear winner decides; otherwise the label is null and
+ * the caller may fall back to ML.
  */
 export function classifyMsr(
   text: unknown,
   candidateLabels: string[],
   opts: ClassifyMsrOptions = {}
 ): MsrScore {
-  const o = { ...DEFAULTS, ...opts, hints: opts.hints || {} };
+  const o = { ...DEFAULTS, ...opts, hints: opts.hints || {}, regex: opts.regex || {} };
   const body = String(text ?? "").trim();
   const textTokens = tokens(body);
 
   const hintsByLabel = new Map<string, string[]>();
   const docs: string[][] = [];
+  const regexByLabel = new Map<string, RegExp[]>();
   for (const label of candidateLabels) {
     const hints = hintPairs(label, o.hints);
     hintsByLabel.set(label, hints);
     docs.push(docTokens(label, hints));
+    regexByLabel.set(label, o.useRegex ? regexPairs(label, o.regex) : []);
   }
   const cos = cosineScores(textTokens, docs);
 
-  const scores: Record<string, number> = {};
+  const hits: Record<string, number> = {};
+  const regexHits: Record<string, number> = {};
   candidateLabels.forEach((label, i) => {
-    let total = 0;
-    for (const hint of hintsByLabel.get(label)!) total += phraseScore(textTokens, hint);
-    // Keyword count plus a TF-IDF cosine term, so a note that paraphrases a
-    // label (shares distinctive vocabulary but no exact hint) can still win.
-    scores[label] = total + o.cosineWeight * cos[i];
+    let h = 0;
+    for (const hint of hintsByLabel.get(label)!) h += phraseScore(textTokens, hint);
+    hits[label] = h;
+    let rh = 0;
+    for (const re of regexByLabel.get(label)!) if (re.test(body)) rh++;
+    regexHits[label] = rh;
   });
+
+  // Combined scores (kept for the confidence formula / diagnostics).
+  const scores: Record<string, number> = {};
+  candidateLabels.forEach((label, i) => { scores[label] = hits[label] + o.cosineWeight * cos[i]; });
+
+  const winner = pickCascade(regexHits, hits, cos, candidateLabels);
 
   const ranked = Object.entries(scores).sort((a, b) => b[1] - a[1]);
   const [bestLabel, bestScore] = ranked[0] ?? [null, 0];
   const secondScore = ranked[1]?.[1] ?? 0;
 
-  if (!bestLabel || bestScore < o.minScore) {
-    return { label: null, confidence: 0, scores };
+  if (!winner || !bestLabel || bestScore < o.minScore) {
+    return { label: null, confidence: 0, scores, level: null };
   }
 
   const margin = bestScore - secondScore;
@@ -213,22 +239,56 @@ export function classifyMsr(
   confidence = Math.round(confidence * 100) / 100;
 
   if (confidence < o.minConfidence) {
-    return { label: null, confidence: 0, scores };
+    return { label: null, confidence: 0, scores, level: null };
   }
 
-  return { label: bestLabel, confidence, scores };
+  return { label: winner, confidence, scores, level: levelOf(winner, regexHits, hits, cos, candidateLabels) };
+}
+
+/** Decides the winning label by stage priority. */
+function pickCascade(
+  regexHits: Record<string, number>,
+  hits: Record<string, number>,
+  cos: number[],
+  candidateLabels: string[]
+): string | null {
+  const rc = Object.entries(regexHits).sort((a, b) => b[1] - a[1]);
+  if (rc[0] && rc[0][1] >= 1 && (!rc[1] || rc[0][1] > rc[1][1])) return rc[0][0];
+
+  const kh = Object.entries(hits).sort((a, b) => b[1] - a[1]);
+  if (kh[0] && kh[0][1] >= KEYWORD_MIN_HITS && (!kh[1] || kh[0][1] > kh[1][1])) return kh[0][0];
+
+  const cosArr = cos.map((v, i) => ({ label: candidateLabels[i], v })).sort((a, b) => b.v - a.v);
+  if (cosArr[0] && cosArr[0].v >= COS_MIN && (!cosArr[1] || cosArr[0].v - cosArr[1].v >= COS_MARGIN)) {
+    return cosArr[0].label;
+  }
+  return null;
+}
+
+function levelOf(label: string, regexHits: Record<string, number>, hits: Record<string, number>, cos: number[], candidateLabels: string[]): "regex" | "keyword" | "cosine" {
+  if (regexHits[label] >= 1) return "regex";
+  if (hits[label] >= KEYWORD_MIN_HITS) return "keyword";
+  return "cosine";
 }
 
 /**
- * Returns the hint phrases for a label: the built-in synonyms merged with any
- * learned overrides. Built-ins live here so the core stays self-contained; the
- * MSR option list itself supplies the candidate *labels*, not their hints.
+ * Returns the hint phrases for a label. A user override for the label is
+ * authoritative; otherwise the built-in `DEFAULT_HINTS` are used. The MSR
+ * option list itself supplies the candidate *labels*, not their hints.
  */
 function hintPairs(label: string, overrides: Record<string, string[]> | undefined): string[] {
   const key = normalizedKey(label);
-  const base = BUILTIN_HINTS[key] || [];
-  const extra = (overrides?.[key] || overrides?.[label] || []).filter((h) => typeof h === "string" && h.trim());
-  return [...base, ...extra];
+  const has = !!overrides && (Object.prototype.hasOwnProperty.call(overrides, key) || Object.prototype.hasOwnProperty.call(overrides, label));
+  if (has) return (overrides![key] || overrides![label] || []).filter((h) => typeof h === "string" && h.trim());
+  return (DEFAULT_HINTS[key] || []).slice();
+}
+
+/** Returns the curated regex patterns for a label (an override is authoritative). */
+function regexPairs(label: string, overrides: Record<string, RegExp[]> | undefined): RegExp[] {
+  const key = normalizedKey(label);
+  const has = !!overrides && (Object.prototype.hasOwnProperty.call(overrides, key) || Object.prototype.hasOwnProperty.call(overrides, label));
+  if (has) return (overrides![key] || overrides![label] || []).slice();
+  return (BUILTIN_REGEX[key] || []).slice();
 }
 
 function normalizedKey(label: string): string {
@@ -236,42 +296,40 @@ function normalizedKey(label: string): string {
 }
 
 /**
- * Built-in hint phrase lists, keyed by normalised label. These cover the MSR
- * root-cause option labels and the resolution (solution type) values. Phrases
- * are deliberately broader than the label itself (e.g. "network" also catches
- * "connectivity", "dns", "latency") because the notes rarely contain the exact
- * option wording.
+ * Curated, exact word-boundary regexes per normalised label — the authoritative
+ * first stage. Matches must be exact phrasing (case-insensitive); misspellings
+ * and paraphrases fall through to the keyword / cosine stages.
  */
-const BUILTIN_HINTS: Record<string, string[]> = {
-  "application bug": ["application bug", "code defect", "code bug", "software defect", "defect", "bug", "coding error", "compilation error"],
-  "application performance": ["application performance", "slow application", "app slow", "performance issue", "slowness", "response time"],
-  "database performance": ["database performance", "db performance", "slow database", "db slow", "sql performance", "query performance", "db slowness"],
-  "server performance": ["server performance", "server slow", "high cpu", "cpu usage", "memory leak", "out of memory", "server slowness"],
-  hardware: ["hardware", "hard drive", "disk failure", "disk", "memory module", "power supply", "motherboard", "processor", "ram", "ssd", "barcode scanner", "kiosk"],
-  environment: ["environment", "environmental", "power issue", "datacenter", "data centre", "air conditioning", "temperature"],
-  "interface data error": ["interface data", "data error", "stream issue", "feed failure", "iif", "mapping error", "data mismatch"],
-  "interfacing application error": ["interfacing application", "interface error", "upstream application", "downstream application", "connected application", "peer application"],
-  "network issue": ["network", "connectivity", "latency", "packet loss", "bandwidth", "dns", "routing", "vpn", "lan", "wan", "connection issue"],
-  firewall: ["firewall", "blocked port", "port blocked", "proxy"],
-  "certificate expiry": ["certificate expiry", "certificate expired", "cert expiry", "certificate", "ssl", "tls", "expired certificate"],
-  "user error data": ["incorrect data", "wrong data", "bad data", "user typo", "mistyped", "misentered", "data entry error"],
-  "user error procedure": ["user procedure", "wrong procedure", "incorrect process", "process gap", "step missed", "procedure", "user error", "manual error", "human error", "business process", "wrong process"],
-  "false alert": ["false alert", "false positive", "spurious alert", "false alarm", "alert was false"],
-  "user query": ["user query", "clarification", "how to", "how do", "usage question", "user question", "query"],
-  "information request": ["information request", "info request", "request for information", "please provide", "information required", "need details"],
-  "user access issue": ["access issue", "access denied", "cannot access", "can't access", "permission denied", "no access", "access problem", "suddenly stopped"],
-  "password reset": ["password reset", "reset password", "forgot password", "password"],
-  "job schedule scheduler error": ["job failed", "scheduler", "scheduled job", "batch job", "job error", "cron", "job schedule"],
-  "external 3rd party": ["third party", "3rd party", "external", "sap", "oracle", "aurea", "amadeus", "sita", "vendor", "supplier"],
-  "duplicate incident": ["duplicate incident", "duplicate ticket", "already reported", "existing incident", "duplicate"],
-  "not an issue": ["not an issue", "no issue", "not a problem", "working as designed", "works as expected", "no problem found", "everything works"],
-  "invalid issue": ["invalid issue", "not ours", "wrongly assigned", "misassigned", "invalid ticket", "incorrectly assigned", "mistakenly assigned", "reassign"],
-  "dependent application failure": ["dependent application", "dependency failure", "dependent app", "caml", "cirrus", "fico", "loreto", "iag"],
-  "configuration issue": ["configuration issue", "misconfiguration", "config issue", "wrong parameter", "config change", "incorrectly configured", "missing config", "config"],
-  "workaround solution": ["workaround", "temporary fix", "temp fix", "interim", "until vendor", "until patch", "restart", "reboot", "monitoring", "temporary"],
-  "permanent solution": ["permanent", "code change", "root", "fixed", "replaced", "corrected", "patched", "permanent fix", "reconfigured", "implemented"],
-  "verification only": ["verification only", "verify", "confirmed working", "verification", "checked", "tested", "validation"],
-  "not applicable": ["not applicable", "n/a", "na", "not apply", "not applicable"]
+const BUILTIN_REGEX: Record<string, RegExp[]> = {
+  "application bug": [/code defect/i, /code bug/i, /software defect/i, /application bug/i],
+  "application performance": [/slow application/i, /performance issue/i, /application performance/i],
+  "database performance": [/slow database/i, /sql performance/i, /query performance/i, /database performance/i, /db slowness/i],
+  "server performance": [/server slow/i, /high cpu/i, /memory leak/i, /out of memory/i, /server performance/i],
+  hardware: [/hard drive/i, /disk failure/i, /memory module/i, /power supply/i, /hardware/i],
+  environment: [/power issue/i, /data cent(?:er|re)/i, /air conditioning/i, /environmental/i, /environment/i],
+  "interface data error": [/interface data/i, /data error/i, /feed failure/i, /mapping error/i, /data mismatch/i, /stream issue/i],
+  "interfacing application error": [/interfacing application/i, /interface error/i, /upstream application/i, /downstream application/i, /connected application/i],
+  "network issue": [/network/i, /connectivity/i, /packet loss/i, /latency/i, /connection issue/i],
+  firewall: [/firewall/i, /blocked port/i, /port blocked/i],
+  "certificate expiry": [/certificate expired/i, /certificate expiry/i, /expired certificate/i, /cert expiry/i],
+  "user error data": [/incorrect data/i, /wrong data/i, /bad data/i, /user typo/i, /mistyped/i, /misentered/i, /data entry error/i],
+  "user error procedure": [/user error/i, /wrong procedure/i, /incorrect process/i, /process gap/i, /step missed/i, /manual error/i, /human error/i, /business process/i, /wrong process/i],
+  "false alert": [/false alert/i, /false positive/i, /spurious alert/i, /false alarm/i],
+  "user query": [/user query/i, /usage question/i, /how to/i, /how do/i],
+  "information request": [/information request/i, /info request/i, /request for information/i, /need details/i],
+  "user access issue": [/access denied/i, /permission denied/i, /cannot access/i, /no access/i, /access issue/i, /access problem/i],
+  "password reset": [/password reset/i, /reset password/i, /forgot password/i],
+  "job schedule scheduler error": [/job failed/i, /scheduler/i, /scheduled job/i, /batch job/i, /job error/i, /cron/i, /job schedule/i],
+  "external 3rd party": [/third party/i, /3rd party/i, /external/i, /vendor/i, /supplier/i],
+  "duplicate incident": [/duplicate incident/i, /duplicate ticket/i, /already reported/i, /existing incident/i, /duplicate/i],
+  "not an issue": [/not an issue/i, /no issue/i, /not a problem/i, /working as designed/i, /works as expected/i, /no problem found/i, /everything works/i],
+  "invalid issue": [/invalid issue/i, /not ours/i, /wrongly assigned/i, /misassigned/i, /invalid ticket/i, /incorrectly assigned/i, /mistakenly assigned/i],
+  "dependent application failure": [/dependent application/i, /dependency failure/i, /dependent app/i],
+  "configuration issue": [/configuration issue/i, /misconfiguration/i, /config issue/i, /wrong parameter/i, /config change/i, /missing config/i, /incorrectly configured/i],
+  "workaround solution": [/workaround/i, /temporary fix/i, /temp fix/i, /until (?:the )?vendor/i, /until (?:the )?patch/i, /reboot/i, /restart/i, /monitoring/i, /temporary/i],
+  "permanent solution": [/permanent/i, /code change/i, /permanent fix/i, /reconfigured/i, /implemented/i, /patched/i],
+  "verification only": [/verification only/i, /confirmed working/i, /verify/i],
+  "not applicable": [/not applicable/i, /not apply/i, /\bn\/?a\b/i]
 };
 
 export { norm, tokens };

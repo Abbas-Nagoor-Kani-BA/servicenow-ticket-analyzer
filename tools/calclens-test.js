@@ -67,6 +67,11 @@ const markLabels = rRaw.timeline.flatMap((e) => (e.markers || []).map((m) => m.l
 check("raw six key-moment markers", markLabels, ["Ackn", "Assign", "Opened", "Resolved", "Resume", "Suspend"].sort());
 const assignMark = rRaw.timeline.find((e) => (e.markers || []).some((m) => m.label === "Assign"));
 check("assign marker shows display time", assignMark && assignMark.markers.find((m) => m.label === "Assign").time, "07-01-2026 09:15:00");
+check("assign marker target column", assignMark && assignMark.markers.find((m) => m.label === "Assign").key, "assignTimeUtcIso");
+const openedMark = rRaw.timeline.find((e) => (e.markers || []).some((m) => m.label === "Opened"));
+check("opened marker target column", openedMark && openedMark.markers.find((m) => m.label === "Opened").key, "createdOn");
+const resolvedMark = rRaw.timeline.find((e) => (e.markers || []).some((m) => m.label === "Resolved"));
+check("resolved marker target column", resolvedMark && resolvedMark.markers.find((m) => m.label === "Resolved").key, "resolvedAt");
 check("raw change counts", rRaw.counts, { assignments: 1, states: 4, groups: 1 });
 check("raw SLA digests present", Array.isArray(rRaw.digests) && rRaw.digests.length === 2, true);
 check("raw response digest verdict", typeof rRaw.digests[0].met, "boolean");
@@ -169,14 +174,23 @@ console.log("== classification by source ==");
 const rcHeur = explainCell({ ...baseRow, rootCause: "Payment Gateway Timeout", __rcSource: "heuristic", __rcConf: 0.62 }, "rootCause", {});
 check("heur kind", rcHeur.kind, "classification");
 check("heur source input", rcHeur.inputs.find(i=>i.label==="Source").value, "HEURISTIC");
-has("heur step two-way", rcHeur.steps, /two ways: by the machine-learning model and by keyword matching/);
+has("heur step two-way", rcHeur.steps, /deterministic cascade/);
+has("heur step mentions model", rcHeur.steps, /machine-learning model/);
 has("heur step best label", rcHeur.steps, /Payment Gateway Timeout/);
 check("heur confidence string", typeof rcHeur.confidence, "string");
+check("heur method kind", rcHeur.method.kind, "heuristic");
+check("heur method label", rcHeur.method.label, "Keyword match");
+check("heur method confidence", rcHeur.method.confidence, "76%");
+check("heur resolution note label", rcHeur.note.label, "Resolution note");
+check("heur resolution note text", rcHeur.note.text, baseRow.closeNotes);
 
 const rcMl = explainCell({ ...baseRow, rootCause: "Hardware", __rcSource: "ml", __rcConf: 0.87, __modelId: "mobilebert" }, "rootCause", {});
 check("ml kind", rcMl.kind, "classification");
 check("ml source input", rcMl.inputs.find(i=>i.label==="Source").value, "ML");
 check("ml confidence", rcMl.confidence, "87%");
+check("ml method kind", rcMl.method.kind, "ml");
+check("ml method label", rcMl.method.label, "ML model");
+check("ml method confidence", rcMl.method.confidence, "87%");
 has("ml step go-with-model", rcMl.steps, /go with the model's pick/);
 has("ml step shows ml label", rcMl.steps, /Hardware/);
 check("ml no 55% floor claim", rcMl.steps.some((s) => /55%|≥ 55/.test(s)), false);
@@ -185,6 +199,9 @@ const rcManual = explainCell({ ...baseRow, rootCause: "Network", __rcSource: "" 
 check("manual kind", rcManual.kind, "classification");
 has("manual step", rcManual.steps, /already on the row/);
 check("manual no confidence", rcManual.confidence, undefined);
+check("manual method kind", rcManual.method.kind, "manual");
+check("manual method label", rcManual.method.label, "Manual");
+check("manual method no confidence", rcManual.method.confidence, undefined);
 
 const rSol = explainCell(baseRow, "solutionType", {});
 check("solutionType kind", rSol.kind, "classification");

@@ -42,7 +42,7 @@ function stripCommonWords(note: string): string {
 export type EnginePick = {
   value: string | null;
   confidence: number;
-  source: "ml" | "heuristic";
+  source: "ml" | "heuristic" | "regex" | "keyword" | "cosine";
 };
 
 /** Reads the selected model id from the persisted settings. */
@@ -209,7 +209,13 @@ export type CellPicks = { ml: EnginePick | null; det: EnginePick };
 
 /** Combines the ML and deterministic picks for a cell into the decisive pick. */
 export function resolvePick(ml: EnginePick | null, det: EnginePick): EnginePick {
-  return ml && ml.value ? pickExact(ml, det) : { ...det, source: "heuristic" };
+  // The heuristic cascade is authoritative: when the (regex/keyword/cosine)
+  // scorer produced a label it wins outright. ML only fills cells the heuristic
+  // left blank. This keeps the classifier deterministic and never lets the ML
+  // model override a clean keyword/regex match.
+  if (det.value) return { ...det };
+  if (ml && ml.value) return { ...ml };
+  return { ...det };
 }
 
 async function classifyWithMl(
@@ -217,7 +223,11 @@ async function classifyWithMl(
   input: ClassifyRowInput
 ): Promise<{ solutionType: CellPicks; rootCause: CellPicks }> {
   const det = deterministicClassify(input);
-  const detSame = (c: ClassifyCell): EnginePick => ({ value: c.value, confidence: c.confidence, source: "heuristic" });
+  const detSame = (c: ClassifyCell): EnginePick => ({
+    value: c.value,
+    confidence: c.confidence,
+    source: c.level === "regex" ? "regex" : c.level === "keyword" ? "keyword" : c.level === "cosine" ? "cosine" : "heuristic"
+  });
   const [rc, st] = await Promise.all([
     ml(input.notes, input.rootCauseLabels),
     ml(input.notes, input.resolutionLabels)
@@ -235,28 +245,20 @@ async function classifyWithMl(
 }
 
 /**
- * Selects the winning engine for one cell.
+ * Legacy/exported decision helper kept for callers that pass explicit picks.
  *
- * Decided by provenance, not by a confidence race: ML is authoritative whenever
- * it produced a non-null label — the source is stamped "ml" so every cell the
- * ML model classified shows as Source: ML. Only when ML returned no label at
- * all does the deterministic (keyword) result fill the cell (source
- * "heuristic"). This is what makes the ML source actually visible; the keyword
- * scorer never overrides an ML label.
- *
- * `floor`/`margin` are retained only for back-compat callers that still pass
- * them; they no longer gate the decision (a floor of 0 means "any ML label
- * wins").
+ * The heuristic cascade is authoritative. ML is a fallback that fills a cell
+ * only when the deterministic scorer produced no label. `floor`/`margin` are
+ * retained only for back-compat callers; they no longer gate the decision.
  */
 export function pickExact(
   ml: EnginePick,
   det: EnginePick,
   _o: { floor?: number; margin?: number } = {}
 ): EnginePick {
-  if (ml.value !== null && ml.value !== undefined && ml.value !== "") {
-    return { value: ml.value, confidence: ml.confidence, source: "ml" };
-  }
-  return { value: det.value, confidence: det.confidence, source: "heuristic" };
+  if (det.value) return { ...det };
+  if (ml.value) return { ...ml };
+  return { ...det };
 }
 
 /**

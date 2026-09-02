@@ -160,6 +160,37 @@ test("Calclens timeline pick stages a time and only Save persists + toasts", { t
   calState.setCalclensMode(false);
 });
 
+test("clicking a key-moment chip jumps to the derived cell and opens its editor", { timeout: 8000 }, async () => {
+  const calState = await import("../surfaces/viewer/calclens-state.ts");
+  const selection = await import("../surfaces/viewer/selection.ts");
+  const row = grid.findRowBySysId("aaa");
+  const iso = (u) => new Date(u).toISOString();
+  row.assignTimeUtcIso = iso(Date.UTC(2026, 7, 25, 9, 15, 0));
+  row.acknTimeUtcIso = iso(Date.UTC(2026, 7, 25, 9, 35, 0));
+  row.suspendTimeUtcIso = iso(Date.UTC(2026, 7, 25, 10, 0, 0));
+  row.resumeTimeUtcIso = iso(Date.UTC(2026, 7, 25, 11, 30, 0));
+  row.activity = [
+    { f: "assignment_group", o: "APPSUP_TEST", n: "APPSUP_TEST", atEpoch: Date.UTC(2026, 7, 25, 9, 15, 0) },
+    { f: "assigned_to", o: "", n: "John Doe", atEpoch: Date.UTC(2026, 7, 25, 9, 35, 0) },
+    { f: "state", o: "2", n: "3", atEpoch: Date.UTC(2026, 7, 25, 10, 0, 0) },
+    { f: "state", o: "3", n: "2", atEpoch: Date.UTC(2026, 7, 25, 11, 30, 0) }
+  ];
+  calState.setCalclensMode(true);
+  grid.reportCellFocus({ sysId: "aaa", key: "state" });
+  await flush();
+  const body = document.getElementById("calclensBody");
+  const chip = body.querySelector("button.calclens-tl-mark");
+  assert.ok(chip, "a clickable key-moment chip is rendered for a static column");
+  chip.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+  await flush();
+
+  assert.equal(selection.getSelFocus()?.key, "assignTimeUtcIso", "grid focus jumped to the Assign time cell");
+  assert.equal(selection.getSelFocus()?.sysId, "aaa", "same row is focused");
+  const body2 = document.getElementById("calclensBody");
+  assert.ok(body2.querySelector(".calclens-edit-input.tlDate"), "derived time editor is now shown");
+  calState.setCalclensMode(false);
+});
+
 test("Calclens groups same-timestamp changes under one timeline node", { timeout: 8000 }, async () => {
   const calState = await import("../surfaces/viewer/calclens-state.ts");
   const row = grid.findRowBySysId("aaa");

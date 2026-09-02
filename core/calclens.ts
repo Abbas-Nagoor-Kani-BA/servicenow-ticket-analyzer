@@ -28,8 +28,8 @@ export type ExplainInput = { label: string; value: string };
 export type TimelineFieldIcon = "group" | "assignee" | "state";
 
 /** A highlighted "key moment" tag on a timeline step (e.g. "Assign") plus the
- *  full instance-clock display time for that event. */
-export type TimelineMarker = { label: string; time: string };
+ *  full instance-clock display time for that event and the grid column to jump to. */
+export type TimelineMarker = { label: string; time: string; key: string };
 
 /** One node on the drawer's visual timeline strip. */
 export type TimelineStep = {
@@ -81,6 +81,10 @@ export type Explanation = {
   timeline?: TimelineStep[];
   /** Total change counts by feed field, shown on static columns. */
   counts?: { assignments: number; states: number; groups: number };
+  /** Which engine produced a classified value (ML model / keyword match / manual). */
+  method?: { kind: "ml" | "heuristic" | "manual" | "unknown"; label: string; confidence?: string };
+  /** Full source note the classification read (e.g. the resolution note). */
+  note?: { label: string; text: string };
   /** The concrete inputs the derivation read from the row. */
   inputs: ExplainInput[];
   /** Ordered, human-readable derivation steps. */
@@ -248,13 +252,13 @@ function findStepAt(timeline: TimelineStep[], iso: unknown): TimelineStep | unde
   return timeline.find((s) => epochOf(s.atIso) === target);
 }
 
-const KEY_MOMENTS: Array<{ label: string; fieldIcon: TimelineFieldIcon | null; iso: (row: Record<string, any>) => unknown }> = [
-  { label: "Assign", fieldIcon: "group", iso: (r) => r.assignTimeUtcIso },
-  { label: "Ackn", fieldIcon: "assignee", iso: (r) => r.acknTimeUtcIso },
-  { label: "Suspend", fieldIcon: "state", iso: (r) => r.suspendTimeUtcIso },
-  { label: "Resume", fieldIcon: "state", iso: (r) => r.resumeTimeUtcIso },
-  { label: "Opened", fieldIcon: null, iso: (r) => r.openedAtRaw ?? r.openedAt },
-  { label: "Resolved", fieldIcon: null, iso: (r) => r.resolvedAtRaw ?? r.resolvedAt }
+const KEY_MOMENTS: Array<{ label: string; fieldIcon: TimelineFieldIcon | null; key: string; iso: (row: Record<string, any>) => unknown }> = [
+  { label: "Assign", fieldIcon: "group", key: "assignTimeUtcIso", iso: (r) => r.assignTimeUtcIso },
+  { label: "Ackn", fieldIcon: "assignee", key: "acknTimeUtcIso", iso: (r) => r.acknTimeUtcIso },
+  { label: "Suspend", fieldIcon: "state", key: "suspendTimeUtcIso", iso: (r) => r.suspendTimeUtcIso },
+  { label: "Resume", fieldIcon: "state", key: "resumeTimeUtcIso", iso: (r) => r.resumeTimeUtcIso },
+  { label: "Opened", fieldIcon: null, key: "createdOn", iso: (r) => r.openedAtRaw ?? r.openedAt },
+  { label: "Resolved", fieldIcon: null, key: "resolvedAt", iso: (r) => r.resolvedAtRaw ?? r.resolvedAt }
 ];
 
 /** Tag the timeline's key moments for a row (assign/ackn/suspend/resume by field+time,
@@ -265,7 +269,7 @@ function markKeyMoments(timeline: TimelineStep[], row: Record<string, any>): Tim
     const step = k.fieldIcon ? findStepFor(timeline, k.fieldIcon, iso) : findStepAt(timeline, iso);
     if (!step) continue;
     step.markers = step.markers || [];
-    step.markers.push({ label: k.label, time: step.atLabel });
+    step.markers.push({ label: k.label, time: step.atLabel, key: k.key });
   }
   return timeline;
 }
@@ -807,20 +811,36 @@ function explainClassification(
   const conf = Number(field === "rootCause" ? row.__rcConf : row.__solConf);
   const inChoice = value && inList(lists, value);
 
-  // Keyword side is always re-scored so the drawer can show both engines.
+  // The keyword side is always re-scored so the drawer can show both engines.
   let reclass: MsrScore | null = null;
   if (notes && lists.length) {
-    try { reclass = classifyMsr(notes, lists); } catch { reclass = null; }
+    try { reclass = classifyMsr(notes, lists, { hints: (ctx.msrLists as any)?.hints || {} }); } catch { reclass = null; }
   }
   const kwLabel = reclass?.label || null;
   const kwConf = reclass?.confidence || 0;
   const kwScore = kwLabel ? (reclass?.scores[kwLabel] || 0) : 0;
+
+  const confPct = Number.isFinite(conf) && conf > 0 ? fmtPct(conf) : undefined;
+  const stageLabel: Record<string, string> = {
+    regex: "Regex match",
+    keyword: "Keyword match",
+    cosine: "Cosine match",
+    heuristic: "Keyword match"
+  };
+  const method: Extract<Explanation["method"], object> | undefined =
+    source === "ml"
+      ? { kind: "ml", label: "ML model", confidence: confPct }
+      : stageLabel[source]
+        ? { kind: "heuristic", label: stageLabel[source], confidence: Number.isFinite(kwConf) && kwConf > 0 ? fmtPct(kwConf) : confPct }
+        : { kind: "manual", label: "Manual" };
 
   const out: Explanation = {
     kind: "classification",
     label: key,
     value: value || EMPTY,
     summary: `How the closing note was turned into a ${labelName}.`,
+    method,
+    note: notes ? { label: "Resolution note", text: notes } : undefined,
     inputs: [
       { label: "Value", value: value || EMPTY },
       { label: "Source", value: source ? source.toUpperCase() : "unrecorded" },
@@ -845,20 +865,21 @@ function explainClassification(
     if (Number.isFinite(conf) && conf < 0.5) {
       out.warnings.push(`The model's confidence here is low (${fmtPct(conf)}) \u2014 you may want to double-check this ${labelName}.`);
     }
-  } else if (source === "heuristic") {
+  } else if (stageLabel[source]) {
     out.confidence = fmtPct(kwConf || conf);
+    const found = kwLabel || value;
     out.steps = [
-      `The closing note was checked two ways: by the machine-learning model and by keyword matching.`,
-      kwLabel && kwLabel !== value
-        ? `Keyword matching found **\`${value}\`** from **${kwScore} hint${kwScore === 1 ? "" : "s"}** with **${fmtPct(kwConf)}** confidence, and that beat the model's \`${kwLabel}\`.`
-        : `Keyword matching found **\`${dflt(value)}\`** from **${kwScore} hint${kwScore === 1 ? "" : "s"}** with **${fmtPct(kwConf)}** confidence.`,
-      kwLabel && kwLabel !== value
-        ? `The model suggested **\`${kwLabel}\`** (${fmtPct(conf)}), but the keyword result is used here.`
-        : conf > 0
-          ? `The model also read it as **\`${dflt(value)}\`** at ${fmtPct(conf)}, agreeing with the keyword match.`
-          : "The model came back empty, so the keyword result is used.",
+      `The closing note was run through the deterministic cascade (${method && method.label.toLowerCase()}) and settled on **\`${dflt(found)}\`** at **${fmtPct(kwConf || conf)}** confidence.`,
+      !kwLabel || kwLabel === value
+        ? conf > 0
+          ? `The machine-learning model agreed with **\`${dflt(found)}\`** at **${fmtPct(conf)}**.`
+          : "The machine-learning model produced no label, so the cascade's result stands."
+        : `The machine-learning model suggested **\`${kwLabel}\`** at ${fmtPct(conf)} — the stamped (preserved) result is kept here.`,
       notes ? `From the note: \`${truncate(notes, 80)}\`.` : ""
     ].filter(Boolean);
+    if (Number.isFinite(kwConf) && kwConf < 0.5) {
+      out.warnings.push(`The match confidence is low (${fmtPct(kwConf)}) \u2014 you may want to double-check this ${labelName}.`);
+    }
   } else {
     if (value) {
       out.steps = [

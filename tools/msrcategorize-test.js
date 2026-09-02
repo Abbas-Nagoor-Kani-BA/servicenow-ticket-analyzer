@@ -125,3 +125,36 @@ test("learned hint overrides still feed the cosine vector", () => {
   });
   assert.equal(r.label, "Database performance");
 });
+
+test("cascade uses the regex stage first (exact phrasing wins)", () => {
+  const r = classifyMsr("User error: the operator entered wrong data", INCIDENT_RC, { minConfidence: 0.3 });
+  assert.equal(r.label, "User error - procedure", "regex 'user error' wins before keyword/cosine");
+  assert.equal(r.level, "regex");
+});
+
+test("cascade uses the keyword stage when hint hits clear the bar", () => {
+  const r = classifyMsr("reseeded and reindexed the DB cache", INCIDENT_RC, {
+    hints: { "database performance": ["reseeded", "reindexed"] },
+    useRegex: false,
+    minConfidence: 0.3
+  });
+  assert.equal(r.label, "Database performance");
+  assert.equal(r.level, "keyword", "two hint hits using no regex pick the keyword stage");
+});
+
+test("cascade falls to cosine for a paraphrase with no exact phrase", () => {
+  const r = classifyMsr("interface data mismatch on the payload", INCIDENT_RC, {
+    hints: { "interface data error": [] },
+    useRegex: false,
+    minConfidence: 0.3
+  });
+  assert.equal(r.label, "Interface data error");
+  assert.equal(r.level, "cosine", "no hints -> the cosine stage decides");
+});
+
+test("cascade returns null when no stage clears its bar", () => {
+  const r = classifyMsr("appears fine", INCIDENT_RC);
+  assert.equal(r.label, null);
+  assert.equal(r.level, null);
+});
+

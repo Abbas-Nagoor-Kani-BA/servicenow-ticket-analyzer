@@ -233,6 +233,9 @@
   }
   .msrTile label { margin-top: 0; }
 
+  .hscroll { @apply flex gap-2.5 overflow-x-auto p-0.5 pb-1.5; }
+  .hscroll .msrTile { flex: 0 0 250px; width: auto; }
+
   #viewBtn.attention {
     animation: snglow 1.4s ease-out infinite;
     border-color: #89b4fa;
@@ -642,6 +645,13 @@
   .calclens-steps li { @apply py-0.5; }
   .calclens-steps .step-em { @apply font-semibold text-text; }
 
+  /* Full source note (e.g. the resolution note) the classification read. */
+  .calclens-note {
+    @apply bg-card2 border border-line rounded-md p-2.5 font-mono text-[12px] text-text leading-snug whitespace-pre-wrap break-words;
+    max-height: 220px;
+    overflow-y: auto;
+  }
+
   .calclens-warning { @apply text-bad py-0.5; }
 
   /* Reusable Lucide icon-only button — the primitive for the button→icon migration. */
@@ -693,9 +703,7 @@
   }
   .calclens-tl-row.selected .calclens-tl-icn { @apply bg-accent text-card2; }
   .calclens-tl-gutter .calclens-tl-pick-icn { @apply hidden; }
-  .calclens-tl-row.pickable:hover .calclens-tl-icn,
   .calclens-tl-row.pickable.selected .calclens-tl-icn { @apply hidden; }
-  .calclens-tl-row.pickable:hover .calclens-tl-pick-icn,
   .calclens-tl-row.pickable.selected .calclens-tl-pick-icn { @apply block w-[22px] h-[22px] p-[3px] box-border rounded-full bg-accent text-card2; }
   .calclens-tl-body { @apply flex-1 flex flex-col min-w-0 leading-snug ml-2; }
   .calclens-tl-time { @apply text-[12px] font-semibold text-text whitespace-nowrap; }
@@ -706,7 +714,8 @@
   .calclens-tl-desc-label { @apply mr-1 text-faint; }
   .calclens-tl-desc-value { @apply text-text; }
   .calclens-tl-arrow { @apply mx-1.5 text-accent; }
-  .calclens-tl-row.selected .calclens-tl-time { @apply text-accent; }
+  .calclens-tl-row.selected .calclens-tl-time { @apply text-accent font-semibold; }
+  .calclens-tl-row.pickable.selected { background: rgba(137, 180, 250, 0.12); }
 
   /* Marked key-moment rows (static columns): a highlight plus label·time chips. */
   .calclens-tl-row.marked .calclens-tl-time { @apply text-accent font-bold; }
@@ -715,6 +724,8 @@
   .calclens-tl-mark {
     @apply inline-flex items-center gap-1 rounded-full bg-accent/15 text-accent px-2 py-0.5 text-[10.5px] font-semibold whitespace-nowrap;
   }
+  button.calclens-tl-mark { @apply cursor-pointer border-0; }
+  button.calclens-tl-mark:hover { @apply bg-accent text-card2; }
 
   /* Static-column change counts (no. of assignees / states / groups). */
   .calclens-counts { @apply flex flex-wrap gap-1.5 mt-1.5 mb-1; }
@@ -722,6 +733,16 @@
     @apply inline-flex items-center gap-1 rounded-md bg-line2/60 px-2 py-0.5 text-[11px] text-text;
   }
   .calclens-count b { @apply text-accent font-semibold; }
+
+  /* Which engine produced a classified value — prominent chip under the value. */
+  .calclens-method {
+    @apply inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-semibold;
+  }
+  .calclens-method b { @apply font-semibold; }
+  .calclens-method-icn { @apply inline-block w-[13px] h-[13px]; }
+  .calclens-method.kind-ml { @apply bg-accent/15 text-accent; }
+  .calclens-method.kind-heuristic { @apply bg-mauve/15 text-mauve; }
+  .calclens-method.kind-manual { @apply bg-line2/60 text-dim; }
 
   /* Drawer edit controls for the derivation columns. */
   .calclens-edit { @apply mt-3 border-t border-line pt-2.5; }
@@ -738,14 +759,14 @@
   }
   .calclens-edit-save .calclens-edit-save-icn { @apply inline-block w-[13px] h-[13px]; }
 
-  /* Pickable timeline rows: click a row to set the derived time. */
-  .calclens-tl-row.pickable { @apply cursor-pointer rounded px-1 hover:bg-line2/60; }
+  /* Pickable timeline rows: click a row to set the derived time.
+     Hover only tints the time; the selected row is the marked, chosen one. */
+  .calclens-tl-row.pickable { @apply cursor-pointer rounded px-1; }
   .calclens-tl-row.pickable:hover .calclens-tl-time { @apply text-accent; }
   .calclens-tl-pick-icn {
     @apply absolute left-0 top-1 w-[22px] h-[22px] p-[3px] box-border rounded-full bg-accent text-card2;
     display: none;
   }
-  .calclens-tl-row.pickable:hover .calclens-tl-pick-icn,
   .calclens-tl-row.pickable.selected .calclens-tl-pick-icn { display: block; }
   .calclens-tl-row.pickable.selected .calclens-tl-icn { display: none; }
 

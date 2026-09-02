@@ -150,6 +150,20 @@
     </div>
   </div>
 
+  <div class="card-settings" style="grid-column:1/-1">
+    <h2 class="cardTitle">Classifier keywords</h2>
+    <div class="hint mt-1">Word and phrase hints the built-in offline scorer uses to match MSR labels while
+      classifying the resolution notes (regex phrase, keyword hints, then vocabulary similarity). Each label
+      shows its built-in default keywords; add chips to extend them, or clear them to remove a match. Matching
+      is case-insensitive and tolerates small misspellings. Editing a label's keywords re-runs classification
+      in the data view and bumps the keyword fingerprint.</div>
+    <div class="hscroll" id="kwStack"></div>
+    <div class="flex gap-2 flex-wrap mt-3.5 items-center">
+      <button id="kwResetBtn" class="btn">Restore default keywords</button>
+      <span class="hint">Keywords are shown for the labels in the MSR option lists above.</span>
+    </div>
+  </div>
+
   <div class="card-settings backupCard">
     <h2 class="cardTitle">Backup / transfer</h2>
     <div class="hint mt-1">Exports one JSON file with instance URL, queues, team members, pull params, saved
