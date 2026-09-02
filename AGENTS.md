@@ -14,61 +14,11 @@ Excel (.xlsx) analysis workbook.
 
 **The codebase is a layered architecture: `core/` → `data/` → `services/` →
 `components/` → `surfaces/`, wired by a DI container in `di/`. Read
-[`docs/layered-architecture.md`](docs/layered-architecture.md) before adding
-code — it defines what each layer may and may not do.**
+[`docs/architecture.md`](docs/architecture.md) before adding code — it defines
+the directory map and what each layer may and may not do.**
 
-## Directory Map
-
-```
-core/        Pure domain. phase2 (the four timeline rules), report, slasummary,
-             aiextract, querybuilder, sntime, statechoices, names, msrchoices,
-             rowmerge, journal, templatexml, attention.
-             No DOM, no chrome.*, no I/O. Runs standalone in plain node.
-data/        Everything that touches storage or the network.
-  repositories/  ticket, timeline, settings, dataset, run-state, export-config,
-                 viewer-prefs, template, filter-list, msr-lists
-  datasource/    sn-transport (session auth), sn-remote (ServiceNow client)
-  idb.ts, key-value-store.ts, chrome-key-value-store.ts
-services/    Business logic: pull, connection, settings, queue-scope.
-             No DOM. Depends on repositories, never on components.
-components/  OOP UI units that own their state and their DOM:
-             Component (base), Modal, DataGrid, SearchPicker, MapDialog,
-             CiDialog, LogCard, ProgressCard, ConditionBuilder, FilterSetList,
-             ChipList.
-             Never touch chrome.*, indexedDB or fetch — call a service.
-surfaces/    Composition roots: panel, settings. The only place that knows both
-             the container and the components.
-di/          Container, tokens, and the per-surface registration functions.
-lib/         Platform and UI helpers: keys, storage, store, markup, picklist,
-             servicenow, toast, tooltip, format.
-viewer/      The data-view page (HTML only — viewer/viewer.html). Its modules
-             live in surfaces/viewer/ below.
-panel/, settings/, platform/ (service worker), content/
-```
-
-`surfaces/viewer/` is the viewer page's own composition root plus its modules
-(`core`, `store`, `grid-data`, `cols`, `config-state`, `exporter`, `clipboard`,
-`summary`, `toolbar`, `dialogs`, `grid`, `selection`,
-`activity`, `shared`, `interactions`). `surfaces/viewer/index.ts`
-calls each module's `init*()` in a fixed order and then boots. The modules still
-own the data stores and the export pipeline; their UI lives in `components/`.
-
-**Nothing binds DOM handlers at module scope.** Every module exports an
-`init*()` and the composition root decides when it runs. Adding top-level
-wiring to a viewer module re-introduces the invisible ordering this replaced.
-
-### Layering rules
-
-| Layer | May use | Must never |
-|---|---|---|
-| `core/` | only `core/` | `chrome.*`, `indexedDB`, `fetch`, DOM |
-| `lib/` | `core/` | other layers |
-| `data/` | `core/`, `lib/`, platform APIs | DOM, `services/`, `components/` |
-| `services/` | `core/`, `lib/`, `data/` | DOM, `components/` |
-| `components/` | `core/`, `lib/`, services via `deps` | repositories, `chrome.*`, `indexedDB`, `fetch` |
-| `surfaces/` | everything | containing business logic |
-
-Dependency direction is strictly downward.
+All application source is TypeScript (`.ts`); esbuild strips the types. The only
+`.js` sources are `content/content.js` and the `tools/` scripts.
 
 ## Component contract
 
@@ -90,10 +40,11 @@ Elements that are siblings rather than children (the log modal, `#count`,
 
 ## DI container
 
-`di/token.ts` gives branded string tokens; `di/tokens.ts` is the registry.
-Classes take dependencies as constructor arguments and declare them as a
-`static deps` array of tokens — esbuild cannot emit decorator metadata, so
-reflection-based DI is unavailable.
+`di/token.ts` gives branded string tokens; `di/tokens.ts` is the registry
+(every import is `import type`, so the registry emits no runtime references and
+the graph stays acyclic). Classes take dependencies as constructor arguments and
+declare them as a `static deps` array of tokens — esbuild cannot emit decorator
+metadata, so reflection-based DI is unavailable.
 
 No decorators, no service locator (except `RUN_SCOPE_FACTORY`, which exists
 because `SN_REMOTE` is bound to one instance URL per pull).
@@ -131,7 +82,7 @@ settings instead:
 
 - Queues and team members = plain NAME strings in `pluginSettings.defaults`
   (one name per line in the options page; matching is case-insensitive).
-- State/priority labels come from `core/statechoices.js` OOB maps.
+- State/priority labels come from `core/statechoices.ts` OOB maps.
 
 Only the selected ticket table plus the per-ticket activity feed
 (`list_history.do`) are read during pulls. COUNT/RUN are the only server
@@ -139,7 +90,7 @@ operations; the panel's Connect is local-only validation.
 
 ### The four timeline rules (business requirements — never change semantics without asking)
 
-Computed in `core/phase2.js` from timeline events (`assignment_group`,
+Computed in `core/phase2.ts` from timeline events (`assignment_group`,
 `assigned_to`, `state`), replayed in chronological order:
 
 1. **assignTime** — LAST time `assignment_group` changed TO the target queue.
@@ -152,7 +103,7 @@ Computed in `core/phase2.js` from timeline events (`assignment_group`,
 2. **acknTime** — LAST time `assigned_to` became a member of the queue's team,
    counted ONLY if it occurs at/after the latest queue-entry event.
 3. **suspendTime** — FIRST transition INTO "On Hold" while current group == queue.
-   State labels come from `core/statechoices.js`. Feed events carry DISPLAY
+   State labels come from `core/statechoices.ts`. Feed events carry DISPLAY
    LABELS ("On Hold"); legacy sys_audit rows carried raw values ("3") — both are
    accepted.
 4. **resumeTime** — FIRST post-suspend transition to "In Progress"; if none, fall
@@ -174,31 +125,20 @@ queue context.
   only reliable oracle is SN's own display/raw pair per record.
 - The viewer's `fmtInstant(v, row)` resolves each row's OWN offset from its
   openedAt display/raw pair, so rows spanning DST seasons stay correct.
-- Display values are parsed format-tolerantly (`parseSnDisplayMs`).
-- Empty timeline events on a run where tickets clearly HAVE history usually
-  means the activity feed returned nothing for them; the viewer shows a warning
-  banner.
 - **The grid passes `fmtInstant` INTO `buildReport`, which uses it to normalise
   dates. A non-identity formatter therefore changes derived SLA results, not
   just displayed text.**
 
-See `docs/timeline.md` and `docs/timeline-formats.md`.
-
-### Download path (MV3 constraint)
-
-The service worker never touches XLSX bytes. The viewer page loads the user's
-cached template, patches only the target sheet's XML (fflate zip surgery), and
-downloads via Blob + `chrome.downloads.download`. Extension pages have
-`URL.createObjectURL`; workers do not. Never move export building back into the
-background, and never regenerate the workbook with a spreadsheet library
-(ExcelJS/SheetJS re-serialization corrupts formatted templates).
+See [`docs/timeline.md`](docs/timeline.md) for the full timeline and SLA rules.
 
 ### Export sheet lookup
 
 Sheet lookup normalizes names (`_`/space/case-insensitive, exact then loose) and
 NEVER silently falls back to another sheet — a wrong-sheet fill once emptied a
 user's report. If formula rows get deleted, strip `xl/calcChain.xml` and set
-`fullCalcOnLoad="1"` on `<calcPr>`, or Excel raises its repair dialog.
+`fullCalcOnLoad="1"` on `<calcPr>`, or Excel raises its repair dialog. The
+service worker never touches XLSX bytes; see the Download path note in
+[`docs/architecture.md`](docs/architecture.md).
 
 ## Verification Commands
 
@@ -211,10 +151,8 @@ node -e "JSON.parse(require('fs').readFileSync('manifest.json'))"
 ```
 
 `npm run typecheck` (tsconfig.json + tsconfig.strict.json) is meaningful — keep
-it at 0 errors; `npm run lint` likewise. `npm test` runs the offline suites (the
-glob is required; `node --test tools` does not work). See
-[`docs/migration-plan.md`](docs/migration-plan.md) for the current gate and what
-each phase covered.
+it at 0 errors; `npm run lint` likewise. `npm test` runs the offline suites
+(`node --test "tools/*-test.*"`; the glob is required).
 
 Full gate:
 
@@ -228,7 +166,7 @@ workflow (`.github/workflows/release.yaml`) invokes.
 Pure modules in `core/` are ES modules and run standalone in plain node, e.g.:
 
 ```js
-import { extractTimelines } from './core/phase2.js';
+import { extractTimelines } from './core/phase2.ts';
 ```
 
 Regression suites (`npm test` runs all of them):
@@ -238,16 +176,22 @@ Regression suites (`npm test` runs all of them):
 | `phase2-unit-test.js` | the four timeline rules |
 | `querybuilder-test.js` | encoded-query construction |
 | `report-test.js`, `slasummary-test.js` | report and SLA derivation |
+| `durations-test.js` | derived durations from the four rules' UTC timestamps |
 | `ai-parse-test.js` | closure-note regex extraction |
 | `activity-client-test.js`, `activity-parse-test.js` | activity feed source and parsing |
-| `cache-test.js` — **superseded by** `pull-cache-test.ts` | cache policy, now tested through the repositories |
+| `journal-test.js`, `rowmerge-test.js`, `tz-unit-test.js` | journal parsing, row merge, timezone units |
+| `pull-cache-test.ts`, `per-row-cache-test.js` | cache policy through the repositories |
 | `idb-test.ts` | the real IndexedDB path via fake-indexeddb |
 | `di-test.ts`, `repository-test.ts`, `pull-service-test.ts`, `settings-service-test.ts` | DI and services against fakes |
-| `extract-service-test.js`, `report-service-test.js`, `export-service-test.js` | the viewer-bound services: autoParse extraction, report/SLA adaptation (fmt→SLA coupling), export building |
-| `durations-test.js` | derived durations (assign→ackn, assign→resolve, suspend total) from the four rules' UTC timestamps |
-| `attention-test.js` | Calclens "needs attention" rule engine (multi-assign/reopen/on-hold/slow-pickup/empty-plan/breach/parse) |
+| `extract-service-test.js`, `report-service-test.js`, `export-service-test.js` | the viewer-bound services (fmt→SLA coupling, export building) |
+| `template-export-test.js` | template XML patching / sheet lookup |
+| `attention-test.js`, `calclens-test.js` | Calclens "needs attention" rule engine |
+| `msrchoices-test.js`, `msrcategorize-test.js` | MSR choice maps and categorization |
+| `classifier-service-test.js`, `classification-cache-test.js`, `classify-cache-test.js`, `classify-fallback-test.js`, `ml-model-repository-test.js` | ML classification services, cache, and model repository |
+| `remote-bridge-test.ts` | the remote bridge |
+| `ci-split-test.js`, `pick-exact-test.js`, `path-from-url-test.js`, `store-test.js`, `icons-test.ts` | assorted units |
 | `panel-components-test.ts`, `data-grid-test.ts`, `search-picker-test.ts`, `modal-test.ts`, `map-dialog-test.ts`, `settings-chips-test.js` | components |
-| `viewer-dom-test.js` | end-to-end viewer flow (happy-dom) |
+| `viewer-dom-test.ts` | end-to-end viewer flow (happy-dom) |
 
 Manual test loop (user performs): reload extension at `chrome://extensions`
 → refresh the ServiceNow tab → Connect → Preview count → Run export.
@@ -277,9 +221,9 @@ refuses to build into ROOT, and watch mode targets `dev/`.
 
 - No code comments unless asked; no emojis in output files.
 - ES2022 max (MV3 service workers): private `#methods`, top-level `await` avoided.
-- **ES modules everywhere**: every `.js` is an ES module (`package.json`
-  `"type":"module"`; service worker declared with `"type":"module"`; pages load
-  a single `<script type="module">` entry). No IIFE/globalThis attaches, no
+- **ES modules everywhere**: `package.json` `"type":"module"`; the service
+  worker is declared with `"type":"module"`; pages load a single
+  `<script type="module">` entry. No IIFE/globalThis attaches, no
   `importScripts`, no `require()`.
 - `.ts` files are type-checked, not compiled — esbuild strips the types.
   Import specifiers use **explicit `.ts`** because Node does not rewrite
@@ -295,7 +239,7 @@ refuses to build into ROOT, and watch mode targets `dev/`.
 - Vendored UMD libs (fflate) stay classic: loaded via `<script>` before the
   page's module entry (pages read `globalThis.fflate`), or via
   `lib/vendor/fflate.cjs` createRequire shim inside node tests (`setFflate()`
-  injection for `core/templatexml.js`).
+  injection for `core/templatexml.ts`).
 - All user-facing strings in English; timestamps ISO 8601.
 - Never log or store full token values — prefix only (first 8 chars) in diagnostics.
 - Instance URL comes from user input/storage; always validate `https://`.
@@ -303,52 +247,15 @@ refuses to build into ROOT, and watch mode targets `dev/`.
 ## Testing notes learned the hard way
 
 **The viewer DOM test cannot validate a component's own contract.** It drives
-the grid through `30-grid.js`, and it stayed green through three separate
+the grid through the viewer modules, and it stayed green through three separate
 component-level bugs: an unseeded picker list, three width/state bugs in
 `DataGrid`, and Escape silently not closing two of four overlays. Every
 component needs its own test; end-to-end coverage is not enough.
-
-## Known Limits / Roadmap
-
-- Ticket type is selectable in the panel (incident, change_request, problem,
-  sc_req_item, sc_task); the four timeline rules were designed on incident
-  semantics — validate state labels per table before trusting results elsewhere.
-  sc_task has no OOB "On Hold" state: suspend/resume stay null unless the label
-  exists in that table's sys_choice list. Closed-state date filtering triggers on
-  any label starting with "close" (Closed Complete/Incomplete/Skipped).
-- Closed-state filtering uses `closed_at` BETWEEN dates; the date block appears
-  only when the selected state's label is "Closed" and both dates are required.
-- Audit availability depends on instance retention/roles; tickets missing audit
-  rows are reported in the done-message count.
-- Remaining migration work is tracked in `docs/migration-plan.md`; the forward
-  plan (what is still left after Phase 6, in order) is `docs/roadmap.md`.
-- Possible future work: resume-from-checkpoint for huge pulls (Phase 11a),
-  work-notes text export (Phase 11c), additional tables (RITM, change) (Phase 11d).
-  Derived duration columns shipped in Phase 11b (`core/durations.ts`). Calclens
-  "needs attention" row flags shipped in Phase 11e (`core/attention.ts`; see
-  `docs/roadmap.md` 11e).
 
 ## Docs
 
 | File | Purpose |
 |---|---|
-| `docs/layered-architecture.md` | The target architecture. Start here. |
-| `docs/migration-plan.md` | Phase-by-phase status and the gate. |
-| `docs/roadmap.md` | What remains after Phase 6, in order: leftovers, TS migration, services, features. |
-| `docs/invariants.md` | ADR-style record of non-obvious rules. |
-| `docs/timeline.md`, `docs/timeline-formats.md` | Timeline and SLA computation, datetime formats. |
-| `docs/filtering.md` | How filters become an encoded query. |
-| `docs/resolved/` | Fixed-bug records, kept for the reasoning. |
-
-## graphify
-
-This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
-
-When the user types `/graphify`, use the installed graphify skill or instructions before doing anything else.
-
-Rules:
-- For codebase questions, first run `graphify query "<question>"` when graphify-out/graph.json exists. Use `graphify path "<A>" "<B>"` for relationships and `graphify explain "<concept>"` for focused concepts. These return a scoped subgraph, usually much smaller than GRAPH_REPORT.md or raw grep output.
-- Dirty graphify-out/ files are expected after hooks or incremental updates; dirty graph files are not a reason to skip graphify. Only skip graphify if the task is about stale or incorrect graph output, or the user explicitly says not to use it.
-- If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
-- Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
-- After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
+| [`docs/architecture.md`](docs/architecture.md) | Layered architecture, directory map, layering rules, download path. Start here. |
+| [`docs/timeline.md`](docs/timeline.md) | The four timeline rules, timezone contract, export sheet lookup. |
+| [`docs/roadmap.md`](docs/roadmap.md) | Known limits and forward-looking work. |
