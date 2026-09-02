@@ -1,11 +1,12 @@
 import { buildEncodedQuery } from "../core/querybuilder.ts";
 import { snStateChoices, SN_PRIORITY_CHOICES, snTableLabel } from "../core/statechoices.ts";
 import { STORAGE } from "../lib/keys.ts";
-import { createPanel, describeFilterSet } from "../surfaces/panel/index.ts";
+import { createPanel, describeFilterSet, filterSetToRows } from "../surfaces/panel/index.ts";
 import { showToast } from "../lib/toast.ts";
 import { initTooltips } from "../lib/tooltip.ts";
 
 import type { CondFieldDef } from "../components/condition-builder.ts";
+import type { FilterSet } from "../data/repositories/filter-list-repository.ts";
 import type { LogLevel } from "../components/log-card.ts";
 import type { MsgProgress } from "../types/global.d.ts";
 
@@ -49,7 +50,10 @@ const panel = createPanel({
   condFields: COND_FIELDS,
   choiceList: (key) => choiceList(key),
   onConditionChange: () => refreshGenerated(),
-  onFilterSetChange: () => refreshGenerated()
+  onFilterSetChange: () => refreshGenerated(),
+  onFilterSetEdit: (set, index) => {
+    void editFilterSet(set, index);
+  }
 });
 const { logCard, progressCard, conditions, filterSets, bridge } = panel;
 const logger = { log: (text: string, level?: LogLevel) => logCard.log(text, level || "") };
@@ -180,6 +184,22 @@ $("clearFilterListBtn").addEventListener("click", async () => {
   await filterSets.clear();
   refreshGenerated();
 });
+async function editFilterSet(set: FilterSet, index: number): Promise<void> {
+  try {
+    if (els.ticketType.value !== set.table) {
+      els.ticketType.value = set.table;
+      conditions.setTable(set.table);
+    }
+    conditions.setRows(filterSetToRows(set, COND_FIELDS));
+    await filterSets.removeAt(index);
+    refreshGenerated();
+    logger.log(`Editing filter: ${describeFilterSet(set, COND_FIELDS, (k) => choiceList(k))}`);
+    showToast("Filter loaded for editing");
+  } catch (err) {
+    logger.log((err as Error).message, "error");
+    showToast((err as Error).message, "error");
+  }
+}
 function requireInstance(): string {
   const url = instanceUrl();
   if (!/^https:\/\/.+/.test(url)) throw new Error("Enter a valid https instance URL");

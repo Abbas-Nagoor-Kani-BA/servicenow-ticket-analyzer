@@ -1,7 +1,7 @@
 import { Component, el } from "./component.ts";
 import type { ComponentProps } from "./component.ts";
 import type { FilterListRepository, FilterSet } from "../data/repositories/filter-list-repository.ts";
-import { setTip } from "../lib/tooltip.ts";
+import { iconButton } from "../lib/icons.ts";
 
 export type FilterSetListState = {
   sets: FilterSet[];
@@ -97,17 +97,18 @@ export class FilterSetList extends Component<FilterSetListState, ComponentProps,
 
   protected renderItem(set: FilterSet, index: number): HTMLElement {
     const row = el("div", "flitem flex items-center gap-2 px-1 py-1.5 border-b border-line text-[11.5px] text-muted");
-    const label = el("span");
+    const label = el("span", "flex-1 min-w-0");
     label.textContent = this.deps.describe(set);
 
-    const remove = el("button", "bg-transparent border-0 text-bad cursor-pointer text-[13px] px-1", "\u2715");
-    remove.type = "button";
-    setTip(remove, "Remove");
+    const edit = iconButton("square-pen", "Edit", { cls: "text-accent", size: 15 });
+    edit.addEventListener("click", () => this.emit("edit", index));
+
+    const remove = iconButton("trash-2", "Remove", { cls: "text-bad", size: 15 });
     remove.addEventListener("click", () => {
       void this.removeAt(index);
     });
 
-    row.append(label, remove);
+    row.append(label, edit, remove);
     return row;
   }
 }

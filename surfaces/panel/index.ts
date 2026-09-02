@@ -8,6 +8,7 @@ import { ConditionBuilder } from "../../components/condition-builder.ts";
 import { FilterSetList, migrateLegacyFilterSets } from "../../components/filter-set-list.ts";
 import { RemoteBridge } from "../../services/remote-bridge.ts";
 import type { CondFieldDef } from "../../components/condition-builder.ts";
+import type { ConditionRow } from "../../components/condition-builder.ts";
 import type { FilterSet } from "../../data/repositories/filter-list-repository.ts";
 
 import { snStateChoices, SN_PRIORITY_CHOICES, snTableLabel } from "../../core/statechoices.ts";
@@ -36,6 +37,7 @@ export function createPanel(options: {
   choiceList: (key: string) => { value: string | number; label: string }[];
   onConditionChange: () => void;
   onFilterSetChange: () => void;
+  onFilterSetEdit?: (set: FilterSet, index: number) => void;
 }): PanelWiring {
   // registerCoreRepositories installs the chrome.storage-backed store itself.
   const container = registerCoreRepositories(new Container());
@@ -63,7 +65,16 @@ export function createPanel(options: {
 
   const filterSets = new FilterSetList(
     $("filterListBox"),
-    { on: { change: options.onFilterSetChange } },
+    {
+      on: {
+        change: options.onFilterSetChange,
+        edit: (detail) => {
+          const index = detail as number;
+          const set = filterSets.getSets()[index];
+          if (set) options.onFilterSetEdit?.(set, index);
+        }
+      }
+    },
     {
       repository: container.resolve(FILTER_LIST_REPO),
       card: $("filterListCard"),
@@ -107,6 +118,34 @@ export function describeFilterSet(
   const summary = conditionsSummary(set.conditions, condFields, choiceList);
   if (summary) bits.push(summary);
   return bits.join(" \xB7 ");
+}
+
+/**
+ * Inverse of the encode step: turns a stored filter set back into condition
+ * builder rows so a saved filter can be re-opened for editing.
+ *
+ * Stored conditions carry the ServiceNow field name (possibly a per-table
+ * override); the builder addresses fields by their definition key. Conditions
+ * whose field no longer maps to a known column are dropped.
+ */
+export function filterSetToRows(set: FilterSet, condFields: CondFieldDef[]): ConditionRow[] {
+  const conds = Array.isArray(set.conditions) ? set.conditions : [];
+  const rows: ConditionRow[] = [];
+  for (const raw of conds) {
+    const c = raw as { join?: string; field?: string; oper?: string; value?: unknown; value2?: unknown };
+    const def = condFields.find(
+      (f) => f.field === c.field || f.fieldByTable?.[set.table] === c.field
+    );
+    if (!def) continue;
+    rows.push({
+      join: rows.length === 0 ? "AND" : c.join === "OR" ? "OR" : "AND",
+      field: def.key,
+      op: String(c.oper ?? ""),
+      value: String(c.value ?? ""),
+      value2: String(c.value2 ?? "")
+    });
+  }
+  return rows;
 }
 
 function conditionsSummary(

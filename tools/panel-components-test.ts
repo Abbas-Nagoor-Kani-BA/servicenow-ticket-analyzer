@@ -278,12 +278,12 @@ const { FilterSetList, migrateLegacyFilterSets } = await import("../components/f
 const { createMemoryKeyValueStore } = await import("../data/key-value-store.ts");
 const { FilterListStore } = await import("../data/repositories/filter-list-repository.ts");
 
-function makeFilterList(repo = new FilterListStore(createMemoryKeyValueStore())) {
+function makeFilterList(repo = new FilterListStore(createMemoryKeyValueStore()), on = {}) {
   const box = $("filterListBox");
   box.innerHTML = "";
   return new FilterSetList(
     box,
-    {},
+    { on },
     {
       repository: repo,
       card: $("filterListCard"),
@@ -313,6 +313,31 @@ test("filter list rejects a duplicate set", async () => {
   assert.equal(list.getSets().length, 1);
 });
 
+test("each filter row renders an edit and a remove icon button", async () => {
+  const list = makeFilterList();
+  await list.add({ table: "incident", conditions: [] });
+
+  const row = $("filterListBox").querySelector(".flitem");
+  assert.ok(row.querySelector('button[aria-label="Edit"]'), "edit button present");
+  assert.ok(row.querySelector('button[aria-label="Remove"]'), "remove button present");
+  assert.equal(row.querySelectorAll("button").length, 2);
+  assert.ok(row.querySelector('button[aria-label="Edit"] svg'), "edit button is an icon");
+});
+
+test("clicking edit emits the row index without mutating the list", async () => {
+  const edited = [];
+  const list = makeFilterList(undefined, { edit: (i) => edited.push(i) });
+  await list.add({ table: "incident", conditions: [] });
+  await list.add({ table: "problem", conditions: [] });
+
+  $("filterListBox").querySelectorAll(".flitem")[1]
+    .querySelector('button[aria-label="Edit"]')
+    .dispatchEvent(new win.MouseEvent("click", { bubbles: true }));
+
+  assert.deepEqual(edited, [1]);
+  assert.equal(list.getSets().length, 2, "edit does not remove the row itself");
+});
+
 test("filter list persists through the repository, not localStorage", async () => {
   const repo = new FilterListStore(createMemoryKeyValueStore());
   const list = makeFilterList(repo);
@@ -331,7 +356,8 @@ test("removing and clearing a filter list persists each change", async () => {
   await list.add({ table: "incident", conditions: [] });
   await list.add({ table: "problem", conditions: [] });
 
-  $("filterListBox").querySelectorAll(".flitem button")[0]
+  $("filterListBox").querySelectorAll(".flitem")[0]
+    .querySelector('button[aria-label="Remove"]')
     .dispatchEvent(new win.MouseEvent("click", { bubbles: true }));
   await new Promise((r) => setTimeout(r, 0));
 

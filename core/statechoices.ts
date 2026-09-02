@@ -3,7 +3,7 @@ const SN_STATE_MAPS: Record<string, Record<string, string>> = {
   change_request: { "-5": "New", "10": "Assess", "11": "Authorize", "12": "Scheduled", "-1": "Implement", "6": "Review", "7": "Closed", "8": "Canceled" },
   // problem updated from a live instance (choice XML): fully custom values 151-157;
   // OOB (-5 New … 7 Closed) are not used on this instance
-  problem: { "151": "New", "152": "Assess", "154": "Work in Progress", "157": "Closed" },
+  problem: { "101": "New", "102": "Assess", "103":"root cause analysis","104": "fix in Progress","106":"resolved", "157": "Closed" },
   sc_req_item: { "-5": "Pending", "1": "Open", "2": "Work in Progress", "3": "Closed Complete", "4": "Closed Incomplete", "7": "Closed Skipped" },
   // sc_task updated from a live instance (choice XML): custom pending states,
   // Reopen(6)/Completed(14)/Closed Cancelled(15); OOB -5/7 are not used here

@@ -27,6 +27,12 @@ test("iconHTML emits a string containing the svg markup", () => {
   assert.ok(html.includes('class="w-4"'));
 });
 
+test("square-pen icon is vendored and renders paths", () => {
+  const html = iconHTML("square-pen");
+  assert.notEqual(html, "");
+  assert.ok(html.includes("<path"));
+});
+
 test("iconButton makes an icon-only button with a tooltip + aria-label", () => {
   const btn = iconButton("x-circle", "Close export");
   assert.equal(btn.tagName, "BUTTON");
