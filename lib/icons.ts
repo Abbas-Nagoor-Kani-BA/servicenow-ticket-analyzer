@@ -57,6 +57,14 @@ export type IconButtonOpts = {
   label?: string;
 };
 
+export type IconizeOpts = {
+  /** "label" keeps text (icon prepended); "icon" renders an icon-only button. */
+  mode?: "label" | "icon";
+  /** Tooltip + aria-label for icon-only buttons. */
+  tip?: string;
+  label?: string;
+};
+
 /**
  * Icon-only button for toolbars / modals / rows. Sets `data-tip` so the
  * existing tooltip system (`lib/tooltip.ts` → `initTooltips`) drives its
@@ -75,5 +83,43 @@ export function iconButton(name: IconName, tip: string, opts: IconButtonOpts = {
   }
   svg.setAttribute("class", "icon-btn-svg");
   btn.appendChild(svg);
+  return btn;
+}
+
+/**
+ * Decorate an existing `<button>` with a Lucide icon.
+ *
+ * `mode: "label"` (default) keeps the button's visible label: the glyph is
+ * prepended and the existing text is moved into a `.btn-lbl` span, so callers
+ * can update that label (e.g. a dynamic count) without wiping the icon. `mode:
+ * "icon"` renders an icon-only button (iconButton-style: `icon-btn` class,
+ * `aria-label` + `data-tip`).
+ */
+export function iconize(btn: HTMLButtonElement, name: IconName, opts: IconizeOpts = {}): HTMLButtonElement {
+  const mode = opts.mode ?? "label";
+  const svg = icon(name);
+
+  if (mode === "icon") {
+    const tip = opts.tip ?? opts.label ?? btn.getAttribute("data-tip") ?? "";
+    btn.textContent = "";
+    svg.setAttribute("class", "icon-btn-svg");
+    btn.appendChild(svg);
+    // Drop the `.btn` utility: its horizontal padding would collapse the
+    // fixed-width icon-button's content box, letting the SVG flex-shrink away.
+    btn.classList.remove("btn");
+    if (!btn.classList.contains("icon-btn")) btn.classList.add("icon-btn");
+    btn.setAttribute("aria-label", opts.label ?? tip);
+    if (tip) btn.setAttribute("data-tip", tip);
+    return btn;
+  }
+
+  svg.setAttribute("class", "btn-icn");
+  const existing = btn.textContent ?? "";
+  btn.textContent = "";
+  btn.appendChild(svg);
+  const span = document.createElement("span");
+  span.className = "btn-lbl";
+  span.textContent = existing;
+  btn.appendChild(span);
   return btn;
 }

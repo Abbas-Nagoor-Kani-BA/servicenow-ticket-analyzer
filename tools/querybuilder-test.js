@@ -15,11 +15,11 @@ console.log("== encodeConditions ==");
 
 // Reference is-empty must pass through natively (sys_id column, not a checkbox).
 check("ref isEmpty",
-  encodeConditions([{ field: "u_parent_incident1", oper: "isEmpty", value: "" }]),
-  "u_parent_incident1ISEMPTY");
+  encodeConditions([{ field: "parent_incident", oper: "isEmpty", value: "" }]),
+  "parent_incidentISEMPTY");
 check("ref isNotEmpty",
-  encodeConditions([{ field: "u_parent_incident1", oper: "isNotEmpty", value: "" }]),
-  "u_parent_incident1ISNOTEMPTY");
+  encodeConditions([{ field: "parent_incident", oper: "isNotEmpty", value: "" }]),
+  "parent_incidentISNOTEMPTY");
 check("assigned_to isEmpty",
   encodeConditions([{ field: "assigned_to", oper: "isEmpty" }]),
   "assigned_toISEMPTY");

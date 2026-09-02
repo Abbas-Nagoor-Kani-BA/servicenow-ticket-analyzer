@@ -1,6 +1,8 @@
 import * as MsrChoices from "../../core/msrchoices.ts";
 import { CELL_MAX, cellShort, placePopupNear } from "../../lib/markup.ts";
-import { uiStore, setMsrLists, getMsrLists } from "./store.ts";
+import { STORAGE } from "../../lib/keys.ts";
+import { saveValue } from "../../lib/storage.ts";
+import { uiStore, setHiddenCols, setMsrLists, getMsrLists } from "./store.ts";
 import { ReportService } from "../../services/report-service.ts";
 
 const report = new ReportService();
@@ -58,6 +60,19 @@ function hideStore(): Set<string> { return uiStore.getState().hiddenCols; }
 
 function visibleCols(): ViewerCol[] {
   return COLUMNS.filter(([key]) => !hideStore().has(key));
+}
+
+/** Shared show/hide column mutation: enforces "at least one visible", mutates
+ *  `hiddenCols` and persists it. Returns false when the change was refused. */
+function setColumnVisible(key: string, show: boolean): boolean {
+  const hc = hideStore();
+  if (!show && COLUMNS.length - hc.size <= 1) return false;
+  const next = new Set(hc);
+  if (show) next.delete(key);
+  else next.add(key);
+  setHiddenCols(next);
+  saveValue(STORAGE.viewerHiddenCols, [...next]).catch(() => undefined);
+  return true;
 }
 
 function columnOptionList(key: string, row: ViewerRow): string[] | null {
@@ -122,6 +137,7 @@ function buildSlaSummaryRowsFor(rows: ViewerRow[] | null | undefined, fmt: Insta
 export {
   visibleCols,
   hideStore,
+  setColumnVisible,
   cellShort,
   columnOptionList,
   migrateLegacyResolutions,

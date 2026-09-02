@@ -1,5 +1,6 @@
 import { loadOnce } from "../../lib/storage.ts";
 import { STORAGE } from "../../lib/keys.ts";
+import { MlModelStore, specForModelId } from "../../data/ml-model-repository.ts";
 import { dataStore, getMsrLists } from "./store.ts";
 import { msrType, rootCauseFor, normResolution } from "../../core/msrchoices.ts";
 import { classifyMsr } from "../../core/msrcategorize.ts";
@@ -7,20 +8,20 @@ import { classifyMsr } from "../../core/msrcategorize.ts";
 /*
  * Data-View MSR classifier runner.
  *
- * Modes:
- *   - ML disabled         -> deterministic only (core/msrcategorize), inline.
- *   - ML enabled, fallback -> deterministic first (fills likely labels), then
- *                             the worker refines only rows that are still blank.
- *   - ML enabled, always   -> the worker (Transformers.js) classifies EVERY row;
- *                             the deterministic pass is skipped so regex results
- *                             are never written ahead of, or in place of, ML.
+ * Modes (settings ml.mode):
+ *   - heuristic -> deterministic only (core/msrcategorize), inline; no worker.
+ *   - hybrid    -> deterministic first (fills likely labels), then the worker
+ *                  (Transformers.js) refines every note row with ML.
+ *   - ml        -> the worker classifies EVERY row; the deterministic pass is
+ *                  skipped so regex results are never written ahead of, or in
+ *                  place of, ML.
  *
  * Results stream back in chunks and are applied via `updateRow` (mapped onto
  * DataGrid.updateRows), so the view fills in incrementally. No DOM, no chrome.*
  * beyond reading the persisted settings once.
  */
 
-type SettingsMl = { enabled?: boolean; mode?: "always" | "fallback"; modelId?: string; cacheEnabled?: boolean };
+type SettingsMl = { mode?: "heuristic" | "ml" | "hybrid"; modelId?: string; cacheEnabled?: boolean };
 
 export type ClassifyRun = {
   total: number;
@@ -29,6 +30,8 @@ export type ClassifyRun = {
   changed: number;
   /** sysIds whose cells changed, for updateRows(). */
   changedSysIds: string[];
+  /** A user-facing note when ML was requested but the model is not downloaded. */
+  notice?: string;
 };
 
 export type ClassifyCallbacks = {
@@ -104,6 +107,15 @@ function hasValidSolutionType(row: Record<string, any>): boolean {
 /** Rows that actually carry notes worth classifying. */
 function rowsWithNotes(rows: Record<string, any>[]): Record<string, any>[] {
   return rows.filter((r) => String(r.closeNotes ?? "").trim());
+}
+
+/** True when the selected ML model is fully downloaded and ready to load. */
+async function modelAvailable(modelId: string): Promise<boolean> {
+  try {
+    return await new MlModelStore().matches(specForModelId(modelId));
+  } catch {
+    return false;
+  }
 }
 
 /** FNV-1a hash of the note text, used to detect an unchanged note cheaply. */
@@ -319,8 +331,9 @@ export async function classifyRows(cb: ClassifyCallbacks): Promise<ClassifyRun> 
 
   const settings = await loadOnce<{ ml?: SettingsMl }>(STORAGE.pluginSettings, null);
   const ml = settings?.ml;
-  const useMl = !!ml?.enabled;
-  const mode: "always" | "fallback" = ml?.mode === "always" ? "always" : "fallback";
+  // Single 3-way mode: heuristic only, ML only, or hybrid (heuristic then ML).
+  const mode: "heuristic" | "ml" | "hybrid" =
+    ml?.mode === "ml" ? "ml" : ml?.mode === "heuristic" ? "heuristic" : "hybrid";
   const modelId = ml?.modelId || "mobilebert";
   const cacheEnabled = ml?.cacheEnabled !== false;
 
@@ -330,12 +343,28 @@ export async function classifyRows(cb: ClassifyCallbacks): Promise<ClassifyRun> 
   let changed = 0;
   const stats = makeStats(total);
 
-  // ML-enabled "always": ML is the single source of truth for classification,
-  // evaluated over EVERY note row — including rows that previously carried
-  // heuristic values, so they get re-run and ML-stamped. Only rows already
-  // ML-classified with unchanged notes are skipped (the feature cache makes
-  // repeats cheap regardless).
-  if (useMl && mode === "always") {
+  // ML was requested but the model isn't cached: degrade to the built-in scorer
+  // and tell the user, so the worker never has to (misleadingly) warn mid-run.
+  if (mode !== "heuristic" && !(await modelAvailable(modelId))) {
+    const d = deterministicPass(rows, false, cb, stats);
+    cb.onProgress(total, total, d.notClassified);
+    cb.onStats(stats);
+    return {
+      total,
+      withNotes,
+      classified: d.changed,
+      changed: d.changed,
+      changedSysIds: d.changedSysIds,
+      notice: "ML model not downloaded — using the built-in scorer. Download it under Settings → Classification."
+    };
+  }
+
+  // ML-only: ML is the single source of truth for classification, evaluated
+  // over EVERY note row — including rows that previously carried heuristic
+  // values, so they get re-run and ML-stamped. Only rows already ML-classified
+  // with unchanged notes are skipped (the feature cache makes repeats cheap
+  // regardless).
+  if (mode === "ml") {
     const targets = rowsWithNotes(rows).filter((r) => {
       const notes = String(r.closeNotes ?? "").trim();
       return !(r.__rcSource === "ml" && r.__solSource === "ml" && r.notesHash === hashNotes(notes));
@@ -345,7 +374,7 @@ export async function classifyRows(cb: ClassifyCallbacks): Promise<ClassifyRun> 
     cb.onProgress(preDone, total, preDone);
     cb.onStats(stats);
     if (targets.length) {
-      await mlPass(targets, mode, total, preDone, preDone, cb, changedSysIds, stats, modelId, cacheEnabled);
+      await mlPass(targets, "always", total, preDone, preDone, cb, changedSysIds, stats, modelId, cacheEnabled);
     }
     cb.onProgress(total, total, preDone);
     cb.onStats(stats);
@@ -353,19 +382,19 @@ export async function classifyRows(cb: ClassifyCallbacks): Promise<ClassifyRun> 
     return { total, withNotes, classified: targets.length, changed, changedSysIds };
   }
 
-  // ML-enabled "fallback": heuristic fills blanks first; ML then evaluates every
-  // note row and overrides a value whenever it produced a label (the source is
-  // stamped "ml" by provenance, not by a confidence floor). A weak or wrong
-  // keyword-scored label can therefore be corrected by ML, while a manual edit
-  // or an established ML/confident result is preserved (see resolveApplyCell).
-  if (useMl && mode === "fallback") {
+  // Hybrid: heuristic fills blanks first; ML then evaluates every note row and
+  // overrides a value whenever it produced a label (the source is stamped "ml"
+  // by provenance, not by a confidence floor). A weak or wrong keyword-scored
+  // label can therefore be corrected by ML, while a manual edit or an
+  // established ML/confident result is preserved (see resolveApplyCell).
+  if (mode === "hybrid") {
     const d = deterministicPass(rows, true, cb, stats);
     changedSysIds.push(...d.changedSysIds);
     const targets = rowsWithNotes(rows);
     stats.done = preDone;
     stats.notClassified = preDone;
     if (targets.length) {
-      await mlPass(targets, mode, total, preDone, preDone, cb, changedSysIds, stats, modelId, cacheEnabled);
+      await mlPass(targets, "fallback", total, preDone, preDone, cb, changedSysIds, stats, modelId, cacheEnabled);
     }
     cb.onProgress(total, total, preDone);
     cb.onStats(stats);
@@ -373,7 +402,7 @@ export async function classifyRows(cb: ClassifyCallbacks): Promise<ClassifyRun> 
     return { total, withNotes, classified: targets.length, changed, changedSysIds };
   }
 
-  // ML disabled: deterministic pass fills everything (non-blank rows are kept).
+  // Heuristic-only: deterministic pass fills everything (non-blank rows kept).
   const d = deterministicPass(rows, false, cb, stats);
   cb.onProgress(total, total, d.notClassified);
   cb.onStats(stats);

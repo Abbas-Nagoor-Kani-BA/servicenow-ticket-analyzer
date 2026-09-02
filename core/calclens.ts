@@ -27,6 +27,10 @@ export type ExplainInput = { label: string; value: string };
 
 export type TimelineFieldIcon = "group" | "assignee" | "state";
 
+/** A highlighted "key moment" tag on a timeline step (e.g. "Assign") plus the
+ *  full instance-clock display time for that event. */
+export type TimelineMarker = { label: string; time: string };
+
 /** One node on the drawer's visual timeline strip. */
 export type TimelineStep = {
   /** UTC ISO timestamp of the event. */
@@ -41,6 +45,8 @@ export type TimelineStep = {
   to: string;
   /** True when this event is the one whose time the selected cell shows. */
   selected: boolean;
+  /** Key-moment tags (Assign/Ackn/Suspend/Resume/Opened/Resolved) + display time. */
+  markers?: TimelineMarker[];
 };
 
 /** SLA "easy digest": a target-vs-actual comparison with a met/breached verdict. */
@@ -69,8 +75,12 @@ export type Explanation = {
   transition?: string;
   /** SLA comparison (target vs actual) for SLA/report cells. */
   digest?: SlDigest;
+  /** Zero or more SLA digests (shared by static columns: response + resolution). */
+  digests?: SlDigest[];
   /** Visual timeline of the ticket's activity events, with the picked one selected. */
   timeline?: TimelineStep[];
+  /** Total change counts by feed field, shown on static columns. */
+  counts?: { assignments: number; states: number; groups: number };
   /** The concrete inputs the derivation read from the row. */
   inputs: ExplainInput[];
   /** Ordered, human-readable derivation steps. */
@@ -219,6 +229,60 @@ function selectTimelineEvent(timeline: TimelineStep[], field: string, iso: unkno
   return timeline;
 }
 
+function epochOf(iso: unknown): number {
+  const t = Date.parse(String(iso ?? "").replace(" ", "T"));
+  return Number.isFinite(t) ? t : NaN;
+}
+
+/** Find the timeline step for a field whose timestamp equals `iso`. */
+function findStepFor(timeline: TimelineStep[], fieldIcon: TimelineFieldIcon, iso: unknown): TimelineStep | undefined {
+  const target = epochOf(iso);
+  if (!Number.isFinite(target)) return undefined;
+  return timeline.find((s) => s.fieldIcon === fieldIcon && epochOf(s.atIso) === target);
+}
+
+/** Find the timeline step at exactly `iso` regardless of field (Opened/Resolved). */
+function findStepAt(timeline: TimelineStep[], iso: unknown): TimelineStep | undefined {
+  const target = epochOf(iso);
+  if (!Number.isFinite(target)) return undefined;
+  return timeline.find((s) => epochOf(s.atIso) === target);
+}
+
+const KEY_MOMENTS: Array<{ label: string; fieldIcon: TimelineFieldIcon | null; iso: (row: Record<string, any>) => unknown }> = [
+  { label: "Assign", fieldIcon: "group", iso: (r) => r.assignTimeUtcIso },
+  { label: "Ackn", fieldIcon: "assignee", iso: (r) => r.acknTimeUtcIso },
+  { label: "Suspend", fieldIcon: "state", iso: (r) => r.suspendTimeUtcIso },
+  { label: "Resume", fieldIcon: "state", iso: (r) => r.resumeTimeUtcIso },
+  { label: "Opened", fieldIcon: null, iso: (r) => r.openedAtRaw ?? r.openedAt },
+  { label: "Resolved", fieldIcon: null, iso: (r) => r.resolvedAtRaw ?? r.resolvedAt }
+];
+
+/** Tag the timeline's key moments for a row (assign/ackn/suspend/resume by field+time,
+ *  opened/resolved by time) with their display times, so the drawer can highlight them. */
+function markKeyMoments(timeline: TimelineStep[], row: Record<string, any>): TimelineStep[] {
+  for (const k of KEY_MOMENTS) {
+    const iso = k.iso(row);
+    const step = k.fieldIcon ? findStepFor(timeline, k.fieldIcon, iso) : findStepAt(timeline, iso);
+    if (!step) continue;
+    step.markers = step.markers || [];
+    step.markers.push({ label: k.label, time: step.atLabel });
+  }
+  return timeline;
+}
+
+/** Total change counts by feed field, read from the retained activity events. */
+function countsFor(row: Record<string, any>): { assignments: number; states: number; groups: number } {
+  const counts = { assignments: 0, states: 0, groups: 0 };
+  const evs = Array.isArray(row.activity) ? (row.activity as ActivityEv[]) : [];
+  for (const ev of evs) {
+    const f = str(ev.f);
+    if (f === "assigned_to") counts.assignments++;
+    else if (f === "state") counts.states++;
+    else if (f === "assignment_group") counts.groups++;
+  }
+  return counts;
+}
+
 function fmtHoursDecimal(hours: number): string {
   if (!Number.isFinite(hours) || hours <= 0) return "0";
   return `${hours.toFixed(1)} h`;
@@ -251,19 +315,52 @@ function businessBranchNote(priority: unknown): string {
     : "Priority 3/4 uses work-hours (08:00–17:00, weekdays) minus the suspend window";
 }
 
-function explainRaw(row: Record<string, any>, key: string, value: string): Explanation {
-  return {
+function explainRaw(
+  ctx: ExplainCtx,
+  row: Record<string, any>,
+  key: string,
+  value: string,
+  table: string
+): Explanation {
+  const out: Explanation = {
     kind: "raw",
     label: key,
     value,
-    summary: "Stored value — not computed by the analyzer.",
-    inputs: [{ label: "Field", value: key }, { label: "Value", value: value || EMPTY }],
+    summary: "Stored value — not computed by the analyzer. Below: this ticket's exact activity timeline with the key moments highlighted.",
+    inputs: [
+      { label: "Field", value: key },
+      { label: "Value", value: value || EMPTY }
+    ],
     steps: [
       `The \`${key}\` cell is copied straight from the ServiceNow record during the pull; ` +
       "the analyzer does not derive or change it (unless you edit it in the grid)."
     ],
     warnings: []
   };
+
+  const timeline = markKeyMoments(buildTimeline(ctx, row, table), row);
+  if (timeline.length) out.timeline = timeline;
+  out.counts = countsFor(row);
+
+  const counts = out.counts;
+  out.steps.push(
+    `The ticket's history records **${counts.groups}** assignment-group, **${counts.assignments}** assigned-to and **${counts.states}** state change${counts.states === 1 ? "" : "s"}.`
+  );
+
+  // SLA status (response + resolution), when a target applies.
+  try {
+    const rep = buildReport(row as Parameters<typeof buildReport>[0], (ctx.fmtInstant as any) ?? null) as Report;
+    out.digests = [responseDigest(row, rep), resolutionDigest(row, rep)].filter((d) => d !== undefined);
+    if (out.digests.length) {
+      out.steps.push("Its SLA status is checked below against the priority's response and resolution targets.");
+    }
+  } catch { /* report unavailable — no digest */ }
+
+  if (timeline.length) {
+    out.steps.push("The timeline below is the ticket's exact activity feed; the highlighted rows are the assign, ackn, suspend, resume, opened and resolved moments.");
+  }
+
+  return out;
 }
 
 function explainTimeline(
@@ -865,7 +962,7 @@ export function explainCell(
     "resolvedAt"
   ]);
   if (rawKeys.has(colKey)) {
-    return explainRaw(row, colKey, str(row[colKey]));
+    return explainRaw(ctx, row, colKey, str(row[colKey]), tableForNumber(row.number));
   }
 
   // Timeline instants.

@@ -9,7 +9,7 @@ globalThis.HTMLElement = win.HTMLElement;
 globalThis.HTMLInputElement = win.HTMLInputElement;
 globalThis.Node = win.Node;
 
-const { icon, iconButton, iconHTML } = await import("../lib/icons.ts");
+const { icon, iconButton, iconHTML, iconize } = await import("../lib/icons.ts");
 
 test("lucide icon returns an inline svg sized by class", () => {
   const svg = icon("building-2");
@@ -43,4 +43,32 @@ test("iconButton accepts size and extra cls", () => {
   const svg = btn.querySelector("svg");
   assert.equal(svg.getAttribute("width"), "20");
   assert.equal(svg.getAttribute("height"), "20");
+});
+
+test("iconize label mode prepends an icon and wraps the label", () => {
+  const btn = win.document.createElement("button");
+  btn.className = "btn";
+  btn.textContent = "Columns (2 hidden)";
+  iconize(btn, "columns-3");
+
+  const svg = btn.querySelector("svg.btn-icn");
+  assert.ok(svg, "label mode prepends the icon");
+  assert.ok(btn.classList.contains("btn"), "existing btn class is untouched");
+  const lbl = btn.querySelector(".btn-lbl");
+  assert.ok(lbl, "text is moved into a .btn-lbl span");
+  assert.equal(lbl.textContent, "Columns (2 hidden)");
+  assert.ok(!btn.classList.contains("icon-btn"), "label mode is not icon-only");
+});
+
+test("iconize icon mode renders an icon-only button with tooltip + aria", () => {
+  const btn = win.document.createElement("button");
+  btn.className = "btn";
+  btn.setAttribute("data-tip", "original tip");
+  iconize(btn, "x-circle", { mode: "icon", tip: "Close" });
+
+  assert.ok(!btn.querySelector(".btn-lbl"), "icon mode removes the label");
+  assert.ok(btn.querySelector("svg.icon-btn-svg"), "icon button contains the glyph");
+  assert.ok(btn.classList.contains("icon-btn"), "icon mode adds the icon-btn class");
+  assert.equal(btn.getAttribute("aria-label"), "Close");
+  assert.equal(btn.getAttribute("data-tip"), "Close");
 });

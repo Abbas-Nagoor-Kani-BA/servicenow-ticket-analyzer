@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { resolveOutcome, resolvePick } from "../worker/ml-classify.ts";
+import { resolveOutcome, resolvePick, stripCommonWords } from "../worker/ml-classify.ts";
 
 // These cover the cache-staleness fix: the cache now stores the RAW per-engine
 // picks (ml + det), and the verdict is re-derived with the CURRENT rule on every
@@ -51,4 +51,16 @@ test("resolvePick: clear ML win at/above floor even when heuristic ties", () => 
   const det = { value: "Permanent solution", confidence: 1.0, source: "heuristic" };
   const r = resolvePick(ml, det);
   assert.equal(r.source, "ml");
+});
+
+test("stripCommonWords drops function words but keeps negation/labels", () => {
+  const out = stripCommonWords("The user had a problem and the network was down.");
+  assert.equal(out, "user problem network down");
+  assert.ok(!out.includes("the") && !out.includes("and") && !out.includes("had"));
+});
+
+test("stripCommonWords preserves negation and MSR-relevant words", () => {
+  assert.equal(stripCommonWords("This is not an issue at all"), "not issue");
+  assert.equal(stripCommonWords("not"), "not");
+  assert.equal(stripCommonWords("access denied"), "access denied");
 });

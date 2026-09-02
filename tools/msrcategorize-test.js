@@ -93,3 +93,35 @@ test("classifyMsr works against a P_Ticket root cause list", () => {
   const r = classifyMsr("Incorrect data entered by the user into the file.", PTASK_RC, { minConfidence: 0.3 });
   assert.equal(r.label, "User error - data");
 });
+
+test("classifyMsr returns the exact MSR label value", () => {
+  assert.equal(classifyMsr("not an issue", INCIDENT_RC).label, "Not an issue");
+  assert.equal(classifyMsr("no issue", INCIDENT_RC).label, "Not an issue");
+  assert.equal(classifyMsr("network issue", INCIDENT_RC).label, "Network issue");
+});
+
+test("cosine similarity boosts confidence on a genuine match", () => {
+  const note = "certificate hit its expiry window on the gateway";
+  const keywordOnly = classifyMsr(note, INCIDENT_RC, { cosineWeight: 0 });
+  const blended = classifyMsr(note, INCIDENT_RC);
+  assert.equal(blended.label, "Certificate expiry");
+  assert.ok(blended.confidence > keywordOnly.confidence, "blending cosine raises confidence over keyword counting");
+});
+
+test("cosine does not over-fire on generic vocabulary", () => {
+  assert.equal(classifyMsr("there was an issue", INCIDENT_RC).label, null);
+  assert.equal(classifyMsr("appears fine", INCIDENT_RC).label, null);
+});
+
+test("blended scorer is deterministic", () => {
+  const a = classifyMsr("the interface returned a mapping error", INCIDENT_RC);
+  const b = classifyMsr("the interface returned a mapping error", INCIDENT_RC);
+  assert.deepEqual(a, b);
+});
+
+test("learned hint overrides still feed the cosine vector", () => {
+  const r = classifyMsr("reseeded the DB cache", INCIDENT_RC, {
+    hints: { "database performance": ["reseeded"] }
+  });
+  assert.equal(r.label, "Database performance");
+});

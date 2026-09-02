@@ -6,7 +6,7 @@ import { pad2 } from "../../lib/format.ts";
 import { showToast } from "../../lib/toast.ts";
 import { normalizeNames } from "../../core/names.ts";
 import { computeAttention } from "../../core/attention.ts";
-import { $, columnOptionList, migrateLegacyResolutions, setStatus, visibleCols } from "./core.ts";
+import { $, columnOptionList, migrateLegacyResolutions, setColumnVisible, setStatus, visibleCols } from "./core.ts";
 import type { ViewerData, ViewerRow } from "./core.ts";
 import type { InstantFn } from "./core.ts";
 import { DataGrid } from "../../components/data-grid.ts";
@@ -130,6 +130,17 @@ export function initGrid() {
       const { sortKey, sortDir } = st();
       if (sortKey === key) dataStore.setState({ sortDir: -sortDir });
       else dataStore.setState({ sortKey: key, sortDir: 1 });
+      render();
+    },
+    onSortExplicit: (key, dir) => {
+      dataStore.setState({ sortKey: key, sortDir: dir });
+      render();
+    },
+    onHideColumn: (key) => {
+      if (!setColumnVisible(key, false)) {
+        setStatus("At least one column must stay visible", true);
+        return;
+      }
       render();
     },
     onCellFocus: (info) => onCellFocus(info),
@@ -413,6 +424,7 @@ async function classifyGrid(): Promise<void> {
     if (run.changed) {
       showToast(`Classified ${run.changed} ticket${run.changed === 1 ? "" : "s"} (${run.withNotes} with notes)`);
     }
+    if (run.notice) showToast(run.notice, "info");
     lastClassifiedFingerprint = runKey;
   } catch (err) {
     setStatus(`Classification failed: ${(err as Error).message}`, true);

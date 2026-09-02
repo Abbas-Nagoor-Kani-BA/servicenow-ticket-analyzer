@@ -1,6 +1,6 @@
 import { Component, el } from "./component.ts";
 import type { ComponentProps } from "./component.ts";
-import type { Explanation, SlDigest, TimelineStep } from "../core/calclens.ts";
+import type { Explanation, SlDigest, TimelineStep, TimelineMarker } from "../core/calclens.ts";
 import { icon, iconButton } from "../lib/icons.ts";
 import { SearchPicker } from "./search-picker.ts";
 
@@ -112,6 +112,8 @@ export class CalclensPanel extends Component<CalclensPanelState, ComponentProps,
     const value = el("div", "calclens-value", ex.value || "\u2014");
     body.appendChild(value);
 
+    if (ex.counts) body.appendChild(this.renderCounts(ex.counts));
+
     if (ex.transition) {
       const t = el("div", "calclens-field calclens-transition");
       const arrow = icon("arrow-right" as any, "cb-trans-icn");
@@ -133,6 +135,9 @@ export class CalclensPanel extends Component<CalclensPanelState, ComponentProps,
 
     if (ex.digest) {
       body.appendChild(this.renderDigest(ex.digest));
+    }
+    for (const d of ex.digests || []) {
+      body.appendChild(this.renderDigest(d));
     }
 
     if (ex.timeline && ex.timeline.length) {
@@ -330,13 +335,29 @@ export class CalclensPanel extends Component<CalclensPanelState, ComponentProps,
     for (const grp of groups) {
       const pushed = draftIso !== null && draftIso === grp.atIso;
       const selected = pushed || (draftIso === null ? grp.steps.some((e) => e.selected) : false);
-      const row = el("div", `calclens-tl-row${selected ? " selected" : ""}`);
+      const marks: TimelineMarker[] = [];
+      const seen = new Set<string>();
+      for (const ev of grp.steps) {
+        for (const m of ev.markers || []) {
+          if (seen.has(m.label)) continue;
+          seen.add(m.label);
+          marks.push(m);
+        }
+      }
+      const row = el("div", `calclens-tl-row${selected ? " selected" : ""}${marks.length ? " marked" : ""}`);
       const gutter = el("div", "calclens-tl-gutter");
       gutter.appendChild(icon("clock" as any, "calclens-tl-icn"));
       if (pickable) gutter.appendChild(icon("check-circle-2" as any, "calclens-tl-pick-icn"));
       row.appendChild(gutter);
       const body = el("div", "calclens-tl-body");
       body.appendChild(el("span", "calclens-tl-time", grp.atLabel || grp.atIso || "\u00b7"));
+      if (marks.length) {
+        const markRow = el("div", "calclens-tl-marks");
+        for (const m of marks) {
+          markRow.appendChild(el("span", "calclens-tl-mark", `${m.label} \u00b7 ${m.time || grp.atLabel || ""}`));
+        }
+        body.appendChild(markRow);
+      }
       const changes = el("div", "calclens-tl-changes");
       for (const ev of grp.steps) changes.appendChild(this.renderChange(ev));
       body.appendChild(changes);
@@ -389,6 +410,18 @@ export class CalclensPanel extends Component<CalclensPanelState, ComponentProps,
     const next = this.getState();
     const body = this.q<HTMLElement>(".calclens-body");
     if (body) this.renderBody(body, next.explanation, next.edit);
+  }
+
+  private renderCounts(c: { assignments: number; states: number; groups: number }): HTMLElement {
+    const wrap = el("div", "calclens-counts");
+    const parts: Array<[string, number]> = [["Assignments", c.assignments], ["State", c.states], ["Group", c.groups]];
+    for (const [label, n] of parts) {
+      const s = el("span", "calclens-count");
+      s.appendChild(el("b", "", String(n)));
+      s.appendChild(document.createTextNode(" " + label + (n === 1 ? "" : "s")));
+      wrap.appendChild(s);
+    }
+    return wrap;
   }
 
   private renderDigest(d: SlDigest): HTMLElement {

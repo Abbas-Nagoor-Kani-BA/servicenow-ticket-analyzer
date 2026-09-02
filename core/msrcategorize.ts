@@ -30,12 +30,17 @@ export type ClassifyMsrOptions = {
   minConfidence?: number;
   /** Override/augment hints per label (e.g. learned corrections). */
   hints?: Record<string, string[]>;
+  /** Weight of the TF-IDF cosine term relative to the keyword hint count. */
+  cosineWeight?: number;
 };
+
+const COSINE_WEIGHT = 2;
 
 const DEFAULTS: Required<ClassifyMsrOptions> = {
   minScore: 1,
   minConfidence: 0.32,
-  hints: {}
+  hints: {},
+  cosineWeight: COSINE_WEIGHT
 };
 
 /** Token-normalise: lowercase, strip punctuation, collapse whitespace. */
@@ -99,6 +104,69 @@ function phraseScore(textTokens: string[], phrase: string): number {
   return 0;
 }
 
+/** The expanded token set for one label document: the label text plus each of
+ *  its hint phrases, so TF-IDF scores share the same synonym vocabulary as the
+ *  keyword pass. */
+function docTokens(label: string, hints: string[]): string[] {
+  const out = tokens(label);
+  for (const hint of hints) out.push(...tokens(hint));
+  return out;
+}
+
+function vectorMagnitude(v: Map<string, number>): number {
+  let s = 0;
+  for (const x of v.values()) s += x * x;
+  return Math.sqrt(s);
+}
+
+/**
+ * TF-IDF cosine between the note and each label document. Terms that appear in
+ * no label document carry no evidence and are ignored; terms shared across many
+ * labels (e.g. "issue", "error") are down-weighted so distinctive vocabulary
+ * dominates. Returns one [0,1] value per label, in the same order as `docs`.
+ */
+function cosineScores(note: string[], docs: string[][]): number[] {
+  const N = docs.length;
+  if (!N) return [];
+  if (!note.length) return docs.map(() => 0);
+
+  const df = new Map<string, number>();
+  for (const doc of docs) {
+    for (const t of new Set(doc)) df.set(t, (df.get(t) || 0) + 1);
+  }
+  const idf = new Map<string, number>();
+  for (const [t, d] of df) idf.set(t, Math.log(1 + N / d));
+  const weight = (t: string): number => idf.get(t) || 0;
+
+  const noteVec = new Map<string, number>();
+  for (const t of note) {
+    const w = weight(t);
+    if (w > 0) noteVec.set(t, (noteVec.get(t) || 0) + w);
+  }
+  const noteMag = vectorMagnitude(noteVec);
+  if (noteMag === 0) return docs.map(() => 0);
+
+  const docVecs = docs.map((doc) => {
+    const v = new Map<string, number>();
+    for (const t of doc) {
+      const w = weight(t);
+      if (w > 0) v.set(t, (v.get(t) || 0) + w);
+    }
+    return v;
+  });
+
+  return docVecs.map((dv) => {
+    const docMag = vectorMagnitude(dv);
+    if (docMag === 0) return 0;
+    let dot = 0;
+    for (const [t, v] of noteVec) {
+      const d = dv.get(t);
+      if (d) dot += v * d;
+    }
+    return dot / (noteMag * docMag);
+  });
+}
+
 /**
  * Scores `text` against the candidate labels. Each label's hint list is its
  * strongest evidence; a hint can be a single word or a short phrase, matched
@@ -113,18 +181,24 @@ export function classifyMsr(
   const o = { ...DEFAULTS, ...opts, hints: opts.hints || {} };
   const body = String(text ?? "").trim();
   const textTokens = tokens(body);
-  const scores: Record<string, number> = {};
 
-  if (textTokens.length) {
-    for (const label of candidateLabels) {
-      const hints = hintPairs(label, o.hints);
-      let total = 0;
-      for (const hint of hints) total += phraseScore(textTokens, hint);
-      scores[label] = total;
-    }
-  } else {
-    for (const label of candidateLabels) scores[label] = 0;
+  const hintsByLabel = new Map<string, string[]>();
+  const docs: string[][] = [];
+  for (const label of candidateLabels) {
+    const hints = hintPairs(label, o.hints);
+    hintsByLabel.set(label, hints);
+    docs.push(docTokens(label, hints));
   }
+  const cos = cosineScores(textTokens, docs);
+
+  const scores: Record<string, number> = {};
+  candidateLabels.forEach((label, i) => {
+    let total = 0;
+    for (const hint of hintsByLabel.get(label)!) total += phraseScore(textTokens, hint);
+    // Keyword count plus a TF-IDF cosine term, so a note that paraphrases a
+    // label (shares distinctive vocabulary but no exact hint) can still win.
+    scores[label] = total + o.cosineWeight * cos[i];
+  });
 
   const ranked = Object.entries(scores).sort((a, b) => b[1] - a[1]);
   const [bestLabel, bestScore] = ranked[0] ?? [null, 0];

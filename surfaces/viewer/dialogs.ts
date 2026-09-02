@@ -1,5 +1,6 @@
 import { STORAGE } from "../../lib/keys.ts";
 import { $, setStatus } from "./core.ts";
+import { iconize } from "../../lib/icons.ts";
 import { Modal, hasOpenModal } from "../../components/modal.ts";
 import { CiDialog } from "../../components/ci-dialog.ts";
 import { MapDialog } from "../../components/map-dialog.ts";
@@ -29,6 +30,15 @@ let mapEditor: MapDialog | null = null;
 let ciEditor: CiDialog | null = null;
 
 export function initDialogs(): void {
+  iconize($("mapClose"), "x-circle", { mode: "icon", tip: "Close" });
+  iconize($("mapReset"), "rotate-ccw");
+  iconize($("mapCancel"), "x-circle", { mode: "icon", tip: "Cancel" });
+  iconize($("mapSave"), "check");
+  iconize($("ciClose"), "x-circle", { mode: "icon", tip: "Close" });
+  iconize($("ciDisable"), "x-circle");
+  iconize($("ciCancel"), "x-circle", { mode: "icon", tip: "Cancel" });
+  iconize($("ciSave"), "check");
+
   mapModal = new Modal($("mapModal"), {}, {
     // A cell editor inside the grid must keep its own Escape.
     escapeGuard: () => !!document.querySelector("td.edit-input input")

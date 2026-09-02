@@ -4,6 +4,40 @@ import { MlModelStore, specForModelId } from "../data/ml-model-repository.ts";
 import type { MlModelSpec } from "../data/ml-model-repository.ts";
 import { STORAGE } from "../lib/keys.ts";
 
+// Common English function words. Deliberately excludes negation/qualifier words
+// that carry meaning in the MSR labels ("not", "no", "never", "only", "but",
+// "user", "error", "access", "issue"), so stripping can never flip things like
+// "not an issue" into its opposite.
+const STOPWORDS = new Set([
+  "the", "a", "an", "and", "or", "was", "were", "is", "are", "am", "be",
+  "been", "being", "has", "have", "had", "do", "does", "did", "will", "would",
+  "shall", "should", "can", "could", "may", "might", "must", "of", "to", "in",
+  "on", "at", "by", "for", "with", "about", "against", "between", "into",
+  "through", "during", "before", "after", "above", "below", "from", "again",
+  "further", "once", "here", "there", "when", "where", "why", "how", "all",
+  "any", "both", "each", "few", "more", "most", "other", "some", "such", "own",
+  "same", "so", "than", "too", "very", "it", "this", "that", "these", "those",
+  "we", "they", "he", "she", "him", "her", "us", "them", "you", "your", "ours",
+  "theirs", "my", "our", "its", "as", "per", "via", "within", "along", "among",
+  "onto", "upon", "regarding", "like", "just", "then", "whose"
+]);
+
+// Direction/state words ("down", "up", "out", "off", "over", "under") are
+// intentionally NOT stopwords: they carry meaning in IT notes ("service down",
+// "timed out").
+
+/** Lowercases and removes common function words so the model spends its 512
+ *  token budget on content words (leaving room for the candidate label). */
+function stripCommonWords(note: string): string {
+  const out: string[] = [];
+  for (const raw of String(note).toLowerCase().split(/[^a-z0-9]+/)) {
+    if (!raw || raw.length === 1) continue;
+    if (STOPWORDS.has(raw)) continue;
+    out.push(raw);
+  }
+  return out.join(" ");
+}
+
 /** A per-cell pick additionally carrying which engine produced it (for Calclens). */
 export type EnginePick = {
   value: string | null;
@@ -26,7 +60,8 @@ async function selectedModelId(): Promise<string> {
  * Optional Transformers.js classification backend.
  *
  * Second stage of the hybrid: the deterministic scorer always runs; this module
- * is loaded lazily by the worker only when the user enables "always" ML. It
+ * is loaded lazily by the worker only when the user picks the ML or Hybrid
+ * classification mode. It
  * serves the cached model bytes (own IndexedDB database, never the pull cache)
  * to Transformers.js through its custom-cache hook, so inference is fully
  * offline after the one-time Settings download.
@@ -137,10 +172,26 @@ async function loadMlClassifier(): Promise<MlClassifier | null> {
     session_options: { executionProviders: ["wasm"], numThreads: 1 }
   });
 
+  // The zero-shot pipeline tokenizes with { padding, truncation } but never sets
+  // max_length, and the tokenizer's model_max_length defaults to Infinity when
+  // the tokenizer config omits it. A long work-note is therefore padded to the
+  // batch max and fed to the ONNX model past its supported sequence length,
+  // which throws "Attempting to broadcast an axis by a dimension other than 1".
+  // Pin the tokenizer to the model's own maximum so the note is truncated.
+  const maxLen = Number((classifier as any).model?.config?.max_position_embeddings) || 512;
+  try {
+    const tok = (classifier as any).tokenizer;
+    if (tok && tok._tokenizerConfig) tok._tokenizerConfig.model_max_length = maxLen;
+  } catch {
+    /* best-effort; the per-call try/catch below still degrades gracefully */
+  }
+
   return async (notes: string, labels: string[]) => {
     try {
       if (!notes.trim() || !labels.length) return { label: null, confidence: 0 };
-      const res = await classifier(notes, labels);
+      const cleaned = stripCommonWords(notes);
+      if (!cleaned) return { label: null, confidence: 0 };
+      const res = await classifier(cleaned, labels);
       const label = res?.labels?.[0];
       const score = Number(res?.scores?.[0] ?? 0);
       if (!label || !Number.isFinite(score)) return { label: null, confidence: 0 };
@@ -239,4 +290,4 @@ export function resolveOutcome(p: { solutionType: CellPicks; rootCause: CellPick
   };
 }
 
-export { pathFromUrl };
+export { pathFromUrl, stripCommonWords, STOPWORDS };

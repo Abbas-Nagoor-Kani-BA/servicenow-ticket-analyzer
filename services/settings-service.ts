@@ -18,8 +18,7 @@ export type SettingsDraft = {
     maxTicketsPerPull: number;
   };
   ml: {
-    enabled: boolean;
-    mode: "always" | "fallback";
+    mode: "heuristic" | "ml" | "hybrid";
     modelId: string;
     cacheEnabled: boolean;
   };
@@ -42,8 +41,7 @@ export const SETTINGS_DEFAULTS: SettingsDraft = {
     maxTicketsPerPull: 500
   },
   ml: {
-    enabled: false,
-    mode: "fallback",
+    mode: "hybrid",
     modelId: "mobilebert",
     cacheEnabled: true
   }
@@ -90,11 +88,21 @@ export function normaliseSettings(raw: unknown): SettingsDraft {
   merged.params.maxTicketsPerPull = clampInt(merged.params.maxTicketsPerPull, 0, 1e5, SETTINGS_DEFAULTS.params.maxTicketsPerPull);
   merged.params.debugResponses = !!merged.params.debugResponses;
 
-  if (s.ml && typeof s.ml === "object") Object.assign(merged.ml, s.ml);
-  merged.ml.enabled = !!merged.ml.enabled;
-  if (merged.ml.mode !== "always") merged.ml.mode = "fallback";
-  if (typeof merged.ml.modelId !== "string" || !merged.ml.modelId) merged.ml.modelId = SETTINGS_DEFAULTS.ml.modelId;
-  if (typeof merged.ml.cacheEnabled !== "boolean") merged.ml.cacheEnabled = SETTINGS_DEFAULTS.ml.cacheEnabled;
+  const ml = (s.ml && typeof s.ml === "object") ? (s.ml as Record<string, any>) : {};
+  // Classification mode is a single 3-way choice. Accept an explicit new value,
+  // else migrate the legacy { enabled, mode: always|fallback } pair.
+  const MODES = ["heuristic", "ml", "hybrid"] as const;
+  if (typeof ml.mode === "string" && (MODES as readonly string[]).includes(ml.mode)) {
+    merged.ml.mode = ml.mode as (typeof MODES)[number];
+  } else if (ml.enabled === false) {
+    merged.ml.mode = "heuristic";
+  } else if (ml.enabled === true && ml.mode === "always") {
+    merged.ml.mode = "ml";
+  } else if (ml.enabled === true) {
+    merged.ml.mode = "hybrid";
+  }
+  merged.ml.modelId = (typeof ml.modelId === "string" && ml.modelId) ? ml.modelId : SETTINGS_DEFAULTS.ml.modelId;
+  merged.ml.cacheEnabled = typeof ml.cacheEnabled === "boolean" ? ml.cacheEnabled : SETTINGS_DEFAULTS.ml.cacheEnabled;
 
   return merged;
 }

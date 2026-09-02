@@ -289,6 +289,19 @@ test("tooltip hides when the hovered cell is re-rendered", { timeout: 8000 }, as
   assert.equal(tipIn(), false, "tooltip no longer stuck after the hovered cell is replaced");
 });
 
+test("classifyRows degrades to the scorer with a notice when the ML model is missing", { timeout: 8000 }, async () => {
+  const { classifyRows } = await import("../surfaces/viewer/classify.ts");
+  await chrome.storage.local.set({
+    pluginSettings: {
+      defaults: { ticketType: "incident", queues: ["APPSUP_TEST"], teamMembers: ["John Doe"] },
+      ml: { mode: "ml", modelId: "mobilebert", cacheEnabled: true }
+    }
+  });
+  const run = await classifyRows({ onProgress: () => {}, onStats: () => {}, updateRow: () => {} });
+  assert.ok(run.notice && run.notice.includes("not downloaded"), "reports the missing model to the user");
+  assert.equal(typeof run.changed, "number", "the degrade pass still completes");
+});
+
 test("single-cell selection + arrow navigation focuses the selected cell", { timeout: 8000 }, async () => {
   const calState = await import("../surfaces/viewer/calclens-state.ts");
   const selModule = await import("../surfaces/viewer/selection.ts");

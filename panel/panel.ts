@@ -32,8 +32,8 @@ function choiceList(key: string): { value: string | number; label: string }[] {
 }
 const COND_FIELDS: CondFieldDef[] = [
   { key: "assignedTo", label: "Assigned to", field: "assigned_to", type: "ref" },
-  { key: "parentIncident", label: "Parent incident", field: "u_parent_incident1", type: "ref", tables: ["incident"] },
-  { key: "state", label: "State", field: "state", type: "choice", choicesKey: "states" },
+  { key: "parentIncident", label: "Parent incident", field: "parent_incident", type: "ref", tables: ["incident"] },
+  { key: "state", label: "State", field: "state", type: "choice", choicesKey: "states", fieldByTable: { problem: "problem_state" } },
   { key: "priority", label: "Priority", field: "priority", type: "choice", choicesKey: "priorities" },
   { key: "incidentState", label: "Incident state", field: "incident_state", type: "choice", choicesKey: "incidentStates", tables: ["incident"] },
   { key: "group", label: "Group", field: "assignment_group", type: "ref" },

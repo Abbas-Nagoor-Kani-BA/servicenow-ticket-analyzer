@@ -1,6 +1,6 @@
 import { Component, el } from "./component.ts";
 import type { ComponentProps } from "./component.ts";
-import { cellShort } from "../lib/markup.ts";
+import { cellShort, placePopupNear } from "../lib/markup.ts";
 import { setTip } from "../lib/tooltip.ts";
 import { buildReport } from "../core/report.ts";
 import { computeDurations } from "../core/durations.ts";
@@ -39,6 +39,11 @@ export type DataGridDeps = {
   /** Option list for a cell, or null when the column is free text. */
   columnOptions: (key: string, row: GridRow) => string[] | null;
   onSort: (key: string) => void;
+  /** Menu sort items request an explicit direction (header click still toggles
+   *  via onSort). */
+  onSortExplicit: (key: string, dir: number) => void;
+  /** The header kebab menu's "Hide column" item. The viewer decides persistence. */
+  onHideColumn: (key: string) => void;
   onWidthsChange: (widths: Record<string, number>) => void;
   /** Runs after the rows are in the DOM, e.g. to restore the selection. */
   afterRender: () => void;
@@ -62,6 +67,19 @@ const MIN_COL_W = 40;
  * mid-drag.
  */
 let resizeState: { key: string; colEl: HTMLElement; startX: number; startW: number } | null = null;
+
+/** The currently open header kebab menu, and which column opened it. Module-level
+ *  (like resizeState): the popover lives on document.body, outside the grid
+ *  table, so keeping it out of component state avoids re-parenting it on every
+ *  render. */
+let thMenuEl: HTMLElement | null = null;
+let thMenuKey: string | null = null;
+
+function closeThMenu(): void {
+  if (thMenuEl && thMenuEl.parentNode) thMenuEl.parentNode.removeChild(thMenuEl);
+  thMenuEl = null;
+  thMenuKey = null;
+}
 
 /**
  * The viewer's ticket table: header, rows and footer.
@@ -87,6 +105,14 @@ export class DataGrid extends Component<DataGridState, ComponentProps, DataGridD
     this.refs.table = this.deps.table;
     this.refs.count = this.deps.count;
     this.refs.slaBar = this.deps.slaBar;
+
+    // Single document-level dismissal for the transient header kebab menu.
+    document.addEventListener("pointerdown", (e) => {
+      if (thMenuEl && !thMenuEl.contains(e.target as Node)) closeThMenu();
+    });
+    document.addEventListener("keydown", (e) => {
+      if ((e as KeyboardEvent).key === "Escape") closeThMenu();
+    });
   }
 
   protected patch(next: DataGridState, prev: DataGridState | null): void {
@@ -204,6 +230,39 @@ export class DataGrid extends Component<DataGridState, ComponentProps, DataGridD
     return Number.isFinite(w) && w > 0 ? w : defaultW || 170;
   }
 
+  /** Opens (or toggles) the per-column kebab menu: sort and hide actions. */
+  protected toggleThMenu(key: string, anchor: HTMLElement): void {
+    if (thMenuEl && thMenuKey === key) { closeThMenu(); return; }
+    closeThMenu();
+
+    const state = this.getState();
+
+    const pop = document.createElement("div");
+    pop.className = "thMenuPop";
+    const items: Array<[string, string, boolean, () => void]> = [
+      ["thMenuSortAsc", "Sort A → Z", state.sortKey === key && state.sortDir === 1, () => this.deps.onSortExplicit(key, 1)],
+      ["thMenuSortDesc", "Sort Z → A", state.sortKey === key && state.sortDir === -1, () => this.deps.onSortExplicit(key, -1)]
+    ];
+    for (const [cls, label, active, run] of items) {
+      const b = el("button", cls + (active ? " active" : ""));
+      b.textContent = label;
+      b.addEventListener("click", (e) => { e.stopPropagation(); closeThMenu(); run(); });
+      pop.appendChild(b);
+    }
+    const sep = document.createElement("div");
+    sep.className = "thMenuSep";
+    pop.appendChild(sep);
+    const hide = el("button", "thMenuHide");
+    hide.textContent = "Hide column";
+    hide.addEventListener("click", (e) => { e.stopPropagation(); closeThMenu(); this.deps.onHideColumn(key); });
+    pop.appendChild(hide);
+
+    document.body.appendChild(pop);
+    thMenuEl = pop;
+    thMenuKey = key;
+    placePopupNear(pop, anchor.getBoundingClientRect() as unknown as { left: number; top: number; bottom: number; width: number }, 150);
+  }
+
   protected buildHead(state: DataGridState): void {
     const table = this.refs.table;
 
@@ -230,6 +289,15 @@ export class DataGrid extends Component<DataGridState, ComponentProps, DataGridD
     state.cols.forEach(([key, label], i) => {
       const th = document.createElement("th");
       th.textContent = label;
+
+      const menuBtn = el("button", "thMenu");
+      menuBtn.type = "button";
+      menuBtn.addEventListener("pointerdown", (e) => { e.stopPropagation(); });
+      menuBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        this.toggleThMenu(key, menuBtn);
+      });
+      th.appendChild(menuBtn);
 
       const handle = el("span", "colResize");
       handle.addEventListener("pointerdown", (e) => {

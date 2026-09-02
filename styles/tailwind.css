@@ -340,6 +340,48 @@
   th .colResize:hover::after, th .colResize.active::after { @apply bg-pink w-0.5 right-0.5; }
   th .colResize:hover, th .colResize.active { background: rgba(137, 180, 250, 0.14); }
 
+  /* Per-column kebab menu button, revealed on header hover. */
+  #tbl thead th .thMenu {
+    @apply absolute right-[13px] top-1/2 h-4 w-4 -translate-y-1/2 rounded text-[13px] leading-none text-muted cursor-pointer select-none;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: 0;
+    padding: 0;
+  }
+  #tbl thead th .thMenu::after { content: "⋮"; }
+  #tbl thead th:hover .thMenu, #tbl thead th .thMenu.on { display: inline-flex; }
+  #tbl thead th .thMenu:hover { color: var(--color-accent); }
+
+  /* Header kebab popover (sort + pin). Anchored + clamped by placePopupNear. */
+  .thMenuPop {
+    position: fixed;
+    z-index: 999;
+    min-width: 140px;
+    background: var(--color-card);
+    border: 1px solid var(--color-line);
+    border-radius: 6px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    padding: 4px;
+  }
+  .thMenuPop button {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 5px 8px;
+    border: 0;
+    background: transparent;
+    color: var(--color-text);
+    font-size: 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .thMenuPop button:hover { background: rgba(137, 180, 250, 0.14); }
+  .thMenuPop button.active, .thMenuPop button.on { color: var(--color-accent); }
+  .thMenuSep { height: 1px; background: var(--color-line); margin: 4px; }
+
   td.num { @apply font-mono text-accent; }
   td.time, td.inst { @apply font-mono text-[12px] text-teal; }
   td.dur { @apply font-mono text-[12px] text-mauve; }
@@ -606,7 +648,13 @@
   .icon-btn {
     @apply inline-flex items-center justify-center w-[30px] h-[30px] rounded text-dim hover:text-text hover:bg-line flex-shrink-0;
   }
-  .icon-btn .icon-btn-svg { @apply w-[16px] h-[16px]; }
+  .icon-btn .icon-btn-svg { @apply w-[16px] h-[16px] flex-shrink-0; }
+
+  /* Icon that sits before a labeled button's text. */
+  .btn .btn-icn { @apply inline-block w-[15px] h-[15px] -mt-px flex-shrink-0; margin-right: 6px; }
+
+  /* Tab glyph replaced by a Lucide icon. */
+  #tabs button.tab svg.g { width: 13px; height: 13px; vertical-align: -2px; }
 
   /* Drawer inline icon sizing. */
   .calclens-badge .cb-badge-icn { @apply inline-block w-[12px] h-[12px] align-[-1px]; }
@@ -659,6 +707,21 @@
   .calclens-tl-desc-value { @apply text-text; }
   .calclens-tl-arrow { @apply mx-1.5 text-accent; }
   .calclens-tl-row.selected .calclens-tl-time { @apply text-accent; }
+
+  /* Marked key-moment rows (static columns): a highlight plus label·time chips. */
+  .calclens-tl-row.marked .calclens-tl-time { @apply text-accent font-bold; }
+  .calclens-tl-row.marked .calclens-tl-icn { @apply bg-peach text-card2; }
+  .calclens-tl-marks { @apply flex flex-wrap gap-1 mt-1; }
+  .calclens-tl-mark {
+    @apply inline-flex items-center gap-1 rounded-full bg-accent/15 text-accent px-2 py-0.5 text-[10.5px] font-semibold whitespace-nowrap;
+  }
+
+  /* Static-column change counts (no. of assignees / states / groups). */
+  .calclens-counts { @apply flex flex-wrap gap-1.5 mt-1.5 mb-1; }
+  .calclens-count {
+    @apply inline-flex items-center gap-1 rounded-md bg-line2/60 px-2 py-0.5 text-[11px] text-text;
+  }
+  .calclens-count b { @apply text-accent font-semibold; }
 
   /* Drawer edit controls for the derivation columns. */
   .calclens-edit { @apply mt-3 border-t border-line pt-2.5; }

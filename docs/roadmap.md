@@ -485,7 +485,7 @@ call in `worker/ml-classify.ts` and re-measure confidence.
 
 ### ML-c. Consider per-field confidence floors / show-both behavior
 `worker/ml-classify.ts` `pickBetter` keeps ML only when it strictly beats the
-deterministic score, and "always" mode slides ML as the authority. Decide the
+deterministic score, and "ml" mode slides ML as the authority. Decide the
 minimum confidence to accept (or to show a low-confidence "verify" cue) and
 whether to surface the deterministic candidate alongside the ML one.
 

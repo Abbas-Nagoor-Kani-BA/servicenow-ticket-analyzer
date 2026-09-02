@@ -43,8 +43,7 @@ function collect(): SettingsDraft {
       maxTicketsPerPull: $("maxTicketsPerPull").value
     },
     ml: {
-      enabled: $("mlEnabled").checked,
-      mode: $("mlMode").value === "always" ? "always" : "fallback",
+      mode: $("mlMode").value === "ml" ? "ml" : $("mlMode").value === "heuristic" ? "heuristic" : "hybrid",
       modelId: $("mlModel").value || ML_MODEL_CATALOG[0].id,
       cacheEnabled: $("mlCacheEnabled").checked
     }
@@ -61,7 +60,6 @@ function fill(s: unknown): void {
   $("debugResponses").checked = merged.params.debugResponses;
   $("cacheTtlMinutes").value = merged.params.cacheTtlMinutes;
   $("maxTicketsPerPull").value = merged.params.maxTicketsPerPull;
-  $("mlEnabled").checked = merged.ml.enabled;
   $("mlMode").value = merged.ml.mode;
   $("mlCacheEnabled").checked = merged.ml.cacheEnabled;
   if (ML_MODEL_CATALOG.some((m) => m.id === merged.ml.modelId)) $("mlModel").value = merged.ml.modelId;
@@ -154,7 +152,7 @@ $("mlDownloadBtn").addEventListener("click", async () => {
 // The ML toggle and mode persist immediately, so the Data View picks them up
 // without requiring a full Save (which many users never press after toggling a
 // checkbox).
-for (const id of ["mlEnabled", "mlMode", "mlCacheEnabled"]) {
+for (const id of ["mlMode", "mlCacheEnabled"]) {
   $(id).addEventListener("change", () => {
     save().catch((e) => showToast((e as Error).message, "error"));
   });

@@ -84,6 +84,29 @@ test("normaliseSettings defaults cacheEnabled to true and rejects junk", () => {
   assert.equal(normaliseSettings({ ml: { cacheEnabled: "yes" } }).ml.cacheEnabled, true);
 });
 
+test("normaliseSettings: classification mode defaults to hybrid", () => {
+  assert.equal(normaliseSettings(null).ml.mode, "hybrid");
+  assert.equal(normaliseSettings({ ml: {} }).ml.mode, "hybrid");
+});
+
+test("normaliseSettings: an explicit 3-way mode is accepted", () => {
+  assert.equal(normaliseSettings({ ml: { mode: "heuristic" } }).ml.mode, "heuristic");
+  assert.equal(normaliseSettings({ ml: { mode: "ml" } }).ml.mode, "ml");
+  assert.equal(normaliseSettings({ ml: { mode: "hybrid" } }).ml.mode, "hybrid");
+  assert.equal(normaliseSettings({ ml: { mode: "garbage" } }).ml.mode, "hybrid");
+});
+
+test("normaliseSettings migrates the legacy enabled/mode pair", () => {
+  assert.equal(normaliseSettings({ ml: { enabled: false } }).ml.mode, "heuristic");
+  assert.equal(normaliseSettings({ ml: { enabled: true, mode: "always" } }).ml.mode, "ml");
+  assert.equal(normaliseSettings({ ml: { enabled: true, mode: "fallback" } }).ml.mode, "hybrid");
+});
+
+test("normaliseSettings drops the legacy enabled flag from the output", () => {
+  const out = normaliseSettings({ ml: { enabled: true, mode: "fallback" } });
+  assert.ok(!("enabled" in out.ml), "enabled no longer part of the settings shape");
+});
+
 test("normaliseSettings does not mutate the defaults object", () => {
   normaliseSettings({ instanceUrl: "https://x", params: { cacheTtlMinutes: 60 } });
   assert.equal(SETTINGS_DEFAULTS.params.cacheTtlMinutes, 15);

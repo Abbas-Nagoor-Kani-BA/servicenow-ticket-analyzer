@@ -40,10 +40,12 @@ const baseRow = {
   resumeSource: "In Progress",
   onHoldCount: 1,
   activity: [
+    { f: "state", o: "1", n: "1", atEpoch: at("2026-01-07T09:00:00.000Z") },
     { f: "assignment_group", o: "Service Desk", n: "Service Desk", atEpoch: at("2026-01-07T09:15:00.000Z") },
     { f: "assigned_to", o: "", n: "Jasmine Lee", atEpoch: at("2026-01-07T09:35:00.000Z") },
     { f: "state", o: "2", n: "3", atEpoch: at("2026-01-07T10:00:00.000Z") },
-    { f: "state", o: "3", n: "2", atEpoch: at("2026-01-07T11:30:00.000Z") }
+    { f: "state", o: "3", n: "2", atEpoch: at("2026-01-07T11:30:00.000Z") },
+    { f: "state", o: "7", n: "7", atEpoch: at("2026-01-07T12:00:00.000Z") }
   ]
 };
 baseRow.closeNotes = "Root cause: Payment Gateway Timeout after network issue";
@@ -54,9 +56,22 @@ const fmt = (iso) => {
 };
 
 console.log("== raw column ==");
-const rRaw = explainCell(baseRow, "priority", {});
+const rRaw = explainCell(baseRow, "priority", { fmtInstant: fmt });
 check("kind", rRaw.kind, "raw");
 has("priority raw", rRaw.steps, /copied|not computed/);
+
+console.log("== static column: timeline + markers + counts + digests ==");
+check("raw timeline present", Array.isArray(rRaw.timeline) && rRaw.timeline.length > 0, true);
+check("raw timeline chronological", rRaw.timeline.every((e, i, a) => i === 0 || a[i - 1].atIso <= e.atIso), true);
+const markLabels = rRaw.timeline.flatMap((e) => (e.markers || []).map((m) => m.label)).sort();
+check("raw six key-moment markers", markLabels, ["Ackn", "Assign", "Opened", "Resolved", "Resume", "Suspend"].sort());
+const assignMark = rRaw.timeline.find((e) => (e.markers || []).some((m) => m.label === "Assign"));
+check("assign marker shows display time", assignMark && assignMark.markers.find((m) => m.label === "Assign").time, "07-01-2026 09:15:00");
+check("raw change counts", rRaw.counts, { assignments: 1, states: 4, groups: 1 });
+check("raw SLA digests present", Array.isArray(rRaw.digests) && rRaw.digests.length === 2, true);
+check("raw response digest verdict", typeof rRaw.digests[0].met, "boolean");
+check("raw resolution digest verdict", typeof rRaw.digests[1].met, "boolean");
+
 
 console.log("== timeline: assign ==");
 const rAssign = explainCell(baseRow, "assignTimeUtcIso", { fmtInstant: fmt });

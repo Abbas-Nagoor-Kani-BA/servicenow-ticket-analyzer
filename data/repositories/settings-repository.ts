@@ -10,8 +10,7 @@ export type PluginParams = {
 };
 
 export type PluginMl = {
-  enabled?: boolean;
-  mode?: "always" | "fallback";
+  mode?: "heuristic" | "ml" | "hybrid";
   modelId?: string;
   cacheEnabled?: boolean;
 };

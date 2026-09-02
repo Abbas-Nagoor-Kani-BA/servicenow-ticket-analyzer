@@ -1,15 +1,24 @@
 import { removeValue, saveValue } from "../../lib/storage.ts";
 import { STORAGE } from "../../lib/keys.ts";
 import { showToast } from "../../lib/toast.ts";
+import { iconize } from "../../lib/icons.ts";
 import { setHiddenCols } from "./store.ts";
 import { buildHead, load, render, resetColWidths } from "./grid.ts";
-import { $, COLUMNS, hideStore, setStatus } from "./core.ts";
+import { $, COLUMNS, hideStore, setColumnVisible, setStatus } from "./core.ts";
 
 function updateColsBtn(): void {
-  $("colsBtn").textContent = hideStore().size ? `Columns (${hideStore().size} hidden)` : "Columns";
+  const lbl = $("colsBtn").querySelector(".btn-lbl");
+  const text = hideStore().size ? `Columns (${hideStore().size} hidden)` : "Columns";
+  if (lbl) lbl.textContent = text;
+  else $("colsBtn").textContent = text;
 }
 
 export function initCols(): void {
+  iconize($("colsBtn"), "columns-3");
+  iconize($("clearBtn"), "trash-2");
+  iconize($("showAllCols"), "check-circle-2");
+  iconize($("resetColWidthsBtn"), "rotate-ccw");
+
   $("clearBtn").addEventListener("click", async () => {
     await removeValue(STORAGE.lastData);
     load(null);
@@ -69,19 +78,10 @@ function buildColMenu(): void {
 }
 
 async function toggleCol(key: string, show: boolean): Promise<void> {
-  const hc = hideStore();
-  if (!show && COLUMNS.length - hc.size <= 1) {
+  if (!setColumnVisible(key, show)) {
     setStatus("At least one column must stay visible", true);
     buildColMenu();
     return;
-  }
-  if (show) hc.delete(key);
-  else hc.add(key);
-  setHiddenCols(new Set(hc));
-  try {
-    await saveValue(STORAGE.viewerHiddenCols, [...hc]);
-  } catch (err) {
-    setStatus(`Save failed: ${(err as Error).message}`, true);
   }
   buildHead();
   render();

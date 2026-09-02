@@ -11,6 +11,8 @@ export type CondFieldDef = {
   type: CondFieldType;
   choicesKey?: string;
   tables?: string[];
+  /** Field name override for specific tables (e.g. problem uses problem_state). */
+  fieldByTable?: Record<string, string>;
 };
 
 export type Choice = { value: string | number; label: string };
@@ -93,7 +95,7 @@ export function validateConditions(
     }
     return {
       join: i === 0 ? "AND" : row.join || "AND",
-      field: def.field,
+      field: def.fieldByTable?.[table] ?? def.field,
       oper: row.op,
       value: row.value || "",
       value2: row.value2 || ""

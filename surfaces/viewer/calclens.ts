@@ -13,6 +13,7 @@ import { explainCell } from "../../core/calclens.ts";
 import { CalclensPanel } from "../../components/calclens-panel.ts";
 import { activityPaneEl } from "./activity.ts";
 import { showToast } from "../../lib/toast.ts";
+import { iconize } from "../../lib/icons.ts";
 
 let panel: CalclensPanel;
 
@@ -23,6 +24,7 @@ function colClass(key: string): string {
 export function initCalclens(): void {
   const btn = $("calclensBtn");
   const host = $("calclensPanel");
+  iconize(btn, "info");
 
   panel = new CalclensPanel(host, {}, {
     optionsFor: (key, row) => columnOptionList(key, row),

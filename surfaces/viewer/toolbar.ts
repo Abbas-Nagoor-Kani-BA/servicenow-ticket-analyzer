@@ -13,6 +13,7 @@ import {
   syncSplitRadio, closeConfigDialog, updateCiBtn, updateExportDots, setOnConfigChange
 } from "./config-state.ts";
 import { showToast } from "../../lib/toast.ts";
+import { iconize } from "../../lib/icons.ts";
 import { exportSvc } from "./exporter.ts";
 import { buildMsrTsv } from "./clipboard.ts";
 import { configModal, hideLetterPop, openCiDialog, openMapDialog } from "./dialogs.ts";
@@ -25,6 +26,16 @@ let tplInfo: TplInfo | null = null;
 
 export function initToolbar(): void {
   setOnConfigChange(updateConfigSummary);
+
+  iconize($("exportBtn"), "file-spreadsheet");
+  iconize($("copyMsrBtn"), "copy");
+  iconize($("configExport"), "file-spreadsheet");
+  iconize($("configClose"), "x-circle", { mode: "icon", tip: "Close" });
+  iconize($("configCancel"), "x-circle", { mode: "icon", tip: "Cancel" });
+  iconize($("cfgTplBtn"), "file-text");
+  iconize($("cfgTplClear"), "trash-2");
+  iconize($("cfgCiBtn"), "building-2");
+  iconize($("cfgMapBtn"), "tag");
 
   $("radSingle").addEventListener("change", async () => {
     if (!$("radSingle").checked || !getCiSplit().enabled) return;

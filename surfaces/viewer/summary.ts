@@ -1,5 +1,6 @@
 import { rowOffsetMs } from "../../core/sntime.ts";
 import { pad2 } from "../../lib/format.ts";
+import { icon } from "../../lib/icons.ts";
 import type { SlaSummaryItem } from "../../core/slasummary.ts";
 import { buildSlaSummaryFor } from "./core.ts";
 import type { ViewerRow, ViewerData } from "./core.ts";
@@ -222,6 +223,12 @@ function showSummary(): void {
 }
 
 export function initSummary(): void {
+  // Replace the tab glyph span with a Lucide icon.
+  const ticketsGlyph = $("tabTickets").querySelector(".g");
+  if (ticketsGlyph && ticketsGlyph.parentNode) ticketsGlyph.parentNode.replaceChild(icon("list", "g") as unknown as Node, ticketsGlyph);
+  const summaryGlyph = $("tabSummary").querySelector(".g");
+  if (summaryGlyph && summaryGlyph.parentNode) summaryGlyph.parentNode.replaceChild(icon("chart-line", "g") as unknown as Node, summaryGlyph);
+
   $("tabTickets").addEventListener("click", () => showTickets());
   $("tabSummary").addEventListener("click", () => showSummary());
 

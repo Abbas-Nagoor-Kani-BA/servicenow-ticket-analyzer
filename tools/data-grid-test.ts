@@ -39,6 +39,7 @@ function setup(overrides: Partial<DataGridState> = {}, options: Record<string, u
   let rendered = 0;
   const sorted: string[] = [];
   const widthChanges: Record<string, number>[] = [];
+  const hidden: string[] = [];
 
   const grid = new DataGrid(
     $("wrap"),
@@ -53,6 +54,8 @@ function setup(overrides: Partial<DataGridState> = {}, options: Record<string, u
       fmtInstant: (v, _row) => v || "",
       columnOptions: (_key, _row) => null,
       onSort: (key) => sorted.push(key),
+      onSortExplicit: (key, dir) => sorted.push(`${key}:${dir}`),
+      onHideColumn: (key) => hidden.push(key),
       onWidthsChange: (w) => widthChanges.push(w),
       afterRender: () => rendered++,
       ...(options as object)
@@ -69,7 +72,7 @@ function setup(overrides: Partial<DataGridState> = {}, options: Record<string, u
     ...overrides
   };
 
-  return { grid, state, sorted, widthChanges, rendered: () => rendered, $ };
+  return { grid, state, sorted, widthChanges, hidden, rendered: () => rendered, $ };
 }
 
 test("header renders one th per column with its label", () => {
@@ -375,3 +378,38 @@ test("updateRows honours the attention resolver", () => {
   assert.equal(marked.length, 1, "hinted cell becomes attention-flagged after updateRows");
   assert.equal(marked[0].closest("tr")?.getAttribute("data-sys-id"), "a");
 });
+
+test("kebab menu hides a column and sorts explicitly", () => {
+  const { grid, state, sorted, hidden } = setup({
+    rows: [{ sysId: "a", number: "INC1", state: "Closed" }],
+    total: 1,
+    sortKey: "number",
+    sortDir: 1
+  });
+  grid.render(state);
+
+  const th = [...win.document.querySelectorAll("#tbl thead th")].find(
+    (n) => n.textContent === "Number"
+  ) as HTMLElement;
+  const kebab = th.querySelector(".thMenu") as HTMLElement;
+  assert.ok(kebab, "every header cell has a kebab button");
+  kebab.dispatchEvent(new win.MouseEvent("click", { bubbles: true }));
+
+  const pop = win.document.querySelector(".thMenuPop") as HTMLElement;
+  assert.ok(pop, "kebab opens a popover");
+  const hideBtn = pop.querySelector("button.thMenuHide") as HTMLElement;
+  assert.equal(hideBtn.textContent, "Hide column");
+
+  hideBtn.dispatchEvent(new win.MouseEvent("click", { bubbles: true }));
+  assert.deepEqual(hidden, ["number"]);
+  assert.ok(!win.document.querySelector(".thMenuPop"), "action closes the popover");
+
+  // Sort A→Z is still available from the menu.
+  kebab.dispatchEvent(new win.MouseEvent("click", { bubbles: true }));
+  const sortAsc = win.document.querySelector("button.thMenuSortAsc") as HTMLElement;
+  assert.ok(sortAsc, "sort item remains in the kebab menu");
+  sortAsc.dispatchEvent(new win.MouseEvent("click", { bubbles: true }));
+  assert.deepEqual(sorted, ["number:1"]);
+});
+
+

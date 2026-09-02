@@ -34,10 +34,10 @@ const { ConditionBuilder, validateConditions, COND_OPS } = await import("../comp
 
 const FIELDS = [
   { key: "assignedTo", label: "Assigned to", field: "assigned_to", type: "ref" },
-  { key: "state", label: "State", field: "state", type: "choice", choicesKey: "states" },
+  { key: "state", label: "State", field: "state", type: "choice", choicesKey: "states", fieldByTable: { problem: "problem_state" } },
   { key: "number", label: "Number", field: "number", type: "string" },
   { key: "createdOn", label: "Created", field: "sys_created_on", type: "date" },
-  { key: "parentIncident", label: "Parent incident", field: "u_parent_incident1", type: "ref", tables: ["incident"] }
+  { key: "parentIncident", label: "Parent incident", field: "parent_incident", type: "ref", tables: ["incident"] }
 ];
 
 const $ = (id) => {
@@ -223,13 +223,25 @@ test("switching table drops fields that do not exist on it", () => {
   const fieldSelect = $("condRows").querySelector(".cfield");
   fieldSelect.value = "parentIncident";
   fieldSelect.dispatchEvent(new win.Event("change"));
-  assert.equal(builder.conditions()[0].field, "u_parent_incident1");
+  assert.equal(builder.conditions()[0].field, "parent_incident");
 
   builder.setTable("problem");
 
   const options = [...$("condRows").querySelectorAll(".cfield option")].map((o) => o.value);
   assert.equal(options.includes("parentIncident"), false, "incident-only field is gone");
-  assert.notEqual(builder.conditions()[0].field, "u_parent_incident1", "row was coerced");
+  assert.notEqual(builder.conditions()[0].field, "parent_incident", "row was coerced");
+});
+
+test("state field resolves per-table (problem_state on problem)", () => {
+  const builder = makeBuilder("problem");
+  builder.addRow();
+  const fieldSelect = $("condRows").querySelector(".cfield");
+  fieldSelect.value = "state";
+  fieldSelect.dispatchEvent(new win.Event("change"));
+  assert.equal(builder.conditions()[0].field, "problem_state", "problem uses problem_state");
+
+  builder.setTable("incident");
+  assert.equal(builder.conditions()[0].field, "state", "incident uses state");
 });
 
 test("conditions() reports the offending row in user-facing terms", () => {
