@@ -180,7 +180,7 @@ function selectedTd(): HTMLElement | null {
 }
 
 function anyOverlayOpen(): boolean {
-  return ["colMenu", "configModal", "mapModal", "ciModal", "letterPop"]
+  return ["colMenu", "calclensMenu", "configModal", "mapModal", "ciModal", "letterPop"]
     .some(id => { const n = $(id); return n && !n.classList.contains("hidden"); }) ||
     !!document.querySelector(".msrPick");
 }

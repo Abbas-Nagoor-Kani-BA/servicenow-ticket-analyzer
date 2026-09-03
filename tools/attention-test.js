@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { computeAttention } from "../core/attention.ts";
+import { computeAttention, ATTENTION_RULES } from "../core/attention.ts";
 
 const MEMBERS = ["John Doe", "Jane Smith", "Alice Wu"];
 const GROUPS = ["APPSUP_TEST", "PAYMENTS"];
@@ -212,4 +212,23 @@ test("thresholds can be overridden", () => {
     thresholds: { maxOnHoldCount: 5 }
   });
   assert.ok(!ids(flags).includes("repeatedOnHold"));
+});
+
+test("ATTENTION_RULES lists all nine rules with unique ids", () => {
+  assert.equal(ATTENTION_RULES.length, 9);
+  const seen = new Set(ATTENTION_RULES.map((r) => r.id));
+  assert.equal(seen.size, 9, "rule ids are unique");
+  for (const r of ATTENTION_RULES) {
+    assert.equal(typeof r.id, "string");
+    assert.ok(r.label && typeof r.label === "string", "each rule has a human label");
+  }
+});
+
+test("ATTENTION_RULES covers every rule id the engine can produce", () => {
+  const engineIds = [
+    "multiAssignWithinTeam", "multiGroupWithinTeam", "reopened", "slaBreach",
+    "longOnHold", "repeatedOnHold", "slowPickup", "emptyPlan", "lowConfidenceParse"
+  ].sort();
+  const listIds = ATTENTION_RULES.map((r) => r.id).sort();
+  assert.deepEqual(listIds, engineIds);
 });

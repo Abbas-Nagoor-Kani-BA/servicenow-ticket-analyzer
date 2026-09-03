@@ -186,6 +186,8 @@ Regression suites (`npm test` runs all of them):
 | `extract-service-test.js`, `report-service-test.js`, `export-service-test.js` | the viewer-bound services (fmt→SLA coupling, export building) |
 | `template-export-test.js` | template XML patching / sheet lookup |
 | `attention-test.js`, `calclens-test.js` | Calclens "needs attention" rule engine |
+| `calclens-highlights-test.ts` | Calclens highlight-toggle owner (persisted enabled set) |
+| `calclens-highlights-menu-test.ts` | Calclens highlight-toggle dropdown UI (checkbox list, Show/Hide all, button indicator) |
 | `msrchoices-test.js`, `msrcategorize-test.js` | MSR choice maps and categorization |
 | `classifier-service-test.js`, `classification-cache-test.js`, `classify-cache-test.js`, `classify-fallback-test.js`, `ml-model-repository-test.js` | ML classification services, cache, and model repository |
 | `remote-bridge-test.ts` | the remote bridge |

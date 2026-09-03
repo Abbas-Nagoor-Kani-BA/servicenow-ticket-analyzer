@@ -10,6 +10,14 @@ import { findRowBySysId, fmtInstant, parseLocalInput, render, reportCellFocus, s
 import { setSelPoint } from "./selection.ts";
 import { getMsrLists } from "./store.ts";
 import { getCalclensMode, setCalclensMode } from "./calclens-state.ts";
+import {
+  disabledCount,
+  isHighlightEnabled,
+  loadHighlightPrefs,
+  setAll,
+  setHighlightEnabled
+} from "./calclens-highlights.ts";
+import { ATTENTION_RULES } from "../../core/attention.ts";
 import { explainCell } from "../../core/calclens.ts";
 import { CalclensPanel } from "../../components/calclens-panel.ts";
 import { activityPaneEl } from "./activity.ts";
@@ -75,4 +83,77 @@ export function initCalclens(): void {
 
   // Reflect the persisted mode on boot.
   btn.classList.toggle("calclens-on", getCalclensMode());
+
+  initCalclensHighlights();
+}
+
+/** Update the Calclens button's label to show how many highlights are hidden. */
+function updateCalclensBtn(): void {
+  const btn = $("calclensBtn");
+  const hidden = disabledCount();
+  const text = hidden ? `Calclens (${hidden} hidden)` : "Calclens";
+  const lbl = btn.querySelector(".btn-lbl");
+  if (lbl) lbl.textContent = text;
+  else btn.textContent = text;
+}
+
+/** Rebuilds the highlight-toggle checkbox list from the canonical rules. */
+function buildCalclensHlList(): void {
+  const list = $("calclensHlList");
+  list.innerHTML = "";
+  for (const { id, label } of ATTENTION_RULES) {
+    const lab = document.createElement("label");
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.checked = isHighlightEnabled(id);
+    cb.addEventListener("change", () => {
+      setHighlightEnabled(id, cb.checked);
+      render();
+      updateCalclensBtn();
+    });
+    const span = document.createElement("span");
+    span.textContent = label;
+    lab.append(cb, span);
+    list.appendChild(lab);
+  }
+}
+
+/** Wires the highlight-toggle dropdown next to the Calclens button. The menu is
+ *  always openable, letting users pre-configure before turning Calclens on. */
+function initCalclensHighlights(): void {
+  const menuBtn = $("calclensMenuBtn");
+  const menu = $("calclensMenu");
+
+  updateCalclensBtn();
+  // The persisted prefs load asynchronously (see grid.ts initGrid); refresh the
+  // button's hidden-count once they settle so the indicator matches storage.
+  loadHighlightPrefs().then(() => updateCalclensBtn()).catch(() => undefined);
+
+  menuBtn.addEventListener("click", (e: Event) => {
+    e.stopPropagation();
+    if (menu.classList.contains("hidden")) buildCalclensHlList();
+    menu.classList.toggle("hidden");
+  });
+
+  // Keep clicks inside the menu from bubbling to the document dismissal below.
+  menu.addEventListener("click", (e: Event) => e.stopPropagation());
+
+  $("calclensShowAll").addEventListener("click", () => {
+    setAll(true);
+    buildCalclensHlList();
+    render();
+    updateCalclensBtn();
+  });
+  $("calclensHideAll").addEventListener("click", () => {
+    setAll(false);
+    buildCalclensHlList();
+    render();
+    updateCalclensBtn();
+  });
+
+  document.addEventListener("click", (e: Event) => {
+    if (!menu.classList.contains("hidden") && !menu.contains(e.target as Node) && e.target !== menuBtn) {
+      menu.classList.add("hidden");
+    }
+  });
 }

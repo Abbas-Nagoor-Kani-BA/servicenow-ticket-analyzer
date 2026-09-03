@@ -142,6 +142,12 @@ const SKELETON = `
       <div id="colList"></div>
     </div>
     <button id="calclensBtn" class="btn">Calclens</button>
+    <button id="calclensMenuBtn" class="btn">▾</button>
+    <div id="calclensMenu" class="hidden">
+      <div class="menuHead"><span>Highlights</span><button id="calclensShowAll">Show all</button></div>
+      <div class="menuHead sub"><button id="calclensHideAll">Hide all</button></div>
+      <div id="calclensHlList"></div>
+    </div>
     <button id="clearBtn">Clear</button>
   </div>
 </div>

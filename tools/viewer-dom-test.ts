@@ -303,6 +303,36 @@ test("Calclens ON flags attention cells with a marker and tooltip", { timeout: 8
   assert.equal(document.querySelector("#tbl tbody td.attention-mark"), null, "markers cleared when Calclens is toggled off");
 });
 
+test("disabling a highlight suppresses the mark but keeps the tooltip", { timeout: 8000 }, async () => {
+  const calState = await import("../surfaces/viewer/calclens-state.ts");
+  const hl = await import("../surfaces/viewer/calclens-highlights.ts");
+  const row = grid.currentRows()[0];
+  row.rootCause = "";
+  row.solutionType = "";
+
+  calState.setCalclensMode(true);
+  hl.setHighlightEnabled("emptyPlan", false);
+  grid.render();
+  await flush();
+
+  const flagged = document.querySelector(`#tbl tbody tr[data-sys-id="aaa"]`);
+  assert.equal(flagged.querySelector("td.attention-mark"), null, "disabled highlight paints no mark");
+  const withTip = [...flagged.querySelectorAll("td")].filter((td) =>
+    (td.getAttribute("data-tip") ?? "").includes("Missing plan data"));
+  assert.ok(withTip.length >= 2, "tooltip still lists the reason on the hinted cells");
+
+  // Re-enable through the owner: the mark returns.
+  hl.setHighlightEnabled("emptyPlan", true);
+  grid.render();
+  await flush();
+  assert.ok(document.querySelectorAll(`#tbl tbody tr[data-sys-id="aaa"] td.attention-mark`).length >= 2,
+    "re-enabling restores the mark");
+
+  calState.setCalclensMode(false);
+  grid.render();
+  await flush();
+});
+
 test("tooltip hides when the hovered cell is re-rendered", { timeout: 8000 }, async () => {
   const cell = document.querySelector(`#tbl tbody tr[data-sys-id="aaa"] td`);
   assert.ok(cell, "a body cell exists to hover");

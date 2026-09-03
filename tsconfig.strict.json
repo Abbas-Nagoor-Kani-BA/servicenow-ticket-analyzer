@@ -69,6 +69,7 @@
     "surfaces/viewer/summary.ts",
     "surfaces/viewer/ticketpop.ts",
     "surfaces/viewer/toolbar.ts",
+    "surfaces/viewer/calclens-highlights.ts",
     "components/chip-list.ts",
     "surfaces/settings/index.ts",
     "services/settings-service.ts",

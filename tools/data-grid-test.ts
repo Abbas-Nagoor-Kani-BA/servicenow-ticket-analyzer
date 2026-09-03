@@ -379,6 +379,52 @@ test("updateRows honours the attention resolver", () => {
   assert.equal(marked[0].closest("tr")?.getAttribute("data-sys-id"), "a");
 });
 
+test("enabledAttention suppresses the highlight but keeps the tooltip", () => {
+  const attention = (row: Record<string, any>) =>
+    String(row.sysId) === "a"
+      ? [{ id: "emptyPlan" as const, label: "Missing plan data", detail: "No root cause or solution type", columnHint: "state" }]
+      : [];
+
+  const { grid, state } = setup({
+    rows: [{ sysId: "a", number: "INC0001", state: "Closed", rootCause: "", solutionType: "" }],
+    total: 1,
+    attention,
+    enabledAttention: () => false
+  });
+  grid.render(state);
+
+  const flagged = win.document.querySelector('#tbl tbody tr[data-sys-id="a"]') as HTMLElement;
+  assert.equal(flagged.querySelector("td.attention-mark"), null, "disabled rule paints no highlight");
+  const stateTd = [...flagged.querySelectorAll("td")].find((td) =>
+    (td.getAttribute("data-tip") ?? "").includes("Missing plan data"));
+  assert.ok(stateTd, "tooltip still lists the attention reason when the highlight is disabled");
+
+  // Flip the predicate on: the mark returns.
+  state.enabledAttention = () => true;
+  grid.render(state);
+  const reflagged = win.document.querySelector('#tbl tbody tr[data-sys-id="a"]') as HTMLElement;
+  assert.equal(reflagged.querySelectorAll("td.attention-mark").length, 1, "enabled rule paints the highlight");
+});
+
+test("enabledAttention is honoured through updateRows", () => {
+  const attention = (row: Record<string, any>) =>
+    String(row.sysId) === "a"
+      ? [{ id: "emptyPlan" as const, label: "Missing plan data", detail: "No root cause", columnHint: "state" }]
+      : [];
+
+  const { grid, state } = setup({
+    rows: [{ sysId: "a", number: "INC0001", state: "Closed", rootCause: "", solutionType: "" }],
+    total: 1,
+    attention,
+    enabledAttention: (id) => id !== "emptyPlan"
+  });
+  grid.render(state);
+  assert.equal(win.document.querySelector("td.attention-mark"), null, "disabled rule not marked on first render");
+
+  grid.updateRows(["a"]);
+  assert.equal(win.document.querySelector("td.attention-mark"), null, "disabled rule stays unmarked after updateRows");
+});
+
 test("kebab menu hides a column and sorts explicitly", () => {
   const { grid, state, sorted, hidden } = setup({
     rows: [{ sysId: "a", number: "INC1", state: "Closed" }],

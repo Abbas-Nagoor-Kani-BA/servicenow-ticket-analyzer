@@ -19,4 +19,7 @@
   work-notes text export (Phase 11c), additional tables (RITM, change)
   (Phase 11d).
 - Shipped: derived duration columns (Phase 11b, `core/durations.ts`); Calclens
-  "needs attention" row flags (Phase 11e, `core/attention.ts`).
+  "needs attention" row flags (Phase 11e, `core/attention.ts`), with a
+  per-rule highlight-toggle dropdown next to the Calclens button (persisted
+  enabled set in `surfaces/viewer/calclens-highlights.ts`; tooltips always list
+  every flag, the toggles gate only the cell highlight).

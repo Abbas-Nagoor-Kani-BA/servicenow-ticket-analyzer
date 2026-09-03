@@ -534,6 +534,18 @@
   #colList label { @apply flex items-center gap-2 px-1 py-0.75 cursor-pointer whitespace-nowrap rounded hover:bg-line; }
   #colList input { @apply accent-accent; }
 
+  #calclensMenuBtn { @apply px-1.5; }
+  #calclensMenu {
+    @apply absolute top-[calc(100%+6px)] right-2.5 z-[5] bg-card border border-line rounded-lg p-2 min-w-[250px] max-h-[70vh] overflow-auto shadow-[0_8px_24px_rgba(17,17,27,.55)];
+  }
+  #calclensMenu .menuHead { @apply flex justify-between items-center gap-3 pb-1.5 mb-1 border-b border-line text-[11.5px] uppercase tracking-wide text-muted; }
+  #calclensMenu .menuHead button { @apply text-[11px] px-2 py-0.5 font-normal; }
+  #calclensMenu .menuHead.sub { @apply justify-end border-0 pb-0 mb-0; }
+  #calclensMenu .menuHead.sub button { @apply normal-case tracking-normal text-accent border border-line rounded; }
+  #calclensHlList { @apply flex flex-col; }
+  #calclensHlList label { @apply flex items-center gap-2 px-1 py-0.75 cursor-pointer whitespace-nowrap rounded hover:bg-line; }
+  #calclensHlList input { @apply accent-accent; }
+
   #mapModal, #ciModal, #configModal { @apply fixed inset-0 z-[18] bg-card2/60 flex items-center justify-center; }
   #mapCard, #ciCard { @apply flex flex-col gap-2 bg-card border border-line rounded-xl p-3.5; }
   #configCard { @apply flex flex-col gap-2.5 bg-card border border-line rounded-xl p-3.5 max-h-[84vh]; }

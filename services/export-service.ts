@@ -214,7 +214,7 @@ export class ExportService {
       { letter: "K", get: r => msrDispSerial(r.createdOn) },
       { letter: "L", get: r => msrInstSerial(r, "assignTimeUtcIso") },
       { letter: "M", get: r => msrInstSerial(r, "acknTimeUtcIso") },
-      { letter: "N", get: r => msrInstSerial(r, "createdOn") },
+      { letter: "N", get: r => msrDispSerial(r.resolvedAt) },
       { letter: "O", get: r => msrInstSerial(r, "suspendTimeUtcIso") },
       { letter: "P", get: r => msrInstSerial(r, "resumeTimeUtcIso") },
       { letter: "Q", get: r => expStr(r.configItem) },

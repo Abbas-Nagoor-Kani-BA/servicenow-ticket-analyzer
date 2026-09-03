@@ -21,6 +21,26 @@ export type AttentionRuleId =
   | "emptyPlan"
   | "lowConfidenceParse";
 
+/**
+ * Canonical, ordered list of the attention rules with their human labels.
+ *
+ * Pure data (no behavior): the single source of truth shared by the highlight
+ * toggle UI and its persisted defaults. `slowPickup` emits either "Slow pickup"
+ * or "Never acknowledged" as a per-row detail label; here it carries the single
+ * stable label "Slow pickup".
+ */
+export const ATTENTION_RULES: readonly { id: AttentionRuleId; label: string }[] = [
+  { id: "multiAssignWithinTeam", label: "Multiple assignments in team" },
+  { id: "multiGroupWithinTeam", label: "Moved between queues" },
+  { id: "reopened", label: "Reopened" },
+  { id: "slaBreach", label: "SLA breached" },
+  { id: "longOnHold", label: "Long On Hold" },
+  { id: "repeatedOnHold", label: "Held On Hold repeatedly" },
+  { id: "slowPickup", label: "Slow pickup" },
+  { id: "emptyPlan", label: "Missing plan data" },
+  { id: "lowConfidenceParse", label: "Low-confidence parse" }
+];
+
 export type AttentionFlag = {
   /** Stable rule id (used by tests and future filters). */
   id: AttentionRuleId;

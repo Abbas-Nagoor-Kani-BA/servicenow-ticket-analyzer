@@ -18,6 +18,12 @@
     <div class="tbRight">
       <span id="status"></span>
       <button id="calclensBtn" class="btn" data-tip="Calclens — inspect how each value was derived and edit the derivation columns">Calclens</button>
+      <button id="calclensMenuBtn" class="btn" data-tip="Choose which Calclens highlights are shown">▾</button>
+      <div id="calclensMenu" class="hidden">
+        <div class="menuHead"><span>Highlights</span><button id="calclensShowAll" class="btn">Show all</button></div>
+        <div class="menuHead sub"><button id="calclensHideAll" class="btn">Hide all</button></div>
+        <div id="calclensHlList"></div>
+      </div>
       <button id="copyMsrBtn" class="btn" data-tip="Copy the current view as MSR 'BA AO' input columns (A–U) — paste onto rows whose formulas in V–AJ stay intact">Copy for MSR</button>
       <button id="colsBtn" class="btn" data-tip="Choose which columns are shown">Columns</button>
       <div id="colMenu" class="hidden">

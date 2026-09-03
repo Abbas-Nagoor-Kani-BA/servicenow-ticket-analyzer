@@ -19,6 +19,7 @@ import { classifyRows, classificationListsFp, hasValidRootCause, hasValidSolutio
 import type { ClassifyStats } from "./classify.ts";
 import { MlModelStore, modelById, modelByRepoId } from "../../data/ml-model-repository.ts";
 import { getCalclensMode } from "./calclens-state.ts";
+import { isHighlightEnabled, loadHighlightPrefs } from "./calclens-highlights.ts";
 
 const extract = new ExtractService();
 
@@ -120,6 +121,9 @@ function attentionCtx(): { teamMembers: string[]; groupScope: string[] } {
 
 export function initGrid() {
   setRowsProvider(() => currentRows());
+  // Load persisted Calclens highlight toggles, then re-render so any disabled
+  // rule stops painting its mark without waiting for the next state change.
+  loadHighlightPrefs().then(() => render()).catch(() => undefined);
   grid = new DataGrid($("wrap"), {}, {
     table: $("tbl"),
     count: $("count"),
@@ -167,11 +171,13 @@ function gridState(rows: ViewerRow[]): DataGridState {
     colWidths: getColWidths(),
     // Always present so the Component.setState spread ({...prev, ...state})
     // drops the previous resolver when Calclens is turned off.
-    attention: undefined
+    attention: undefined,
+    enabledAttention: undefined
   };
   if (getCalclensMode()) {
     const { teamMembers, groupScope } = attentionCtx();
     state.attention = (row) => computeAttention(row, { teamMembers, groupScope });
+    state.enabledAttention = (id) => isHighlightEnabled(id);
   }
   return state;
 }

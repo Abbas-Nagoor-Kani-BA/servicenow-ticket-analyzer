@@ -4,7 +4,7 @@ import { cellShort, placePopupNear } from "../lib/markup.ts";
 import { setTip } from "../lib/tooltip.ts";
 import { buildReport } from "../core/report.ts";
 import { computeDurations } from "../core/durations.ts";
-import type { AttentionFlag } from "../core/attention.ts";
+import type { AttentionFlag, AttentionRuleId } from "../core/attention.ts";
 import { flagsForColumn } from "../core/attention.ts";
 
 /** [key, label, cell class, default width] — matches COLUMNS in surfaces/viewer/core.ts. */
@@ -25,6 +25,10 @@ export type DataGridState = {
   /** Calclens: flags a row as needing attention; the grid only renders the
    *  result, never computes it. When absent/undefined no rows are flagged. */
   attention?: (row: GridRow) => AttentionFlag[];
+  /** Calclens: gates which attention rules may paint their cell highlight.
+   *  When absent every rule paints. Tooltips always list ALL flags regardless
+   *  of this predicate — it suppresses the visual mark only. */
+  enabledAttention?: (id: AttentionRuleId) => boolean;
 };
 
 export type DataGridDeps = {
@@ -388,7 +392,9 @@ export class DataGrid extends Component<DataGridState, ComponentProps, DataGridD
     const td = document.createElement("td");
     if (cls) td.className = cls;
     const cellFlags = flagsForColumn(flags, key);
-    if (cellFlags.length) td.classList.add("attention-mark");
+    const enabled = this.getState().enabledAttention;
+    const shownFlags = enabled ? cellFlags.filter((f) => enabled(f.id)) : cellFlags;
+    if (shownFlags.length) td.classList.add("attention-mark");
 
     let v: unknown;
     td.classList.add("calclens-cell");

@@ -6,6 +6,7 @@ export const STORAGE = Object.freeze({
   viewerSel: "viewerSel",
   viewerHiddenCols: "viewerHiddenCols",
   viewerColWidths: "viewerColWidths",
+  calclensHighlights: "calclensHighlights",
   exportColMap: "exportColMap",
   ciSplit: "ciSplit",
   snXlsxTemplate: "snXlsxTemplate",
