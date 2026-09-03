@@ -17,6 +17,7 @@ import type { Report } from "./report.ts";
 import { snStateMap } from "./statechoices.ts";
 import { classifyMsr } from "./msrcategorize.ts";
 import { type MsrScore } from "./msrcategorize.ts";
+import { isClassifyEligible } from "./msrchoices.ts";
 
 export type ActivityEv = { f?: string; o?: string; n?: string; atEpoch?: number };
 
@@ -116,6 +117,8 @@ function tableForNumber(number: unknown): string {
   const s = String(number ?? "");
   if (s.startsWith("INC")) return "incident";
   if (s.startsWith("REQ")) return "sc_req_item";
+  if (s.startsWith("SCTASK")) return "sc_task";
+  if (s.startsWith("PRB")) return "problem";
   if (s.startsWith("PTASK")) return "problem";
   return "incident";
 }
@@ -803,6 +806,32 @@ function explainClassification(
   const notes = str(row.closeNotes);
   const labelName = field === "rootCause" ? "root cause" : "solution type";
 
+  // Classification only runs for closed Incident/RFS tickets. For any other row
+  // the classifier is skipped; show whatever value is already present (if any)
+  // but explain that it was not auto-classified here.
+  if (!isClassifyEligible(row)) {
+    const out: Explanation = {
+      kind: "classification",
+      label: key,
+      value: value || EMPTY,
+      summary: `${labelName[0].toUpperCase()}${labelName.slice(1)} is only classified for closed Incident or RFS tickets.`,
+      method: { kind: "manual", label: "Not classified" },
+      inputs: [
+        { label: "Value", value: value || EMPTY },
+        { label: "Ticket", value: dflt(row.number) },
+        { label: "State", value: dflt(row.state) }
+      ],
+      steps: [
+        `This ticket is not a closed Incident or RFS, so the analyzer does not auto-classify its ${labelName}.`,
+        value
+          ? `The value shown (**${dflt(value)}**) was typed, pasted, or carried over from an earlier run \u2014 it is kept as-is.`
+          : "No value is set here."
+      ],
+      warnings: []
+    };
+    return out;
+  }
+
   const lists = field === "rootCause"
     ? (buildRootCauseList(row, ctx))
     : (buildResolutionList(row, ctx));
@@ -920,7 +949,9 @@ function listFor(row: Record<string, any>, kind: "rootCause" | "resolution", ctx
       const rc = (lists as any).rootCause;
       if (rc && typeof rc === "object") {
         const n = String(row.number ?? "");
-        const bucket = n.startsWith("REQ") ? "RFS" : n.startsWith("PTASK") ? "P_Ticket" : "Incident";
+        const bucket = (n.startsWith("REQ") || n.startsWith("SCTASK")) ? "RFS"
+          : (n.startsWith("PRB") || n.startsWith("PTASK")) ? "P_Ticket"
+          : "Incident";
         const arr = (rc as any)[bucket];
         if (Array.isArray(arr) && arr.length) return arr.map(String);
       }
@@ -930,8 +961,8 @@ function listFor(row: Record<string, any>, kind: "rootCause" | "resolution", ctx
     return ["Workaround solution", "Permanent solution", "Verification only", "Not applicable"];
   }
   const n = String(row.number ?? "");
-  if (n.startsWith("REQ")) return RFS_RC;
-  if (n.startsWith("PTASK")) return PTASK_RC;
+  if (n.startsWith("REQ") || n.startsWith("SCTASK")) return RFS_RC;
+  if (n.startsWith("PRB") || n.startsWith("PTASK")) return PTASK_RC;
   return INC_RC;
 }
 

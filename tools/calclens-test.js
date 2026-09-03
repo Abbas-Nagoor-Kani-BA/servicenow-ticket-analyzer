@@ -206,6 +206,25 @@ check("manual method no confidence", rcManual.method.confidence, undefined);
 const rSol = explainCell(baseRow, "solutionType", {});
 check("solutionType kind", rSol.kind, "classification");
 
+console.log("== classification not applicable (non-eligible rows) ==");
+// Problem ticket: never classified, but an existing value is still shown.
+const rcPrb = explainCell({ ...baseRow, number: "PRB0010001", rootCause: "Hardware" }, "rootCause", {});
+check("PRB kind still classification", rcPrb.kind, "classification");
+check("PRB keeps existing value", rcPrb.value, "Hardware");
+check("PRB method is Not classified", rcPrb.method.label, "Not classified");
+has("PRB summary mentions Incident or RFS", [rcPrb.summary], /Incident or RFS/);
+has("PRB step explains skip", rcPrb.steps, /not (a )?closed Incident or RFS/i);
+check("PRB does not claim a note", rcPrb.note, undefined);
+
+// Open incident: eligible type but not closed/resolved -> not classified.
+const solOpen = explainCell({ ...baseRow, state: "In Progress", solutionType: "" }, "solutionType", {});
+check("open INC method is Not classified", solOpen.method.label, "Not classified");
+check("open INC empty value", solOpen.value, "\u2014");
+
+// Closed RFS (SCTASK) IS eligible -> normal derivation path (manual here).
+const rcRfs = explainCell({ ...baseRow, number: "SCTASK0010001", state: "Closed", rootCause: "Network", __rcSource: "" }, "rootCause", {});
+check("closed SCTASK is eligible (not the skip message)", rcRfs.method.label, "Manual");
+
 console.log("== MSR picklist choices ==");
 const msrLists = { subCategory: ["Login", "Performance", "Network", "Storage"], duplicate: ["Yes", "No"] };
 const rSub = explainCell({ ...baseRow, subCategory: "Network" }, "subCategory", { msrLists });

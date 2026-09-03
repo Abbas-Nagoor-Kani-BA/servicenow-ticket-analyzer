@@ -89,6 +89,8 @@ export const DEFAULT_ATTENTION_THRESHOLDS: AttentionThresholds = {
 function tableForNumber(number: unknown): string {
   const s = String(number ?? "");
   if (s.startsWith("REQ")) return "sc_req_item";
+  if (s.startsWith("SCTASK")) return "sc_task";
+  if (s.startsWith("PRB")) return "problem";
   if (s.startsWith("PTASK")) return "problem";
   return "incident";
 }

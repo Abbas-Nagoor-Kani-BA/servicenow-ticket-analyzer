@@ -18,7 +18,9 @@ function deriveType(refNum: string | null | undefined): string {
   const s = String(refNum || "");
   if (s.startsWith("INC")) return "Incident";
   if (s.startsWith("REQ")) return "RFS";
-  if (s.startsWith("PTASK")) return "Problem";
+  if (s.startsWith("SCTASK")) return "RFS";
+  if (s.startsWith("PRB")) return "Problem Record";
+  if (s.startsWith("PTASK")) return "Problem Record";
   return "";
 }
 
@@ -295,13 +297,32 @@ export type Report = {
 
 export type MessageFormatter = (v: string) => string;
 
-export function buildReport(row: WalkedRow, fmt?: MessageFormatter | null, now: Date = new Date()): Report {
+/**
+ * SLA/hours calculations only apply to incidents that have reached a terminal
+ * state. A row is eligible when its number is an incident (INC prefix) and its
+ * state label starts with "close" or "resolv" (case-insensitive) — the same
+ * terminal-state rule used by the grid's breach marker and the reopen logic.
+ * Non-eligible rows (non-incidents, or open/in-progress incidents) get blank
+ * SLA/hours fields.
+ */
+export function isSlaEligible(row: WalkedRow): boolean {
+  const isIncident = String(row.number ?? "").startsWith("INC");
+  const state = String(row.state ?? "").trim().toLowerCase();
+  const terminal = state.startsWith("close") || state.startsWith("resolv");
+  return isIncident && terminal;
+}
+
+export function buildReport(row: WalkedRow, fmt?: MessageFormatter | null, now: Date = new Date(), opts?: { skipSlaGate?: boolean }): Report {
   const keyInputs = [
     row.number, row.priority, row.state, row.assignmentGroup,
     row.createdOn, row.assignTimeUtcIso, row.acknTimeUtcIso, row.resolvedAt,
     row.suspendTimeUtcIso, row.resumeTimeUtcIso
   ].join("|");
-  if (row.__reportKey === keyInputs && row.__report) return row.__report;
+  // The gated result is what every surface reads and is what we cache. The
+  // ungated variant (skipSlaGate) is an internal-only path (SLA summary problem
+  // block) and must neither read nor write that cache.
+  const skipGate = opts?.skipSlaGate === true;
+  if (!skipGate && row.__reportKey === keyInputs && row.__report) return row.__report;
 
   const type = deriveType(row.number);
   const created = normDisplay(row.createdOn);
@@ -365,8 +386,36 @@ export function buildReport(row: WalkedRow, fmt?: MessageFormatter | null, now: 
     resolvedClock: resolved
   };
 
-  row.__reportKey = keyInputs;
-  row.__report = rep;
+  // Gate: SLA/hours calculations only apply to closed/resolved incidents.
+  // For every other row blank the derived SLA fields (passthrough label/time
+  // fields are kept). Done at assembly so the calc functions stay unchanged.
+  if (!skipGate && !isSlaEligible(row)) {
+    rep.incidentHours = "";
+    rep.incidentTotalAge = "";
+    rep.incCurrentHours = "";
+    rep.incidentCurrentAge = "";
+    rep.responseSLA = "";
+    rep.cumulativeSla = "";
+    rep.cumulativeDays = "";
+    rep.timeTaken = "";
+    rep.metResponseSLA = "";
+    rep.metMinResolutionSLA = "";
+    rep.metMaxResolutionSLA = "";
+    rep.slaBreach = "";
+    rep.respHours = undefined;
+    rep.respTarget = undefined;
+    rep.incHoursRaw = undefined;
+    rep.incCurrentRaw = undefined;
+    rep.resMinTarget = undefined;
+    rep.resMaxTarget = undefined;
+    rep.metMin = undefined;
+    rep.metMax = undefined;
+  }
+
+  if (!skipGate) {
+    row.__reportKey = keyInputs;
+    row.__report = rep;
+  }
   return rep;
 }
 

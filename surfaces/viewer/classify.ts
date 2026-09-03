@@ -2,7 +2,7 @@ import { loadOnce } from "../../lib/storage.ts";
 import { STORAGE } from "../../lib/keys.ts";
 import { MlModelStore, specForModelId } from "../../data/ml-model-repository.ts";
 import { dataStore, getMsrLists } from "./store.ts";
-import { msrType, rootCauseFor, normResolution } from "../../core/msrchoices.ts";
+import { msrType, rootCauseFor, normResolution, isClassifyEligible } from "../../core/msrchoices.ts";
 import { classifyMsr } from "../../core/msrcategorize.ts";
 
 /*
@@ -111,6 +111,13 @@ function rowsWithNotes(rows: Record<string, any>[]): Record<string, any>[] {
   return rows.filter((r) => String(r.closeNotes ?? "").trim());
 }
 
+/** Rows eligible for auto-classification: note-bearing AND a closed Incident/RFS
+ *  ticket. Non-eligible rows (problem/change, or open tickets) are never scored;
+ *  any value already on them is left untouched. */
+function classifiableRows(rows: Record<string, any>[]): Record<string, any>[] {
+  return rowsWithNotes(rows).filter((r) => isClassifyEligible(r));
+}
+
 /** True when the selected ML model is fully downloaded and ready to load. */
 async function modelAvailable(modelId: string): Promise<boolean> {
   try {
@@ -191,6 +198,14 @@ function deterministicPass(
     done++;
     const input = buildInput(row);
     if (!input.notes) {
+      notClassified++;
+      cb.onProgress(done, rows.length, notClassified);
+      tally(stats, done, notClassified, null, null);
+      continue;
+    }
+    // Only closed Incident/RFS tickets are auto-classified. Others are skipped
+    // and counted as not-classifiable; their existing values are left as-is.
+    if (!isClassifyEligible(row)) {
       notClassified++;
       cb.onProgress(done, rows.length, notClassified);
       tally(stats, done, notClassified, null, null);
@@ -386,8 +401,8 @@ export async function classifyRows(cb: ClassifyCallbacks): Promise<ClassifyRun> 
   const modelId = ml?.modelId || "mobilebert";
   const cacheEnabled = ml?.cacheEnabled !== false;
 
-  const withNotes = rowsWithNotes(rows).length;
-  const preDone = total - withNotes; // note-less rows: not classifiable
+  const withNotes = classifiableRows(rows).length;
+  const preDone = total - withNotes; // note-less or non-eligible rows: not classifiable
   const fp = runFp(modelId);
   const changedSysIds: string[] = [];
   let changed = 0;
@@ -415,7 +430,7 @@ export async function classifyRows(cb: ClassifyCallbacks): Promise<ClassifyRun> 
   // Rows already classified under the current context (model + lists) with
   // unchanged notes are skipped (the feature cache makes repeats cheap anyway).
   if (mode === "ml") {
-    const targets = rowsWithNotes(rows).filter((r) => {
+    const targets = classifiableRows(rows).filter((r) => {
       const notes = String(r.closeNotes ?? "").trim();
       return !(r.__rcSource === "ml" && r.__solSource === "ml" && r.__classFp === fp && r.notesHash === hashNotes(notes));
     });
@@ -438,7 +453,7 @@ export async function classifyRows(cb: ClassifyCallbacks): Promise<ClassifyRun> 
   if (mode === "hybrid") {
     const d = deterministicPass(rows, true, cb, stats, modelId, fp);
     changedSysIds.push(...d.changedSysIds);
-    const targets = rowsWithNotes(rows);
+    const targets = classifiableRows(rows);
     stats.done = preDone;
     stats.notClassified = preDone;
     if (targets.length) {

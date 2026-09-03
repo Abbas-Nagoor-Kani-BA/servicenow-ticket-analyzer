@@ -17,6 +17,7 @@ const identity = (v) => (v ? String(v) : "");
 const mkRow = (over = {}) => ({
   number: "INC001",
   priority: 2,
+  state: "Resolved",
   createdOn: "2026-01-05T08:00:00Z",
   assignTimeUtcIso: "2026-01-05T09:00:00Z",
   acknTimeUtcIso: "2026-01-05T09:30:00Z",
@@ -80,10 +81,16 @@ check("column A is the row index", [lines[0].split("\t")[0], lines[1].split("\t"
 check("column E carries the number", lines[1].split("\t")[4], "INC002");
 check("newlines and tabs inside a cell are collapsed to spaces", lines[0].split("\t")[7], "alpha beta tab");
 
-// Regression: column N (createdOn serial) must equal column K (createdOn serial).
-// createdOn is a display string, so N must serialize it directly like K — NOT
-// route it through the instant formatter, which would misparse dd-MM-yyyy as
-// MM-DD and produce a serial ~205 days off.
+// Column D (msrType) labels: PRB -> P_Ticket, SCTASK -> RFS, REQ -> RFS.
+check("column D for a PRB row is P_Ticket", svc.buildMsrTsv([mkRow({ number: "PRB0001234" })]).split("\t")[3], "P_Ticket");
+check("column D for a SCTASK row is RFS", svc.buildMsrTsv([mkRow({ number: "SCTASK0001234" })]).split("\t")[3], "RFS");
+check("column D for a REQ row is RFS", svc.buildMsrTsv([mkRow({ number: "REQ0001234" })]).split("\t")[3], "RFS");
+check("column D for an INC row is Incident", svc.buildMsrTsv([mkRow({ number: "INC0001234" })]).split("\t")[3], "Incident");
+
+// Column N serializes resolvedAt (a display string) directly. It must NOT be
+// routed through the instant formatter, which would misparse a dd-MM-yyyy
+// display string as MM-DD and produce a serial ~205 days off. Column K
+// serializes createdOn the same way.
 const pad = (n) => String(n).padStart(2, "0");
 const gridFmt = (utcIso) => {
   if (!utcIso) return "";
@@ -102,9 +109,10 @@ const dispRow = mkRow({
   resolvedAt: "01-08-2026 15:00:00"
 });
 const dispCells = svcGrid.buildMsrTsv([dispRow]).split("\n")[0].split("\t");
-check("column N (createdOn) equals column K (createdOn)", dispCells[13], dispCells[10]);
-check("column K serial is 1 Aug 2026 10:00 (not the ~205-day-off value)", dispCells[10], "46235.4166666667");
-check("column N is not the misparsed serial", dispCells[13] !== "46030.4166666667", true);
+check("column K serial is createdOn 1 Aug 2026 10:00 (not the ~205-day-off value)", dispCells[10], "46235.4166666667");
+check("column N serial is resolvedAt 1 Aug 2026 15:00 (not the ~205-day-off value)", dispCells[13], "46235.625");
+check("column K is not the misparsed serial", dispCells[10] !== "46030.4166666667", true);
+check("column N is not the misparsed serial", dispCells[13] !== "46030.625", true);
 
 console.log("== ExportService — per-CI-group split ==");
 

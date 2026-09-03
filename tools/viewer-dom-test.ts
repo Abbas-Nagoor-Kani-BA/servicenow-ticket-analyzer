@@ -425,9 +425,11 @@ test("summary SLA tab renders counts and persists summarySla", { timeout: 8000 }
   assert.equal(stored.summarySla.items.length, 17, "17 summary items persisted");
   const liveTotals = { 1: 0, 2: 0, 3: 0, 4: 0 };
   for (const r of grid.currentRows()) {
-    if (/^INC/.test(r.number)) liveTotals[parseInt(r.priority)]++;
+    const st = String(r.state ?? "").toLowerCase();
+    const eligible = /^INC/.test(r.number) && (st.startsWith("close") || st.startsWith("resolv"));
+    if (eligible) liveTotals[parseInt(r.priority)]++;
   }
-  assert.deepEqual(stored.summarySla.incidentTotals, liveTotals, "incident totals by severity");
+  assert.deepEqual(stored.summarySla.incidentTotals, liveTotals, "incident totals by severity (closed/resolved incidents only)");
 
   tabSummary.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
   await flush();
@@ -465,11 +467,11 @@ test("summary SLA tab reflects the active search filter", { timeout: 8000 }, asy
     const tr = [...incRows].find(r => r.dataset.sla === label);
     return tr ? (tr.querySelector("td.total")?.textContent ?? null) : null;
   };
-  assert.equal(totalFor("Within 10 working days"), "1", "P4 resolve total counts the filtered ticket");
+  assert.equal(totalFor("Within 10 working days"), "0", "P4 resolve total excludes the open (In Progress) ticket");
   assert.equal(totalFor("Within 1 hour"), "0", "P1 resolve total empty");
-  assert.equal(totalFor("Within 3 business hours"), "1", "P4 respond total counts the filtered ticket");
+  assert.equal(totalFor("Within 3 business hours"), "0", "P4 respond total excludes the open ticket");
   assert.match(document.getElementById("sumMeta").textContent,
-    /P1 0, P2 0, P3 0, P4 1/);
+    /P1 0, P2 0, P3 0, P4 0/);
   assert.match(document.getElementById("sumMeta").textContent,
     /showing 1 of 2 tickets/);
   tabTickets.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));

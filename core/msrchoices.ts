@@ -190,8 +190,24 @@ function msrType(refNumber: unknown): string {
   const s = String(refNumber || "");
   if (s.startsWith("INC")) return "Incident";
   if (s.startsWith("REQ")) return "RFS";
+  if (s.startsWith("SCTASK")) return "RFS";
+  if (s.startsWith("PRB")) return "P_Ticket";
   if (s.startsWith("PTASK")) return "P_Ticket";
   return "";
+}
+
+/**
+ * Solution type / root cause are only classified for closed Incident or RFS
+ * tickets: the number resolves to msrType "Incident" (INC) or "RFS"
+ * (REQ / SCTASK), and the state has reached a terminal ("close"/"resolv") label.
+ * Problem (PRB/PTASK) and change (CHG) tickets are never auto-classified.
+ */
+function isClassifyEligible(row: { number?: unknown; state?: unknown } | null | undefined): boolean {
+  if (!row) return false;
+  const t = msrType(row.number);
+  if (t !== "Incident" && t !== "RFS") return false;
+  const state = String(row.state ?? "").trim().toLowerCase();
+  return state.startsWith("close") || state.startsWith("resolv");
 }
 
 function rootCauseFor(rootCauseLists: RootCauseLists | null | undefined, typeLabel: unknown): string[] {
@@ -232,6 +248,7 @@ function hmsToDays(v: unknown): string | number {
 
 export {
   MSR_DEFAULT_LISTS, mergeMsrLists, normResolution, msrStatus, msrType,
+  isClassifyEligible,
   rootCauseFor, parseDisplayMs, excelSerialFromMs, displayToSerial,
   hmsToHours, hmsToDays
 };

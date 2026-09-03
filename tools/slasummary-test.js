@@ -77,5 +77,27 @@ const items = buildSlaSummaryRows(rows, fmt);
 check("buildSlaSummaryRows mirrors items", items.length, s.items.length);
 check("RFS rows excluded from incident totals", JSON.stringify(buildSlaSummary(rows, fmt).incidentTotals[2]), "1");
 
+console.log("== problem prefixes (PRB + legacy PTASK) ==");
+const prbRows = [
+  { number: "PRB-P1-A", priority: "1 - Critical", state: "Resolved", createdOn: "10-08-2026 00:00:00", assignTimeUtcIso: "2026-08-10T00:00:00.000Z", acknTimeUtcIso: "2026-08-10T00:05:00.000Z", resolvedAt: "10-08-2026 00:30:00" },
+  { number: "PTASK-P1-B", priority: "1 - Critical", state: "Resolved", createdOn: "10-08-2026 00:00:00", assignTimeUtcIso: "2026-08-10T00:00:00.000Z", acknTimeUtcIso: "2026-08-10T00:05:00.000Z", resolvedAt: "10-08-2026 00:30:00" },
+  { number: "INC-P1-Z", priority: "1 - Critical", state: "Resolved", createdOn: "10-08-2026 00:00:00", assignTimeUtcIso: "2026-08-10T00:00:00.000Z", acknTimeUtcIso: "2026-08-10T00:05:00.000Z", resolvedAt: "10-08-2026 00:30:00" }
+];
+const sp = buildSlaSummary(prbRows, fmt);
+const prbReocc = sp.items.find(i => i.metric === "Reoccuring Incident - Problem creation");
+check("PRB + PTASK both count as problems", prbReocc.total, 2);
+check("only the INC row counts as an incident", JSON.stringify(sp.incidentTotals), JSON.stringify({ 1: 1, 2: 0, 3: 0, 4: 0 }));
+
+console.log("== SLA gate: open incidents excluded, problem block unaffected ==");
+const gateRows = [
+  { number: "INC-OPEN", priority: "1 - Critical", state: "In Progress", createdOn: "10-08-2026 00:00:00", assignTimeUtcIso: "2026-08-10T00:00:00.000Z", acknTimeUtcIso: "2026-08-10T00:05:00.000Z" },
+  { number: "INC-DONE", priority: "1 - Critical", state: "Resolved", createdOn: "10-08-2026 00:00:00", assignTimeUtcIso: "2026-08-10T00:00:00.000Z", acknTimeUtcIso: "2026-08-10T00:05:00.000Z", resolvedAt: "10-08-2026 00:30:00" },
+  { number: "PTASK-OPEN", priority: "1 - Critical", state: "Work in Progress", createdOn: "10-08-2026 00:00:00", assignTimeUtcIso: "2026-08-10T00:00:00.000Z", acknTimeUtcIso: "2026-08-10T00:05:00.000Z", resolvedAt: "10-08-2026 00:30:00" }
+];
+const sg = buildSlaSummary(gateRows, fmt);
+check("open INC excluded, only the resolved INC counts", JSON.stringify(sg.incidentTotals), JSON.stringify({ 1: 1, 2: 0, 3: 0, 4: 0 }));
+const sgReocc = sg.items.find(i => i.metric === "Reoccuring Incident - Problem creation");
+check("problem block still counts the PTASK regardless of state", sgReocc.total, 1);
+
 console.log(`\nslasummary: ${failed ? failed + " FAILED" : "all passed"}`);
 process.exit(failed ? 1 : 0);

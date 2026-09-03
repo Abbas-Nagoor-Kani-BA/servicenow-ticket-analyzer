@@ -1,4 +1,4 @@
-import { buildReport, deriveType, slaPriority, hmsToHours, type WalkedRow, type MessageFormatter } from "./report.ts";
+import { buildReport, deriveType, isSlaEligible, slaPriority, hmsToHours, type WalkedRow, type MessageFormatter } from "./report.ts";
 
 type TierDef = { sla: string; target: number; kind: "flagMin" | "flagMax" | "dur"; hours?: number };
 
@@ -139,8 +139,14 @@ function buildSlaSummary(rows: WalkedRow[] | null | undefined, fmt?: MessageForm
     const p = slaPriority(row.priority);
     if (!p) continue;
     const rep = buildReport(row, fmt);
-    if (deriveType(row.number) === "Incident") incidentReps[p].push(rep);
-    else if (deriveType(row.number) === "Problem") problemReps[p].push(rep);
+    // Incident SLA counts only include closed/resolved incidents. The problem
+    // block is left as-is (state-independent): it reads an ungated report so its
+    // metMaxResolutionSLA-based counts are unaffected by the incident SLA gate.
+    if (deriveType(row.number) === "Incident") {
+      if (isSlaEligible(row)) incidentReps[p].push(rep);
+    } else if (deriveType(row.number) === "Problem Record") {
+      problemReps[p].push(buildReport(row, fmt, undefined, { skipSlaGate: true }));
+    }
   }
   const incidentTotals: Record<number, number> = {};
   for (let sev = 1; sev <= 4; sev++) {

@@ -24,6 +24,7 @@ const shiftPlusDay = (v) => {
 const mkRow = () => ({
   number: "INC001",
   priority: 2,
+  state: "Resolved",
   createdOn: "2026-01-05T08:00:00Z",
   assignTimeUtcIso: "2026-01-05T09:00:00Z",
   acknTimeUtcIso: "2026-01-05T09:30:00Z",
@@ -55,6 +56,7 @@ console.log("== ReportService.slaSummary — a non-identity fmt moves counts =="
 const mkP1Row = () => ({
   number: "INC002",
   priority: 1,
+  state: "Resolved",
   createdOn: "2026-01-05T08:00:00Z",
   assignTimeUtcIso: "2026-01-05T09:00:00Z",
   acknTimeUtcIso: "2026-01-05T09:30:00Z",

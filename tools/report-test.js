@@ -11,7 +11,9 @@ function check(name, got, want) {
 console.log("== deriveType ==");
 check("INC", R.deriveType("INC0010001"), "Incident");
 check("REQ", R.deriveType("REQ0010001"), "RFS");
-check("PTASK", R.deriveType("PTASK0010001"), "Problem");
+check("SCTASK", R.deriveType("SCTASK0010001"), "RFS");
+check("PRB", R.deriveType("PRB0010001"), "Problem Record");
+check("PTASK (legacy)", R.deriveType("PTASK0010001"), "Problem Record");
 check("empty", R.deriveType(""), "");
 check("unknown", R.deriveType("CHG0030001"), "");
 
@@ -131,6 +133,46 @@ console.log("== resolved display string not re-parsed (regression) ==");
   check("resolved display day-first unchanged", rep.resolved, "12-08-2026 16:06:33");
   check("created display day-first unchanged", rep.created, "11-08-2026 19:40:58");
   check("incident total age is business days (not ~85)", Number(rep.incidentTotalAge) < 2, true);
+})();
+
+console.log("== SLA eligibility gate (INC + closed/resolved only) ==");
+(() => {
+  const base = {
+    number: "INC0010001", priority: "2 - High", state: "Resolved",
+    assignmentGroup: "Q", configItem: "App A",
+    createdOn: "2026-08-10 09:00:00",
+    assignTimeUtcIso: "2026-08-10T01:00:00.000Z", acknTimeUtcIso: "2026-08-10T02:00:00.000Z",
+    resolvedAt: "2026-08-10 15:00:00", solutionType: "Permanent fix", rootCause: "Bad config"
+  };
+  const gatedBlank = (rep) =>
+    rep.incidentHours === "" && rep.incidentTotalAge === "" && rep.incCurrentHours === "" &&
+    rep.incidentCurrentAge === "" && rep.responseSLA === "" && rep.metResponseSLA === "" &&
+    rep.metMinResolutionSLA === "" && rep.metMaxResolutionSLA === "" && rep.slaBreach === "" &&
+    rep.cumulativeSla === "" && rep.cumulativeDays === "" && rep.timeTaken === "" &&
+    rep.respHours === undefined && rep.incHoursRaw === undefined && rep.incCurrentRaw === undefined;
+
+  check("isSlaEligible: INC + Resolved", R.isSlaEligible({ number: "INC1", state: "Resolved" }), true);
+  check("isSlaEligible: INC + Closed", R.isSlaEligible({ number: "INC1", state: "Closed Complete" }), true);
+  check("isSlaEligible: INC + In Progress -> false", R.isSlaEligible({ number: "INC1", state: "In Progress" }), false);
+  check("isSlaEligible: PRB + Resolved -> false", R.isSlaEligible({ number: "PRB1", state: "Resolved" }), false);
+  check("isSlaEligible: SCTASK + Closed -> false", R.isSlaEligible({ number: "SCTASK1", state: "Closed" }), false);
+
+  // Eligible incident keeps its computed SLA values.
+  const okRep = R.buildReport({ ...base }, fmt);
+  check("eligible INC keeps incidentHours", okRep.incidentHours, "6:00:00");
+  check("eligible INC keeps a breach code", okRep.slaBreach, "RM");
+
+  // Open incident: SLA fields blanked, passthrough kept.
+  const openRep = R.buildReport({ ...base, state: "In Progress" }, fmt);
+  check("open INC blanks all SLA fields", gatedBlank(openRep), true);
+  check("open INC keeps type", openRep.type, "Incident");
+  check("open INC keeps created passthrough", openRep.created, "10-08-2026 09:00:00");
+  check("open INC keeps rootCauseCategory passthrough", openRep.rootCauseCategory, "Bad config");
+
+  // Non-incident (Problem), even when resolved: blanked.
+  const prbRep = R.buildReport({ ...base, number: "PRB0010001" }, fmt);
+  check("resolved PRB blanks all SLA fields", gatedBlank(prbRep), true);
+  check("resolved PRB keeps type Problem Record", prbRep.type, "Problem Record");
 })();
 
 console.log(`\nreport: ${failed ? failed + " FAILED" : "all passed"}`);

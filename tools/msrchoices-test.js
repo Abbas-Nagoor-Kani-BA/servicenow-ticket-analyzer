@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import {
   MSR_DEFAULT_LISTS, mergeMsrLists, normResolution, msrStatus, msrType,
+  isClassifyEligible,
   rootCauseFor, parseDisplayMs, excelSerialFromMs, displayToSerial, hmsToDays
 } from "../core/msrchoices.ts";
 
@@ -70,8 +71,26 @@ check("empty -> empty", msrStatus(""), "");
 console.log("\n== msrType / rootCauseFor ==");
 check("INC", msrType("INC1234567"), "Incident");
 check("REQ", msrType("REQ0010011"), "RFS");
-check("PTASK", msrType("PTASK0001234"), "P_Ticket");
+check("SCTASK", msrType("SCTASK0001234"), "RFS");
+check("PRB", msrType("PRB0001234"), "P_Ticket");
+check("PTASK (legacy)", msrType("PTASK0001234"), "P_Ticket");
 check("unknown", msrType("CHG0001"), "");
+check("root cause via msrType(PRB) is the P_Ticket list",
+  rootCauseFor(MSR_DEFAULT_LISTS.rootCause, msrType("PRB0001234")).includes("User error - data"), true);
+check("root cause via msrType(SCTASK) is the RFS list",
+  rootCauseFor(MSR_DEFAULT_LISTS.rootCause, msrType("SCTASK0001234")), []);
+
+console.log("\n== isClassifyEligible (closed Incident/RFS only) ==");
+check("INC + Resolved", isClassifyEligible({ number: "INC1", state: "Resolved" }), true);
+check("INC + Closed Complete", isClassifyEligible({ number: "INC1", state: "Closed Complete" }), true);
+check("REQ + Closed (RFS)", isClassifyEligible({ number: "REQ1", state: "Closed" }), true);
+check("SCTASK + Resolved (RFS)", isClassifyEligible({ number: "SCTASK1", state: "Resolved" }), true);
+check("INC + In Progress -> false", isClassifyEligible({ number: "INC1", state: "In Progress" }), false);
+check("REQ + Open -> false", isClassifyEligible({ number: "REQ1", state: "Open" }), false);
+check("PRB + Closed -> false (not Incident/RFS)", isClassifyEligible({ number: "PRB1", state: "Closed" }), false);
+check("PTASK + Resolved -> false", isClassifyEligible({ number: "PTASK1", state: "Resolved" }), false);
+check("CHG + Closed -> false", isClassifyEligible({ number: "CHG1", state: "Closed" }), false);
+check("null row -> false", isClassifyEligible(null), false);
 check("root cause for Incident", rootCauseFor(MSR_DEFAULT_LISTS.rootCause, "Incident").includes("Application bug"), true);
 check("root cause for P_Ticket includes User error - data",
   rootCauseFor(MSR_DEFAULT_LISTS.rootCause, "P_Ticket").includes("User error - data"), true);
