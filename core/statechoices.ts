@@ -1,6 +1,8 @@
 const SN_STATE_MAPS: Record<string, Record<string, string>> = {
   incident: { "1": "New", "2": "In Progress", "3": "On Hold", "6": "Resolved", "7": "Closed", "8": "Canceled" },
-  change_request: { "-5": "New", "10": "Assess", "11": "Authorize", "12": "Scheduled", "-1": "Implement", "6": "Review", "7": "Closed", "8": "Canceled" },
+  // change_request updated from a live instance (choice XML): New(-5), Assess(-4),
+  // Authorize(-3), Scheduled(-2), Implement(-1), Review(0), Closed(3), Cancelled(4).
+  change_request: { "-5": "New", "-4": "Assess", "-3": "Authorize", "-2": "Scheduled", "-1": "Implement", "0": "Review", "3": "Closed", "4": "Cancelled" },
   // problem updated from a live instance (choice XML): fully custom values 151-157;
   // OOB (-5 New … 7 Closed) are not used on this instance
   problem: { "101": "New", "102": "Assess", "103":"root cause analysis","104": "fix in Progress","106":"resolved", "157": "Closed" },
