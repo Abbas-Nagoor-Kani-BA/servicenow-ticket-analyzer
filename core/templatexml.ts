@@ -429,6 +429,32 @@ function writeSectionRows(
 }
 
 /**
+ * Empty every value cell in rows [firstRow, limitRow) — keeping each <c>
+ * element and its style (s=) but stripping any <v>/<is> body and value type
+ * (t="s"/"inlineStr"). Used to wipe leftover sample rows a template ships with
+ * below a section's real data, so the export never shows stale rows the current
+ * pull did not write. Does not touch cells that carry a formula (<f>).
+ */
+function clearRowCells(sheetXml: string, firstRow: number, limitRow: number): string {
+  let xml = sheetXml;
+  for (let r = firstRow; r < limitRow; r++) {
+    const rowRe = new RegExp(`(<row\\s[^>]*\\br="${r}"[^>]*>)([\\s\\S]*?)(</row>)`);
+    const rm = xml.match(rowRe);
+    if (!rm || rm.index === undefined) continue;
+    const inner = rm[2].replace(
+      /<c(\s[^>]*?)?\br="([A-Z]+)(\d+)"([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g,
+      (all, _pre, col: string, rowN: string, _attrs: string, body: string | undefined) => {
+        if (body !== undefined && /<f[\s>]/.test(body)) return all; // preserve formula cells
+        const styleM = all.match(/\bs="(\d+)"/);
+        return `<c r="${col}${rowN}"${styleM ? ` s="${styleM[1]}"` : ""}/>`;
+      }
+    );
+    xml = xml.slice(0, rm.index) + rm[1] + inner + rm[3] + xml.slice(rm.index + rm[0].length);
+  }
+  return xml;
+}
+
+/**
  * Insert `count` blank rows immediately before `beforeRow`, shifting that row
  * and every row below it down by `count`. Both `<row r="N">` and each contained
  * `<c r="COLN">` reference are renumbered. Inserted rows clone the cell layout
@@ -620,7 +646,9 @@ function patchSummaryDetailsSheet(files: FileMap, sharedStrings: string[], data:
   }
 
   // 2. Fill top-to-bottom against freshly recomputed anchors. Capacity now
-  //    fits, so writeSectionRows writes every row.
+  //    fits, so writeSectionRows writes every row. After each section's data,
+  //    clear any leftover rows up to the next header so sample rows the
+  //    template ships with below the real data never survive into the export.
   let written = 0;
   const run = (
     rows: Array<Record<string, string | number | null>> | undefined,
@@ -628,10 +656,19 @@ function patchSummaryDetailsSheet(files: FileMap, sharedStrings: string[], data:
     hdr: number,
     limit: number
   ): void => {
-    if (!rows || !rows.length || !hdr) return;
-    const res = writeSectionRows(sheetXml, rows, cols, hdr + 2, limit || hdr + 2 + rows.length);
-    sheetXml = res.xml;
-    written += res.written;
+    if (!hdr) return;
+    const firstDataRow = hdr + 2;
+    const dataLen = rows ? rows.length : 0;
+    if (rows && rows.length) {
+      const res = writeSectionRows(sheetXml, rows, cols, firstDataRow, limit || firstDataRow + rows.length);
+      sheetXml = res.xml;
+      written += res.written;
+    }
+    // Blank the section's trailing rows (leftover template sample data). Bounded
+    // by the next header (limit); if unknown, clear a small fixed span.
+    const clearFrom = firstDataRow + dataLen;
+    const clearTo = limit || clearFrom;
+    if (clearTo > clearFrom) sheetXml = clearRowCells(sheetXml, clearFrom, clearTo);
   };
 
   const a = anchorsNow();

@@ -341,5 +341,59 @@ console.log("\n== summary-details section growth (overflow) ==");
   check("growth: row numbers strictly increasing", rowNums.every((v, i) => i === 0 || v > rowNums[i - 1]), rowNums.join(","));
 }
 
+// --- Clearing leftover template sample rows ---
+// Templates often ship with sample rows pre-filled under a section header. When
+// the current pull has fewer rows, the extra template rows must be BLANKED, not
+// left showing stale data. Build a sheet where the implemented section (hdr 3,
+// data 5..8) is pre-seeded with 4 sample CRs and the planned section (hdr 10)
+// with 2; feed 1 implemented + 0 planned and assert the rest are cleared.
+console.log("\n== summary-details clears leftover template rows ==");
+{
+  const clSheet = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><dimension ref="A1:H20"/>
+<sheetData>
+<row r="3"><c r="A3" t="inlineStr"><is><t>Changes implemented this week</t></is></c></row>
+<row r="4"><c r="A4" t="inlineStr"><is><t>Implementation Date</t></is></c><c r="C4" t="inlineStr"><is><t>CR Number</t></is></c></row>
+<row r="5"><c r="A5"><v>46250</v></c><c r="C5" t="inlineStr"><is><t>SAMPLE_IMP_1</t></is></c></row>
+<row r="6"><c r="A6"><v>46251</v></c><c r="C6" t="inlineStr"><is><t>SAMPLE_IMP_2</t></is></c></row>
+<row r="7"><c r="A7"><v>46252</v></c><c r="C7" t="inlineStr"><is><t>SAMPLE_IMP_3</t></is></c></row>
+<row r="8"><c r="A8"><v>46253</v></c><c r="C8" t="inlineStr"><is><t>SAMPLE_IMP_4</t></is></c></row>
+<row r="10"><c r="A10" t="inlineStr"><is><t>Changes Planned</t></is></c></row>
+<row r="11"><c r="A11" t="inlineStr"><is><t>Implementation Date</t></is></c><c r="C11" t="inlineStr"><is><t>CR Number</t></is></c></row>
+<row r="12"><c r="A12"><v>46260</v></c><c r="C12" t="inlineStr"><is><t>SAMPLE_PLN_1</t></is></c></row>
+<row r="13"><c r="A13"><v>46261</v></c><c r="C13" t="inlineStr"><is><t>SAMPLE_PLN_2</t></is></c></row>
+<row r="15"><c r="A15" t="inlineStr"><is><t>Changes Failed this week</t></is></c></row>
+<row r="16"><c r="A16" t="inlineStr"><is><t>Implementation Date</t></is></c><c r="C16" t="inlineStr"><is><t>CR Number</t></is></c></row>
+<row r="17"><c r="A17" t="inlineStr"><is><t>Operational Health</t></is></c></row>
+</sheetData></worksheet>`;
+  const clFixture = fflate.zipSync({
+    "[Content_Types].xml": enc(sumCt),
+    "_rels/.rels": enc(rootRels),
+    "xl/workbook.xml": enc(sdWb),
+    "xl/_rels/workbook.xml.rels": enc(sumWbRels),
+    "xl/sharedStrings.xml": enc(sst),
+    "xl/worksheets/sheet1.xml": enc(sheet),
+    "xl/worksheets/sheet2.xml": enc(clSheet)
+  }, { level: 0 });
+  const cf = fflate.unzipSync(new Uint8Array(clFixture));
+  const csst = T.parseSharedStrings(cf);
+  T.patchSummaryDetailsSheet(cf, csst, {
+    keyIncidents: [],
+    changesImplemented: [{ date: 46299, systemArea: "S", crNumber: "REAL_IMP", details: "d" }],
+    changesPlanned: [],
+    changesFailed: [],
+    narrative: {}
+  });
+  const cx = decode(cf, "xl/worksheets/sheet2.xml");
+  check("clear: real implemented CR written", /REAL_IMP</.test(cx));
+  check("clear: leftover implemented sample 2 removed", !/SAMPLE_IMP_2</.test(cx));
+  check("clear: leftover implemented sample 4 removed", !/SAMPLE_IMP_4</.test(cx));
+  check("clear: leftover planned sample 1 removed (empty section)", !/SAMPLE_PLN_1</.test(cx));
+  check("clear: leftover planned sample 2 removed (empty section)", !/SAMPLE_PLN_2</.test(cx));
+  check("clear: implemented header preserved", /Changes implemented this week/.test(cx));
+  check("clear: planned header preserved", /Changes Planned/.test(cx));
+  check("clear: implemented column-header row preserved", /Implementation Date/.test(cx));
+}
+
 console.log(`\ntemplate-export: ${failed ? failed + " FAILED" : "all passed"}`);
 process.exit(failed ? 1 : 0);
