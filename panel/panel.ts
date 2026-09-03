@@ -43,7 +43,9 @@ const COND_FIELDS: CondFieldDef[] = [
   { key: "number", label: "Number", field: "number", type: "string" },
   { key: "createdOn", label: "Created", field: "sys_created_on", type: "date" },
   { key: "closedOn", label: "Closed", field: "closed_at", type: "date", tables: ["incident", "problem", "sc_req_item", "sc_task"] },
-  { key: "resolvedOn", label: "Resolved", field: "resolved_at", type: "date", tables: ["incident", "problem", "sc_req_item"] }
+  { key: "resolvedOn", label: "Resolved", field: "resolved_at", type: "date", tables: ["incident", "problem", "sc_req_item"] },
+  { key: "plannedStart", label: "Planned start", field: "start_date", type: "date", tables: ["change_request"] },
+  { key: "plannedEnd", label: "Planned end", field: "end_date", type: "date", tables: ["change_request"] }
 ];
 
 const panel = createPanel({

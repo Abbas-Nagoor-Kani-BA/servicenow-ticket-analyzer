@@ -40,6 +40,14 @@ check("after date",
   encodeConditions([{ field: "sys_created_on", oper: "after", value: "2026-01-01" }]),
   "sys_created_on>=javascript:gs.dateGenerate('2026-01-01','23:59:59')");
 
+// Change-request planned start/end dates encode like any other date field.
+check("planned start between (start_date)",
+  encodeConditions([{ field: "start_date", oper: "between", value: "2026-09-03", value2: "2026-09-03" }]),
+  "start_dateBETWEENjavascript:gs.dateGenerate('2026-09-03','00:00:00')@javascript:gs.dateGenerate('2026-09-03','23:59:59')");
+check("planned end after (end_date)",
+  encodeConditions([{ field: "end_date", oper: "after", value: "2026-09-03" }]),
+  "end_date>=javascript:gs.dateGenerate('2026-09-03','23:59:59')");
+
 // Joins: first condition has no join operator, later ones carry AND/OR.
 check("AND chain",
   encodeConditions([
