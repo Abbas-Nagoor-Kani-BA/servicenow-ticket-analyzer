@@ -519,7 +519,23 @@ function shiftRowsDown(sheetXml: string, beforeRow: number, count: number, templ
   let blanks = "";
   for (let i = 0; i < count; i++) blanks += `<row r="${beforeRow + i}">${blankCellsFor(beforeRow + i)}</row>`;
 
-  return before + blanks + rebuiltAfter;
+  let result = before + blanks + rebuiltAfter;
+
+  // Shift <mergeCells> ranges: any range whose row(s) are at/after beforeRow
+  // moves down by `count`. Without this, merges below the insertion point stay
+  // anchored to their old row numbers and end up covering the wrong cells
+  // (e.g. a merged narrative block sliding onto a table's header cell).
+  result = result.replace(/<mergeCell ref="([A-Z]+)(\d+):([A-Z]+)(\d+)"\s*\/>/g,
+    (all, c1: string, r1: string, c2: string, r2: string) => {
+      const n1 = parseInt(r1, 10);
+      const n2 = parseInt(r2, 10);
+      const nn1 = n1 >= beforeRow ? n1 + count : n1;
+      const nn2 = n2 >= beforeRow ? n2 + count : n2;
+      if (nn1 === n1 && nn2 === n2) return all;
+      return `<mergeCell ref="${c1}${nn1}:${c2}${nn2}"/>`;
+    });
+
+  return result;
 }
 
 /**

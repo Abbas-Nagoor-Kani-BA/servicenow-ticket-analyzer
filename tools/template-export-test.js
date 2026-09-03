@@ -395,5 +395,52 @@ console.log("\n== summary-details clears leftover template rows ==");
   check("clear: implemented column-header row preserved", /Implementation Date/.test(cx));
 }
 
+// --- mergeCells shift down when a section grows ---
+// Mirrors the real template: the "Changes Failed" section has almost no blank
+// data rows before an "Operational Health" block whose narrative rows are
+// merged (A..D). Growing Failed must shift those merge ranges down, or they end
+// up covering the Failed table and one cell renders merged across columns.
+console.log("\n== summary-details mergeCells shift on growth ==");
+{
+  const mgSheet = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><dimension ref="A1:H20"/>
+<sheetData>
+<row r="3"><c r="A3" t="inlineStr"><is><t>Changes Failed this week</t></is></c></row>
+<row r="4"><c r="A4" t="inlineStr"><is><t>Implementation Date</t></is></c><c r="C4" t="inlineStr"><is><t>CR Number</t></is></c></row>
+<row r="5"><c r="A5" t="inlineStr"><is><t>None</t></is></c></row>
+<row r="6"><c r="A6" t="inlineStr"><is><t>Operational Health</t></is></c></row>
+<row r="7"><c r="A7" t="inlineStr"><is><t>No impact.</t></is></c></row>
+</sheetData>
+<mergeCells count="3"><mergeCell ref="A3:D3"/><mergeCell ref="A6:D6"/><mergeCell ref="A7:D12"/></mergeCells>
+</worksheet>`;
+  const mgFixture = fflate.zipSync({
+    "[Content_Types].xml": enc(sumCt),
+    "_rels/.rels": enc(rootRels),
+    "xl/workbook.xml": enc(sdWb),
+    "xl/_rels/workbook.xml.rels": enc(sumWbRels),
+    "xl/sharedStrings.xml": enc(sst),
+    "xl/worksheets/sheet1.xml": enc(sheet),
+    "xl/worksheets/sheet2.xml": enc(mgSheet)
+  }, { level: 0 });
+  const mf = fflate.unzipSync(new Uint8Array(mgFixture));
+  const msst = T.parseSharedStrings(mf);
+  // 3 failed rows into a 1-row span (rows 5..5) -> insert 2 before row 6.
+  T.patchSummaryDetailsSheet(mf, msst, {
+    keyIncidents: [], changesImplemented: [], changesPlanned: [],
+    changesFailed: [
+      { date: 46251, systemArea: "F1", crNumber: "MCHGF1", details: "a" },
+      { date: 46252, systemArea: "F2", crNumber: "MCHGF2", details: "b" },
+      { date: 46253, systemArea: "F3", crNumber: "MCHGF3", details: "c" }
+    ], narrative: {}
+  });
+  const mx = decode(mf, "xl/worksheets/sheet2.xml");
+  const mergeRefs = [...mx.matchAll(/<mergeCell ref="([A-Z]+\d+:[A-Z]+\d+)"/g)].map((m) => m[1]);
+  check("merge: header A3:D3 unchanged (above insertion)", mergeRefs.includes("A3:D3"));
+  check("merge: op-health A6:D6 shifted to A8:D8", mergeRefs.includes("A8:D8"), mergeRefs.join(","));
+  check("merge: narrative A7:D12 shifted to A9:D14", mergeRefs.includes("A9:D14"), mergeRefs.join(","));
+  check("merge: old A6:D6 no longer present", !mergeRefs.includes("A6:D6"));
+  check("merge: all 3 failed CRs written", /MCHGF1/.test(mx) && /MCHGF2/.test(mx) && /MCHGF3/.test(mx));
+}
+
 console.log(`\ntemplate-export: ${failed ? failed + " FAILED" : "all passed"}`);
 process.exit(failed ? 1 : 0);
