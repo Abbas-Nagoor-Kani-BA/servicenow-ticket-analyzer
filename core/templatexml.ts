@@ -429,6 +429,118 @@ function writeSectionRows(
 }
 
 /**
+ * Insert `count` blank rows immediately before `beforeRow`, shifting that row
+ * and every row below it down by `count`. Both `<row r="N">` and each contained
+ * `<c r="COLN">` reference are renumbered. Inserted rows clone the cell layout
+ * (columns + style) of `templateRow` so the added rows keep the section's
+ * formatting; their values are left empty for the caller to fill.
+ *
+ * Safe only on sheets without formulas: shifting does not rewrite formula
+ * references. The Weekly Summary cover sheet is such a sheet (its tables are
+ * plain values), which is why growing it here does not risk Excel's repair
+ * dialog. Do NOT reuse this on formula-bearing sheets without ref rewriting.
+ */
+function shiftRowsDown(sheetXml: string, beforeRow: number, count: number, templateRow: number): string {
+  if (count <= 0) return sheetXml;
+
+  // 1. Renumber existing rows at/after beforeRow, bottom-up so we never create
+  //    a transient duplicate row number. Collect rows first.
+  const rowRe = /<row(\s[^>]*?)\br="(\d+)"([^>]*)>([\s\S]*?)<\/row>/g;
+  type Row = { full: string; attrsPre: string; num: number; attrsPost: string; inner: string; index: number };
+  const rows: Row[] = [];
+  let m: RegExpExecArray | null;
+  while ((m = rowRe.exec(sheetXml)) !== null) {
+    rows.push({ full: m[0], attrsPre: m[1], num: parseInt(m[2], 10), attrsPost: m[3], inner: m[4], index: m.index });
+  }
+
+  const bump = (row: Row): string => {
+    const newNum = row.num + count;
+    const inner = row.inner.replace(/(<c\s[^>]*\br=")([A-Z]+)(\d+)(")/g,
+      (_all, p1: string, col: string, _n: string, p4: string) => `${p1}${col}${newNum}${p4}`);
+    return `<row${row.attrsPre}r="${newNum}"${row.attrsPost}>${inner}</row>`;
+  };
+
+  // Rebuild the sheet: rows before beforeRow untouched; rows at/after bumped;
+  // blank rows inserted at the original position of the first shifted row.
+  const affected = rows.filter(r => r.num >= beforeRow).sort((a, b) => a.num - b.num);
+  if (!affected.length) return sheetXml; // nothing below; caller falls back to writing at the end
+
+  // Style/column skeleton cloned from the template row (a known data row of the
+  // section) so inserted rows carry the same columns and styles, values empty.
+  const tmpl = rows.find(r => r.num === templateRow);
+  const blankCellsFor = (rowNum: number): string => {
+    if (!tmpl) return "";
+    return tmpl.inner.replace(/<c(\s[^>]*)?\br="([A-Z]+)(\d+)"([^>]*?)(?:\/>|>[\s\S]*?<\/c>)/g,
+      (_all, pre: string | undefined, col: string) => {
+        const styleM = _all.match(/\bs="(\d+)"/);
+        const style = styleM ? ` s="${styleM[1]}"` : "";
+        return `<c r="${col}${rowNum}"${style}/>`;
+      });
+  };
+
+  const insertPos = affected[0].index;
+  const before = sheetXml.slice(0, insertPos);
+  const after = sheetXml.slice(insertPos);
+
+  // Replace each affected row's original text with its bumped version in `after`.
+  let rebuiltAfter = after;
+  // Process bottom-up so earlier replacements don't shift later indices' text.
+  for (const row of [...affected].sort((a, b) => b.index - a.index)) {
+    const rel = row.index - insertPos;
+    rebuiltAfter = rebuiltAfter.slice(0, rel) + bump(row) + rebuiltAfter.slice(rel + row.full.length);
+  }
+
+  let blanks = "";
+  for (let i = 0; i < count; i++) blanks += `<row r="${beforeRow + i}">${blankCellsFor(beforeRow + i)}</row>`;
+
+  return before + blanks + rebuiltAfter;
+}
+
+/**
+ * Ensure a physical `<row r="N">` element exists for every N in
+ * [firstRow, firstRow + count). Missing rows are created (empty, cloning the
+ * column/style skeleton of `templateRow`) and spliced into row-sorted order so
+ * setCell can place values there. Needed because templates often omit blank
+ * rows entirely, and setCell is a no-op when the target row is absent.
+ */
+function ensureRowsExist(sheetXml: string, firstRow: number, count: number, templateRow: number): string {
+  const rowRe = /<row\s[^>]*\br="(\d+)"[\s\S]*?<\/row>/g;
+  const existing = new Set<number>();
+  let m: RegExpExecArray | null;
+  while ((m = rowRe.exec(sheetXml)) !== null) existing.add(parseInt(m[1], 10));
+
+  const tmplMatch = sheetXml.match(new RegExp(`<row\\s[^>]*\\br="${templateRow}"[\\s\\S]*?<\\/row>`));
+  const tmplInner = tmplMatch ? (tmplMatch[0].match(/<row[^>]*>([\s\S]*)<\/row>/) || [, ""])[1] : "";
+  const skeletonFor = (rowNum: number): string =>
+    String(tmplInner || "").replace(/<c(\s[^>]*)?\br="([A-Z]+)(\d+)"([^>]*?)(?:\/>|>[\s\S]*?<\/c>)/g,
+      (all, _pre, col: string) => {
+        const styleM = all.match(/\bs="(\d+)"/);
+        return `<c r="${col}${rowNum}"${styleM ? ` s="${styleM[1]}"` : ""}/>`;
+      });
+
+  let xml = sheetXml;
+  for (let r = firstRow; r < firstRow + count; r++) {
+    if (existing.has(r)) continue;
+    const newRow = `<row r="${r}">${skeletonFor(r)}</row>`;
+    // Insert before the first existing row whose number is greater than r; if
+    // none, insert before </sheetData>.
+    const nextRe = /<row\s[^>]*\br="(\d+)"[\s\S]*?<\/row>/g;
+    let insertAt = -1;
+    let mm: RegExpExecArray | null;
+    while ((mm = nextRe.exec(xml)) !== null) {
+      if (parseInt(mm[1], 10) > r) { insertAt = mm.index; break; }
+    }
+    if (insertAt >= 0) {
+      xml = xml.slice(0, insertAt) + newRow + xml.slice(insertAt);
+    } else {
+      xml = xml.replace("</sheetData>", newRow + "</sheetData>");
+    }
+    existing.add(r);
+  }
+  return xml;
+}
+
+/**
  * Fill the Weekly Summary cover sheet. Locates sections by header text; returns
  * the number of table rows written across all sections (0 if the sheet or the
  * data is absent — never falls back to another sheet).
@@ -438,13 +550,14 @@ function patchSummaryDetailsSheet(files: FileMap, sharedStrings: string[], data:
   const path = findTargetSheetPath(files, "summary");
   if (!path) return 0;
   let sheetXml = decodeText(files[path]);
-  const rowsA = rowTextsByColumnA(sheetXml, sharedStrings);
 
-  // Find the row index of a section by a normalized substring of its A-column text.
-  const findRow = (needle: string, after = 0): number => {
+  // Find the row number of a section by a normalized substring of its A-column
+  // text. Re-scans the CURRENT xml each call because growing a section inserts
+  // rows and renumbers everything below it, so a cached snapshot would go stale.
+  const findRowIn = (xml: string, needle: string): number => {
     const n = normLabel(needle);
-    for (const { rowNum, text } of rowsA) {
-      if (rowNum > after && normLabel(text).includes(n)) return rowNum;
+    for (const { rowNum, text } of rowTextsByColumnA(xml, sharedStrings)) {
+      if (normLabel(text).includes(n)) return rowNum;
     }
     return 0;
   };
@@ -466,12 +579,48 @@ function patchSummaryDetailsSheet(files: FileMap, sharedStrings: string[], data:
 
   // Section anchors (header rows). Data starts two rows below the section
   // header (section title row, then the column-header row).
-  const keyIncHdr = findRow("Key Incidents");
-  const implHdr = findRow("Changes implemented");
-  const plannedHdr = findRow("Changes Planned");
-  const failedHdr = findRow("Changes Failed");
-  const opHealthHdr = findRow("Operational Health");
+  const anchorNeedles = ["Key Incidents", "Changes implemented", "Changes Planned", "Changes Failed", "Operational Health"];
+  const anchorsNow = (): number[] => anchorNeedles.map((n) => findRowIn(sheetXml, n));
 
+  // Section definitions in sheet order. Each knows its data rows and columns;
+  // `nextIdx` is the anchor that bounds it (the header row below it).
+  const sections: Array<{
+    rows: Array<Record<string, string | number | null>> | undefined;
+    cols: Array<{ letter: string; key: string }>;
+    hdrIdx: number;
+    nextIdx: number;
+  }> = [
+    { rows: data.keyIncidents, cols: incidentCols, hdrIdx: 0, nextIdx: 1 },
+    { rows: data.changesImplemented, cols: changeCols, hdrIdx: 1, nextIdx: 2 },
+    { rows: data.changesPlanned, cols: changeCols, hdrIdx: 2, nextIdx: 3 },
+    { rows: data.changesFailed, cols: changeCols, hdrIdx: 3, nextIdx: 4 }
+  ];
+
+  // 1. Grow + materialize capacity bottom-to-top so inserting rows for a lower
+  //    section never invalidates the (higher) anchors we still need. For each
+  //    section: if its data exceeds the blank rows before the next header,
+  //    insert the shortfall right before that header; then ensure every data
+  //    row [hdr+2, hdr+2+len) physically exists (templates often omit blank
+  //    rows, and setCell is a no-op on a missing row). The Summary sheet has no
+  //    formulas, so shifting rows down is safe (see shiftRowsDown).
+  for (let i = sections.length - 1; i >= 0; i--) {
+    const s = sections[i];
+    if (!s.rows || !s.rows.length) continue;
+    const a = anchorsNow();
+    const hdr = a[s.hdrIdx];
+    const next = a[s.nextIdx];
+    if (!hdr) continue;
+    const firstDataRow = hdr + 2;
+    if (next) {
+      const available = next - firstDataRow;
+      const shortfall = s.rows.length - available;
+      if (shortfall > 0) sheetXml = shiftRowsDown(sheetXml, next, shortfall, firstDataRow);
+    }
+    sheetXml = ensureRowsExist(sheetXml, firstDataRow, s.rows.length, firstDataRow);
+  }
+
+  // 2. Fill top-to-bottom against freshly recomputed anchors. Capacity now
+  //    fits, so writeSectionRows writes every row.
   let written = 0;
   const run = (
     rows: Array<Record<string, string | number | null>> | undefined,
@@ -485,10 +634,11 @@ function patchSummaryDetailsSheet(files: FileMap, sharedStrings: string[], data:
     written += res.written;
   };
 
-  run(data.keyIncidents, incidentCols, keyIncHdr, implHdr);
-  run(data.changesImplemented, changeCols, implHdr, plannedHdr);
-  run(data.changesPlanned, changeCols, plannedHdr, failedHdr);
-  run(data.changesFailed, changeCols, failedHdr, opHealthHdr);
+  const a = anchorsNow();
+  run(data.keyIncidents, incidentCols, a[0], a[1]);
+  run(data.changesImplemented, changeCols, a[1], a[2]);
+  run(data.changesPlanned, changeCols, a[2], a[3]);
+  run(data.changesFailed, changeCols, a[3], a[4]);
 
   // Narrative free-text cells (Highlights block, Operational Health, etc.).
   if (data.narrative) {

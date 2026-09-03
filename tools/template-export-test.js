@@ -301,5 +301,45 @@ if (fs.existsSync(wsrPath)) {
   console.log("\n(skip) wsr-sample.xlsx not found at repo root");
 }
 
+// --- Section growth: more rows than template slots must all be written ---
+// sdSheet: implemented header row 17, data starts 19, planned header row 25
+// => 6 slots (19..24). Feed 9 implemented rows (overflow of 3): all must land,
+// and the Planned / Failed / Operational Health sections must shift down by 3.
+console.log("\n== summary-details section growth (overflow) ==");
+{
+  const many = [];
+  for (let i = 1; i <= 9; i++) {
+    many.push({ date: 46250 + i, systemArea: `SYS${i}`, crNumber: `CHG90${String(i).padStart(2, "0")}`, details: `d${i}` });
+  }
+  const grow = {
+    keyIncidents: [],
+    changesImplemented: many,
+    changesPlanned: [{ date: 46259, systemArea: "P", crNumber: "CHGPLAN1", details: "planned" }],
+    changesFailed: [{ date: 46252, systemArea: "F", crNumber: "CHGFAIL1", details: "failed" }],
+    narrative: {}
+  };
+  // Fresh copy of the fixture sheet.
+  const gf = fflate.unzipSync(new Uint8Array(sdFixture));
+  const gsst = T.parseSharedStrings(gf);
+  const wrote = T.patchSummaryDetailsSheet(gf, gsst, grow);
+  const gx = decode(gf, "xl/worksheets/sheet2.xml");
+  check("growth: reported all implemented + planned + failed rows written", wrote === 9 + 1 + 1, "wrote " + wrote);
+  // All 9 implemented CRs present (last one previously would have been dropped).
+  check("growth: first implemented CHG9001 present", /CHG9001<\/t>/.test(gx));
+  check("growth: 6th implemented CHG9006 present (last old slot)", /CHG9006<\/t>/.test(gx));
+  check("growth: 9th implemented CHG9009 present (needed new rows)", /CHG9009<\/t>/.test(gx));
+  // Planned header text still intact and now on a shifted row (25 -> 28).
+  check("growth: Changes Planned header preserved", /Changes Planned/.test(gx));
+  check("growth: planned CR still written after shift", /CHGPLAN1<\/t>/.test(gx));
+  check("growth: failed CR still written after shift", /CHGFAIL1<\/t>/.test(gx));
+  check("growth: implemented header row 17 untouched", /Changes implemented this week/.test(gx));
+  // No duplicate row numbers introduced by the shift.
+  const rowNums = [...gx.matchAll(/<row\s[^>]*\br="(\d+)"/g)].map((m) => +m[1]);
+  const uniq = new Set(rowNums);
+  check("growth: no duplicate row numbers after insertion", uniq.size === rowNums.length,
+    `rows=${rowNums.length} uniq=${uniq.size}`);
+  check("growth: row numbers strictly increasing", rowNums.every((v, i) => i === 0 || v > rowNums[i - 1]), rowNums.join(","));
+}
+
 console.log(`\ntemplate-export: ${failed ? failed + " FAILED" : "all passed"}`);
 process.exit(failed ? 1 : 0);
