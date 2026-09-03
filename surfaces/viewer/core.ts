@@ -28,7 +28,6 @@ const COLUMNS: ViewerCol[] = [
   ["state", "State", "", 105],
   ["assignmentGroup", "Group", "", 140],
   ["configItem", "Configuration item", "", 150],
-  ["incidentState", "Incident state", "", 110],
   ["createdOn", "Created", "time", 155],
   ["assignTimeUtcIso", "Assign time", "inst", 155],
   ["acknTimeUtcIso", "Ackn time", "inst", 155],
