@@ -7,15 +7,21 @@ import { buildHead, load, render, resetColWidths } from "./grid.ts";
 import { $, COLUMNS, hideStore, setColumnVisible, setStatus } from "./core.ts";
 
 function updateColsBtn(): void {
-  const lbl = $("colsBtn").querySelector(".btn-lbl");
-  const text = hideStore().size ? `Columns (${hideStore().size} hidden)` : "Columns";
-  if (lbl) lbl.textContent = text;
-  else $("colsBtn").textContent = text;
+  const btn = $("colsBtn");
+  const n = hideStore().size;
+  // Icon-only button: show the hidden count as a badge + in the tooltip, not text.
+  btn.classList.toggle("has-badge", n > 0);
+  btn.setAttribute("data-badge", n > 0 ? String(n) : "");
+  btn.setAttribute("data-tip", n > 0
+    ? `Choose which columns are shown (${n} hidden)`
+    : "Choose which columns are shown");
 }
 
 export function initCols(): void {
-  iconize($("colsBtn"), "columns-3");
-  iconize($("clearBtn"), "trash-2");
+  $("colsBtn").textContent = "Columns";
+  iconize($("colsBtn"), "columns-3", { tip: "Choose which columns are shown" });
+  $("clearBtn").textContent = "Clear";
+  iconize($("clearBtn"), "trash-2", { tip: "Clear pulled data" });
   iconize($("showAllCols"), "check-circle-2");
   iconize($("resetColWidthsBtn"), "rotate-ccw");
 

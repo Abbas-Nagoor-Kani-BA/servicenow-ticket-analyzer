@@ -1,17 +1,33 @@
 import { $, COLUMNS } from "./core.ts";
 import type { ViewerRow } from "./core.ts";
 import { dataStore } from "./store.ts";
+import { rowMatches } from "./search-match.ts";
+import type { DisplayValue } from "./search-match.ts";
+import { getSearchColumn, getSearchMode, isCaseSensitive } from "./search-state.ts";
 
 function st() { return dataStore.getState(); }
+
+// The value the search matches against, per column. Injected at boot with
+// exportSvc.cellValue so search matches the displayed/exported value (and thus
+// aligns with what copy/export emit). Until injected, fall back to the raw row
+// field so the module works standalone (and in unit tests).
+let displayValue: DisplayValue = (row, key) => {
+  const v = row[key];
+  return v === null || v === undefined ? "" : String(v);
+};
+
+/** Inject the displayed/export value resolver (exportSvc.cellValue-bound). */
+function setDisplayValueResolver(fn: DisplayValue): void {
+  if (typeof fn === "function") displayValue = fn;
+}
 
 function currentRows(): ViewerRow[] {
   const { data, sortKey, sortDir } = st();
   let rows = data ? [...data.rows] : [];
-  const q = $("search").value.trim().toLowerCase();
-  if (q) {
-    rows = rows.filter(r =>
-      COLUMNS.some(([k]) => String(r[k] ?? "").toLowerCase().includes(q))
-    );
+  const q = $("search").value;
+  if (q.trim()) {
+    const opts = { column: getSearchColumn(), mode: getSearchMode(), caseSensitive: isCaseSensitive() };
+    rows = rows.filter((r) => rowMatches(r, q, opts, displayValue, COLUMNS));
   }
   if (sortKey) {
     rows.sort((a, b) => {
@@ -46,4 +62,4 @@ function parseLocalInput(text: string): Date | null {
   return isNaN(d.getTime()) ? null : d;
 }
 
-export { currentRows, hasDataRows, parseLocalInput };
+export { currentRows, hasDataRows, parseLocalInput, setDisplayValueResolver };

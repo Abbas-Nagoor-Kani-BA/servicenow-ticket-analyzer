@@ -27,7 +27,9 @@ let tplInfo: TplInfo | null = null;
 export function initToolbar(): void {
   setOnConfigChange(updateConfigSummary);
 
+  $("exportBtn").textContent = "Export";
   iconize($("exportBtn"), "file-spreadsheet");
+  $("copyMsrBtn").textContent = "Copy for MSR";
   iconize($("copyMsrBtn"), "copy");
   iconize($("configExport"), "file-spreadsheet");
   iconize($("configClose"), "x-circle", { mode: "icon", tip: "Close" });

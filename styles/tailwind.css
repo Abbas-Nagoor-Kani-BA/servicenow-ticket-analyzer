@@ -80,6 +80,39 @@
     display: flex;
     flex-direction: column;
     height: 100%;
+    position: relative;
+  }
+
+  /* Floating vertical action rail on the right edge of the data view. Absolute
+     so it never changes the table width and stays visible over the grid. */
+  #actionRail {
+    @apply absolute right-3 top-[56px] z-[6] flex flex-col gap-1 p-1.5 w-[150px] bg-card border border-line rounded-lg shadow-[0_8px_24px_rgba(17,17,27,.45)];
+  }
+  #actionRail .icon-btn { @apply relative w-[32px] h-[32px]; }
+  #actionRail .icon-btn.calclens-on { @apply text-accent bg-line; }
+  /* Labeled action buttons stack full-width, icon + text left-aligned, compact
+     and uniform in size (Export/primary matches the rest). */
+  #railBody .btn, #railBody .btn-primary {
+    @apply relative w-full justify-start text-left px-2.5 py-1.5 text-[12px] font-medium gap-1.5;
+  }
+  #railBody .btn-icn { @apply w-[15px] h-[15px] flex-shrink-0; margin-right: 0; }
+  #railBody .calclens-on { @apply border-accent text-accent; }
+  /* Drag handle + fold header. Fixed-size so the handle does NOT resize between
+     open and folded: grip and fold are each a 32px icon button, packed left,
+     never stretched. */
+  #railHead { @apply flex flex-row items-center gap-1 pb-1 mb-0.5 self-start border-b border-line; }
+  #railGrip { @apply cursor-grab touch-none text-muted; }
+  #railGrip.dragging { @apply cursor-grabbing; }
+  #railBody { @apply flex flex-col items-stretch gap-1.5; }
+  #railBody #exportCluster { @apply flex; }
+  #railBody #exportCluster .btn-primary { @apply w-full; }
+  #actionRail.folded { @apply w-auto; }
+  #actionRail.folded #railBody { @apply hidden; }
+  #actionRail.folded #railHead { @apply border-0 pb-0 mb-0; }
+  /* Hidden-count badge on a rail button (Columns / Calclens). */
+  #actionRail .has-badge::after {
+    content: attr(data-badge);
+    @apply absolute -top-1 -right-1 min-w-[15px] h-[15px] px-1 rounded-full bg-accent text-card text-[10px] leading-[15px] text-center font-semibold;
   }
 
   [hidden] { display: none !important; }
@@ -521,7 +554,7 @@
   .incident-table td.sla { @apply text-left pl-3; }
 
   #colMenu {
-    @apply absolute top-[calc(100%+6px)] right-2.5 z-[5] bg-card border border-line rounded-lg p-2 min-w-[250px] max-h-[70vh] overflow-auto shadow-[0_8px_24px_rgba(17,17,27,.55)];
+    @apply absolute top-0 right-[calc(100%+8px)] z-[7] bg-card border border-line rounded-lg p-2 min-w-[250px] max-h-[70vh] overflow-auto shadow-[0_8px_24px_rgba(17,17,27,.55)];
   }
   #colMenu .menuHead { @apply flex justify-between items-center gap-3 pb-1.5 mb-1 border-b border-line text-[11.5px] uppercase tracking-wide text-muted; }
   #colMenu .menuHead button { @apply text-[11px] px-2 py-0.5 font-normal; }
@@ -534,9 +567,12 @@
   #colList label { @apply flex items-center gap-2 px-1 py-0.75 cursor-pointer whitespace-nowrap rounded hover:bg-line; }
   #colList input { @apply accent-accent; }
 
-  #calclensMenuBtn { @apply px-1.5; }
+  .searchCase { @apply inline-flex gap-0.5; }
+  .searchCase .btn { @apply px-2 py-1 text-[12px] font-mono; }
+  .searchCase .btn.active { @apply bg-accent text-card border-accent; }
+
   #calclensMenu {
-    @apply absolute top-[calc(100%+6px)] right-2.5 z-[5] bg-card border border-line rounded-lg p-2 min-w-[250px] max-h-[70vh] overflow-auto shadow-[0_8px_24px_rgba(17,17,27,.55)];
+    @apply absolute top-0 right-[calc(100%+8px)] z-[7] bg-card border border-line rounded-lg p-2 min-w-[250px] max-h-[70vh] overflow-auto shadow-[0_8px_24px_rgba(17,17,27,.55)];
   }
   #calclensMenu .menuHead { @apply flex justify-between items-center gap-3 pb-1.5 mb-1 border-b border-line text-[11.5px] uppercase tracking-wide text-muted; }
   #calclensMenu .menuHead button { @apply text-[11px] px-2 py-0.5 font-normal; }

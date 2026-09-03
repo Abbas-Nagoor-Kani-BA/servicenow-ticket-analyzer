@@ -192,8 +192,10 @@ Regression suites (`npm test` runs all of them):
 | `classifier-service-test.js`, `classification-cache-test.js`, `classify-cache-test.js`, `classify-fallback-test.js`, `ml-model-repository-test.js` | ML classification services, cache, and model repository |
 | `remote-bridge-test.ts` | the remote bridge |
 | `ci-split-test.js`, `pick-exact-test.js`, `path-from-url-test.js`, `store-test.js`, `icons-test.ts` | assorted units |
+| `action-rail-test.ts` | draggable/foldable action rail (clamp helper + fold/drag persistence) |
 | `panel-components-test.ts`, `data-grid-test.ts`, `search-picker-test.ts`, `modal-test.ts`, `map-dialog-test.ts`, `settings-chips-test.js` | components |
 | `viewer-dom-test.ts` | end-to-end viewer flow (happy-dom) |
+| `search-state-test.ts`, `search-match-test.ts` | column-scoped search: state owner + pure matcher (modes, case, all/single-column, displayed-value match) |
 
 Manual test loop (user performs): reload extension at `chrome://extensions`
 → refresh the ServiceNow tab → Connect → Preview count → Run export.

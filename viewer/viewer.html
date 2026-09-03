@@ -12,32 +12,51 @@
   </div>
   <div class="toolbar">
     <div class="tbLeft">
-      <input id="search" class="w-[300px] max-w-[36vw] bg-card2 text-text border border-line rounded-md px-2.5 py-1.5 text-[13px] focus:border-accent focus:outline focus:outline-2 focus:outline-offset-0 focus:outline-accent" placeholder="Search number, state, group, assignee…">
+      <select id="searchColumn" class="bg-card2 text-text border border-line rounded-md px-2 py-1.5 text-[13px] focus:border-accent focus:outline-none" data-tip="Choose which column to search"></select>
+      <input id="search" class="w-[240px] max-w-[30vw] bg-card2 text-text border border-line rounded-md px-2.5 py-1.5 text-[13px] focus:border-accent focus:outline focus:outline-2 focus:outline-offset-0 focus:outline-accent" placeholder="Search…">
+      <select id="searchMode" class="bg-card2 text-text border border-line rounded-md px-2 py-1.5 text-[13px] focus:border-accent focus:outline-none" data-tip="How to match the search text">
+        <option value="contains">Contains</option>
+        <option value="equals">Equals</option>
+        <option value="notContains">Does not contain</option>
+        <option value="notEquals">Does not equal</option>
+      </select>
+      <span id="searchCase" class="searchCase">
+        <button id="searchCaseInsensitive" class="btn active" data-tip="Case-insensitive">aa</button>
+        <button id="searchCaseSensitive" class="btn" data-tip="Case-sensitive">Aa</button>
+      </span>
       <span id="count"></span>
     </div>
     <div class="tbRight">
       <span id="status"></span>
-      <button id="calclensBtn" class="btn" data-tip="Calclens — inspect how each value was derived and edit the derivation columns">Calclens</button>
-      <button id="calclensMenuBtn" class="btn" data-tip="Choose which Calclens highlights are shown">▾</button>
+    </div>
+    <input type="file" id="tplFile" accept=".xlsx" class="hidden">
+  </div>
+  <div id="actionRail">
+    <div id="railHead">
+      <button id="railGrip" class="icon-btn" data-tip="Drag to move" aria-label="Drag to move"></button>
+      <button id="railFold" class="icon-btn" data-tip="Collapse" aria-label="Collapse"></button>
+    </div>
+    <div id="railBody">
+      <button id="calclensBtn" class="btn" data-tip="Calclens — inspect how each value was derived and edit the derivation columns" aria-label="Calclens"></button>
+      <button id="calclensMenuBtn" class="btn" data-tip="Choose which Calclens highlights are shown" aria-label="Calclens highlights"></button>
       <div id="calclensMenu" class="hidden">
         <div class="menuHead"><span>Highlights</span><button id="calclensShowAll" class="btn">Show all</button></div>
         <div class="menuHead sub"><button id="calclensHideAll" class="btn">Hide all</button></div>
         <div id="calclensHlList"></div>
       </div>
-      <button id="copyMsrBtn" class="btn" data-tip="Copy the current view as MSR 'BA AO' input columns (A–U) — paste onto rows whose formulas in V–AJ stay intact">Copy for MSR</button>
-      <button id="colsBtn" class="btn" data-tip="Choose which columns are shown">Columns</button>
+      <button id="copyMsrBtn" class="btn" data-tip="Copy the current view as MSR 'BA AO' input columns (A–U) — paste onto rows whose formulas in V–AJ stay intact" aria-label="Copy for MSR"></button>
+      <button id="colsBtn" class="btn" data-tip="Choose which columns are shown" aria-label="Columns"></button>
       <div id="colMenu" class="hidden">
         <div class="menuHead"><span>Visible columns</span><button id="showAllCols" class="btn">Show all</button></div>
         <div class="menuHead sub"><button id="resetColWidthsBtn" class="btn">Reset widths</button></div>
         <input id="colSearch" placeholder="Search columns…">
         <div id="colList"></div>
       </div>
-      <button id="clearBtn" class="btn">Clear</button>
+      <button id="clearBtn" class="btn" data-tip="Clear pulled data" aria-label="Clear"></button>
       <div id="exportCluster">
-        <button id="exportBtn" class="btn-primary exportBtn" data-tip="Configure export settings and export the current view">Export</button>
+        <button id="exportBtn" class="btn-primary exportBtn" data-tip="Configure export settings and export the current view" aria-label="Export"></button>
       </div>
     </div>
-    <input type="file" id="tplFile" accept=".xlsx" class="hidden">
   </div>
   <div id="tabs" role="tablist">
     <button id="tabTickets" class="tab on" role="tab" aria-selected="true"><span class="g">☰</span> Tickets</button>

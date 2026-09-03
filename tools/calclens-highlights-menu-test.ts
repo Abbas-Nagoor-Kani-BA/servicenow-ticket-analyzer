@@ -67,8 +67,10 @@ test("toggling a rule off persists it and updates the button indicator", { timeo
   const persisted = peek(STORAGE.calclensHighlights);
   assert.deepEqual(persisted, [ATTENTION_RULES[0].id], "only the disabled id is persisted");
 
-  const btnText = document.getElementById("calclensBtn")!.textContent ?? "";
-  assert.ok(btnText.includes("(1 hidden)"), `button shows the hidden count, got "${btnText}"`);
+  const btn = document.getElementById("calclensBtn")!;
+  assert.ok(btn.classList.contains("has-badge"), "button shows the hidden-count badge");
+  assert.equal(btn.getAttribute("data-badge"), "1", "badge shows the hidden count");
+  assert.ok((btn.getAttribute("data-tip") ?? "").includes("1 highlight"), "tooltip mentions the hidden count");
 });
 
 test("Hide all unchecks every rule; Show all re-checks", { timeout: 8000 }, async () => {
@@ -85,6 +87,7 @@ test("Hide all unchecks every rule; Show all re-checks", { timeout: 8000 }, asyn
   boxes = [...document.querySelectorAll<HTMLInputElement>("#calclensHlList input[type=checkbox]")];
   assert.ok(boxes.every((b) => b.checked), "Show all re-checks everything");
   assert.deepEqual(peek(STORAGE.calclensHighlights), []);
-  const btnText = document.getElementById("calclensBtn")!.textContent ?? "";
-  assert.ok(!btnText.includes("hidden"), "button indicator clears when all enabled");
+  const btn = document.getElementById("calclensBtn")!;
+  assert.ok(!btn.classList.contains("has-badge"), "button badge clears when all enabled");
+  assert.equal(btn.getAttribute("data-badge"), "", "badge value cleared when all enabled");
 });

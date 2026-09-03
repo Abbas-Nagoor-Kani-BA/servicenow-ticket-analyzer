@@ -23,6 +23,7 @@ import { initDialogs } from "./dialogs.ts";
 import { initToolbar, loadTplInfo } from "./toolbar.ts";
 import { initInteractions } from "./interactions.ts";
 import { initCalclens } from "./calclens.ts";
+import { initActionRail } from "./action-rail.ts";
 import { anyOverlayOpen } from "./selection.ts";
 import { initTooltips } from "../../lib/tooltip.ts";
 
@@ -42,6 +43,7 @@ async function boot() {
   initToolbar();
   initInteractions();
   initCalclens();
+  initActionRail();
 
   initTooltips(() => anyOverlayOpen());
   await hydrateStores();

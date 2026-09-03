@@ -33,7 +33,10 @@ function colClass(key: string): string {
 export function initCalclens(): void {
   const btn = $("calclensBtn");
   const host = $("calclensPanel");
+  btn.textContent = "Calclens";
   iconize(btn, "info");
+  $("calclensMenuBtn").textContent = "Highlights";
+  iconize($("calclensMenuBtn"), "list");
 
   panel = new CalclensPanel(host, {}, {
     optionsFor: (key, row) => columnOptionList(key, row),
@@ -87,14 +90,15 @@ export function initCalclens(): void {
   initCalclensHighlights();
 }
 
-/** Update the Calclens button's label to show how many highlights are hidden. */
+/** Update the Calclens button to show how many highlights are hidden (badge + tooltip). */
 function updateCalclensBtn(): void {
   const btn = $("calclensBtn");
   const hidden = disabledCount();
-  const text = hidden ? `Calclens (${hidden} hidden)` : "Calclens";
-  const lbl = btn.querySelector(".btn-lbl");
-  if (lbl) lbl.textContent = text;
-  else btn.textContent = text;
+  btn.classList.toggle("has-badge", hidden > 0);
+  btn.setAttribute("data-badge", hidden > 0 ? String(hidden) : "");
+  btn.setAttribute("data-tip", hidden > 0
+    ? `Calclens — inspect how each value was derived (${hidden} highlight${hidden === 1 ? "" : "s"} hidden)`
+    : "Calclens — inspect how each value was derived and edit the derivation columns");
 }
 
 /** Rebuilds the highlight-toggle checkbox list from the canonical rules. */

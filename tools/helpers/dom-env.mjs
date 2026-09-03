@@ -124,31 +124,50 @@ export async function flush(times = 4) {
 const SKELETON = `
 <div class="toolbar">
   <div class="tbLeft">
+    <select id="searchColumn"></select>
     <input id="search">
+    <select id="searchMode">
+      <option value="contains">Contains</option>
+      <option value="equals">Equals</option>
+      <option value="notContains">Does not contain</option>
+      <option value="notEquals">Does not equal</option>
+    </select>
+    <span id="searchCase" class="searchCase">
+      <button id="searchCaseInsensitive" class="btn active">aa</button>
+      <button id="searchCaseSensitive" class="btn">Aa</button>
+    </span>
     <span id="count"></span>
   </div>
   <div class="tbRight">
     <span id="status"></span>
-    <div id="exportCluster">
-      <button id="exportBtn" class="primary">Export</button>
-    </div>
     <input type="file" id="tplFile" accept=".xlsx" class="hidden">
-    <button id="copyMsrBtn">Copy for MSR</button>
-    <button id="colsBtn">Columns</button>
+  </div>
+</div>
+<div id="actionRail">
+  <div id="railHead">
+    <button id="railGrip" class="icon-btn">grip</button>
+    <button id="railFold" class="icon-btn">fold</button>
+  </div>
+  <div id="railBody">
+    <button id="calclensBtn" class="icon-btn">Calclens</button>
+    <button id="calclensMenuBtn" class="icon-btn">▾</button>
+    <div id="calclensMenu" class="hidden">
+      <div class="menuHead"><span>Highlights</span><button id="calclensShowAll">Show all</button></div>
+      <div class="menuHead sub"><button id="calclensHideAll">Hide all</button></div>
+      <div id="calclensHlList"></div>
+    </div>
+    <button id="copyMsrBtn" class="icon-btn">Copy for MSR</button>
+    <button id="colsBtn" class="icon-btn">Columns</button>
     <div id="colMenu" class="hidden">
       <div class="menuHead"><span>Visible columns</span><button id="showAllCols">Show all</button></div>
       <div class="menuHead sub"><button id="resetColWidthsBtn">Reset widths</button></div>
       <input id="colSearch">
       <div id="colList"></div>
     </div>
-    <button id="calclensBtn" class="btn">Calclens</button>
-    <button id="calclensMenuBtn" class="btn">▾</button>
-    <div id="calclensMenu" class="hidden">
-      <div class="menuHead"><span>Highlights</span><button id="calclensShowAll">Show all</button></div>
-      <div class="menuHead sub"><button id="calclensHideAll">Hide all</button></div>
-      <div id="calclensHlList"></div>
+    <button id="clearBtn" class="icon-btn">Clear</button>
+    <div id="exportCluster">
+      <button id="exportBtn" class="icon-btn primary">Export</button>
     </div>
-    <button id="clearBtn">Clear</button>
   </div>
 </div>
 <div id="slaBar" class="hidden"></div>

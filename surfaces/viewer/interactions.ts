@@ -1,7 +1,11 @@
-import { $, visibleCols } from "./core.ts";
+import { $, visibleCols, COLUMNS } from "./core.ts";
 import { render, reportCellFocus } from "./grid.ts";
 import { anyOverlayOpen, getSelFocus, movePage, moveSel, moveToRowFirstLast, setSelPoint } from "./selection.ts";
 import { getCalclensMode } from "./calclens-state.ts";
+import { setDisplayValueResolver } from "./grid-data.ts";
+import { exportSvc } from "./exporter.ts";
+import { setSearchColumn, setSearchMode, setCaseSensitive } from "./search-state.ts";
+import type { SearchMode } from "./search-state.ts";
 
 function hitTestTd(e: MouseEvent | PointerEvent): HTMLElement | null {
   if (typeof document.elementFromPoint === "function" && e.clientX != null) {
@@ -61,4 +65,45 @@ export function initInteractions(): void {
   });
 
   $("search").addEventListener("input", render);
+  initSearchControls();
+}
+
+/**
+ * Wires the search column dropdown, match-mode dropdown and case toggle buttons.
+ * The matcher runs against each column's displayed/export value (injected here
+ * from exportSvc.cellValue) so search results line up with what copy and export
+ * emit — both already operate on the filtered currentRows().
+ */
+function initSearchControls(): void {
+  // Match against the displayed/exported value, not the raw row field.
+  setDisplayValueResolver((row, key, cls) => exportSvc.cellValue(row, key, cls));
+
+  const colSel = $("searchColumn") as HTMLSelectElement;
+  if (colSel && !colSel.options.length) {
+    const all = document.createElement("option");
+    all.value = "";
+    all.textContent = "All columns";
+    colSel.appendChild(all);
+    for (const [key, label] of COLUMNS) {
+      const opt = document.createElement("option");
+      opt.value = key;
+      opt.textContent = label;
+      colSel.appendChild(opt);
+    }
+  }
+  colSel?.addEventListener("change", () => { setSearchColumn(colSel.value); render(); });
+
+  const modeSel = $("searchMode") as HTMLSelectElement;
+  modeSel?.addEventListener("change", () => { setSearchMode(modeSel.value as SearchMode); render(); });
+
+  const insensitive = $("searchCaseInsensitive");
+  const sensitive = $("searchCaseSensitive");
+  const setCase = (on: boolean) => {
+    setCaseSensitive(on);
+    sensitive?.classList.toggle("active", on);
+    insensitive?.classList.toggle("active", !on);
+    render();
+  };
+  insensitive?.addEventListener("click", () => setCase(false));
+  sensitive?.addEventListener("click", () => setCase(true));
 }

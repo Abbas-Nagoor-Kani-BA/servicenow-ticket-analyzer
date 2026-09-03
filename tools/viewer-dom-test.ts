@@ -74,6 +74,77 @@ test("search filter narrows the view", { timeout: 8000 }, async () => {
   assert.match(document.getElementById("count").textContent, /2 \/ 2/);
 });
 
+test("column-scoped search, match modes, and case toggle", { timeout: 8000 }, async () => {
+  const search = document.getElementById("search");
+  const colSel = document.getElementById("searchColumn");
+  const modeSel = document.getElementById("searchMode");
+  const setSearch = (v) => { search.value = v; search.dispatchEvent(new window.Event("input", { bubbles: true })); };
+  const setSel = (el, v) => { el.value = v; el.dispatchEvent(new window.Event("change", { bubbles: true })); };
+  const reset = async () => { setSel(colSel, ""); setSel(modeSel, "contains"); document.getElementById("searchCaseInsensitive").dispatchEvent(new window.MouseEvent("click", { bubbles: true })); setSearch(""); await flush(); };
+
+  // Column dropdown is populated with All columns + each grid column.
+  assert.ok(colSel.options.length > 5, "column dropdown populated");
+  assert.equal(colSel.options[0].value, "", "first option is All columns");
+
+  // Scope to State column: "First" (a short-description word) should NOT match.
+  setSel(colSel, "state");
+  setSearch("First");
+  await flush();
+  assert.match(document.getElementById("count").textContent, /0 \/ 2/, "state column does not contain 'First'");
+
+  // Match displayed State value with Equals.
+  setSel(modeSel, "equals");
+  setSearch("Closed");
+  await flush();
+  assert.match(document.getElementById("count").textContent, /1 \/ 2/, "Equals matches the one Closed row");
+
+  // Does not equal keeps the other row.
+  setSel(modeSel, "notEquals");
+  await flush();
+  assert.match(document.getElementById("count").textContent, /1 \/ 2/, "notEquals keeps the non-Closed row");
+
+  // Case-sensitive: "closed" no longer equals "Closed".
+  setSel(modeSel, "equals");
+  setSearch("closed");
+  document.getElementById("searchCaseSensitive").dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+  await flush();
+  assert.match(document.getElementById("count").textContent, /0 \/ 2/, "case-sensitive Equals rejects lowercase");
+
+  // Search a DERIVED column by its displayed value (Type = Incident).
+  await reset();
+  setSel(colSel, "rep:type");
+  setSel(modeSel, "equals");
+  setSearch("Incident");
+  await flush();
+  assert.match(document.getElementById("count").textContent, /2 \/ 2/, "both rows are Incident by displayed Type");
+
+  await reset();
+});
+
+test("copy after search only copies the filtered rows", { timeout: 8000 }, async () => {
+  const search = document.getElementById("search");
+  const colSel = document.getElementById("searchColumn");
+  const setSel = (el, v) => { el.value = v; el.dispatchEvent(new window.Event("change", { bubbles: true })); };
+  setSel(colSel, "state");
+  search.value = "Closed";
+  search.dispatchEvent(new window.Event("input", { bubbles: true }));
+  await flush();
+  assert.equal(grid.currentRows().length, 1, "search narrowed to one row");
+
+  document.getElementById("copyMsrBtn").dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+  await flush();
+  const copied = getLastCopied();
+  assert.equal(copied.split("\n").length, 1, "only the searched row is copied");
+  assert.match(copied, /INC0001001/, "the copied row is the Closed one");
+  assert.doesNotMatch(copied, /INC0001002/, "the filtered-out row is not copied");
+
+  // reset for later tests
+  setSel(colSel, "");
+  search.value = "";
+  search.dispatchEvent(new window.Event("input", { bubbles: true }));
+  await flush();
+});
+
 test("column header click sorts by that column", { timeout: 8000 }, async () => {
   const ths = document.querySelectorAll("#tbl thead th");
   const idx = [...ths].findIndex(t => t.textContent.includes("Number"));
