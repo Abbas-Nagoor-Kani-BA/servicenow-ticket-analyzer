@@ -43,6 +43,11 @@
 
     <button id="addFilterBtn" type="button" class="w-full mt-2.5 bg-line font-medium py-2.5 rounded cursor-pointer text-text hover:brightness-110">+ Add to filter list</button>
 
+    <label class="flex items-center gap-2 mt-3 text-[11.5px] text-muted cursor-pointer select-none" data-tip="Also pull this week's change requests to fill the Weekly Summary sheet (last week implemented/failed, next week planned) plus P1/P2 incidents from last week">
+      <input id="includeSummary" type="checkbox" class="accent-accent">
+      <span>Pull change requests for Weekly Summary</span>
+    </label>
+
     <details id="advancedBox" class="mt-2.5">
       <summary class="text-xs text-dim cursor-pointer">Advanced — raw query override / generated query</summary>
       <textarea id="rawQuery" placeholder="Optional: extra encoded query conditions, e.g. priority=1^category=network" class="textarea mt-2"></textarea>

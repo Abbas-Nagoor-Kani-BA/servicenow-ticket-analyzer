@@ -12,6 +12,7 @@ import { snStateMap, snTableLabel } from "../core/statechoices.ts";
 import { normalizeNames } from "../core/names.ts";
 import { mergeRows } from "../core/rowmerge.ts";
 import { analyzeAll } from "../core/phase2.ts";
+import { weekRanges, CHANGE_SUMMARY_FIELDS } from "../core/summarydetails.ts";
 import { groupScopeOf, scopeGroups } from "./queue-scope.ts";
 
 export type ProgressFn = (stage: string, detail: string, extra?: Record<string, unknown>) => void;
@@ -32,6 +33,8 @@ export type PullRequest = {
   signal?: AbortSignal;
   onProgress?: ProgressFn;
   onDiagnostic?: (d: any) => void;
+  /** When true, additionally pull change_request rows for the weekly Summary. */
+  includeChangeSummary?: boolean;
 };
 
 export type PullResult = {
@@ -113,7 +116,11 @@ export class PullService {
     const analysed = await this.#fetchAllTimelines(scope.timelines, bundle.byTable, configured, req, progress);
     if (!analysed.rows.length) throw new Error("No tickets match this filter list");
 
-    const merged = await this.#persist(analysed, bundle.runEntries, bundle.plannedSum, req, configured, progress);
+    const changeSummaryRows = req.includeChangeSummary
+      ? await this.#pullChangeSummary(scope.tickets, configured, req, progress)
+      : undefined;
+
+    const merged = await this.#persist(analysed, bundle.runEntries, bundle.plannedSum, req, configured, progress, changeSummaryRows);
 
     return {
       pulled: analysed.rows.length,
@@ -234,6 +241,64 @@ export class PullService {
     return { byTable, runEntries, plannedSum };
   }
 
+  /**
+   * Pull change_request rows for the Weekly Summary in TWO scoped requests —
+   * one for last week, one for next week — each filtering start_date
+   * within that Monday-Sunday window. Kept as separate requests (rather than a
+   * single OR'd query) because repeating the queue scope across OR branches
+   * makes the encoded query long enough that ServiceNow rejects it with 400.
+   *
+   * Rows are bucketed later (core/summarydetails.ts): last-week rows into
+   * implemented / failed, next-week rows into planned. Key Incidents come from
+   * the already-pulled incident rows, not from here. No timelines are needed.
+   */
+  async #pullChangeSummary(
+    tickets: TicketRepository,
+    configured: { groupScope: { groupNames: string[] } },
+    req: PullRequest,
+    progress: ProgressFn
+  ): Promise<TicketRow[]> {
+    const weeks = weekRanges();
+    const groupNames = configured.groupScope.groupNames || [];
+    const scope = groupNames.length
+      ? `assignment_group.nameIN${groupNames.map((g) => String(g).replace(/['\\]/g, "")).join(",")}^`
+      : "";
+    const windowQuery = (from: string, to: string): string =>
+      `${scope}start_dateBETWEENjavascript:gs.dateGenerate('${from}','00:00:00')@javascript:gs.dateGenerate('${to}','23:59:59')`;
+
+    const windows: Array<{ label: string; from: string; to: string }> = [
+      { label: "last week", from: weeks.last.from, to: weeks.last.to },
+      { label: "next week", from: weeks.next.from, to: weeks.next.to }
+    ];
+
+    const byId = new Map<string, TicketRow>();
+    for (const w of windows) {
+      const query = windowQuery(w.from, w.to);
+      progress("summary", `Weekly Summary: change requests for ${w.label} (${w.from} \u2013 ${w.to})...`);
+      try {
+        const total = await tickets.count("change_request", query);
+        progress("summary", `Weekly Summary: ${total} change request(s) in ${w.label}`);
+        if (!total) continue;
+        const { records } = await tickets.list({
+          table: "change_request",
+          encodedQuery: query,
+          fields: CHANGE_SUMMARY_FIELDS,
+          signal: req.signal,
+          onProgress: (p) => progress("summary", `Weekly Summary (${w.label}): ${p.fetched}/${total}`)
+        });
+        for (const rec of records as TicketRow[]) {
+          const id = String((rec as { sys_id?: { value?: string } }).sys_id?.value || (rec as { sys_id?: string }).sys_id || "");
+          if (id && !byId.has(id)) byId.set(id, rec);
+          else if (!id) byId.set(`_${byId.size}`, rec);
+        }
+      } catch (err) {
+        progress("summary", `Weekly Summary: ${w.label} change request pull failed \u2014 ${(err as Error).message}`);
+      }
+    }
+    progress("summary", `Weekly Summary: ${byId.size} change request(s) pulled`);
+    return [...byId.values()];
+  }
+
   async #fetchAllTimelines(
     timelines: TimelineRepository,
     byTable: Map<string, Map<string, TicketRow>>,
@@ -307,7 +372,8 @@ export class PullService {
     plannedSum: number,
     req: PullRequest,
     configured: { groups: string[] },
-    progress: ProgressFn
+    progress: ProgressFn,
+    changeSummaryRows?: TicketRow[]
   ): Promise<TicketRow[]> {
     const previous = await this.dataset.load();
     const merged = mergeRows(previous?.rows || [], analysed.rows);
@@ -344,7 +410,8 @@ export class PullService {
           }))
       },
       runs,
-      rows: merged
+      rows: merged,
+      changeSummaryRows: changeSummaryRows !== undefined ? changeSummaryRows : previous?.changeSummaryRows
     };
 
     await this.dataset.save(dataset);

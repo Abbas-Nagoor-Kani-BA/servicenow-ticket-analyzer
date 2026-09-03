@@ -17,6 +17,7 @@
 import { dataStore, hydrateStores, wireViewer } from "./store.ts";
 import { syncMsrLists } from "./core.ts";
 import { initSummary } from "./summary.ts";
+import { initSummaryDetails } from "./summary-details.ts";
 import { initGrid, load } from "./grid.ts";
 import { initCols } from "./cols.ts";
 import { initDialogs } from "./dialogs.ts";
@@ -37,6 +38,7 @@ import "./shared.ts";
 
 async function boot() {
   initSummary();
+  initSummaryDetails();
   initGrid();
   initCols();
   initDialogs();

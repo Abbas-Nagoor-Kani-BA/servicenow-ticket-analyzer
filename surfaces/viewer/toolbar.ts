@@ -7,7 +7,9 @@ import {
 import type { CiGroupRows, TplCol } from "../../services/export-service.ts";
 import { $, setStatus, el } from "./core.ts";
 import type { ViewerRow } from "./core.ts";
-import { buildSlaSummaryRowsFor } from "./core.ts";
+import { buildSlaSummaryRowsFor, buildSummaryDetailsFor } from "./core.ts";
+import { getSummaryNarrative } from "./summary-details.ts";
+import { dataStore } from "./store.ts";
 import {
   getCiSplit, setCiSplit, getSavedMapPresent, setSavedMapPresent,
   syncSplitRadio, closeConfigDialog, updateCiBtn, updateExportDots, setOnConfigChange
@@ -261,13 +263,16 @@ async function runExport(): Promise<void> {
     });
     const tplCols = tplColumnsFromMap(savedMap);
     setStatus("Filling template…");
+    // Weekly Summary details (derived change/incident tables + typed narrative)
+    // come from the whole dataset, not the CI-split subset.
+    const summaryDetails = buildSummaryDetailsFor(dataStore.getState().data, getSummaryNarrative());
     const split = getCiSplit();
     if (split.enabled && split.groups.length) {
       const groups = buildCiGroups(rows);
       let total = 0;
       for (const g of groups) {
         const out = TemplateXml.fillTemplateBuffer(bufferFromB64(tplInfo.dataB64), g.rows, tplCols as unknown as TemplateCol[], undefined,
-          buildSlaSummaryRowsFor(g.rows, fmtInstant));
+          buildSlaSummaryRowsFor(g.rows, fmtInstant), summaryDetails);
         await downloadOne(out, filledFilename(tplInfo.name, g.name));
         total += g.rows.length;
       }
@@ -286,7 +291,7 @@ async function runExport(): Promise<void> {
       return;
     }
     const out = TemplateXml.fillTemplateBuffer(bufferFromB64(tplInfo.dataB64), rows, tplCols as unknown as TemplateCol[], undefined,
-      buildSlaSummaryRowsFor(rows, fmtInstant));
+      buildSlaSummaryRowsFor(rows, fmtInstant), summaryDetails);
     await downloadOne(out, filledFilename(tplInfo.name));
     const filtered = rows.length !== getTotalRows() ? " (filtered)" : "";
     showToast(`Export complete \u2014 ${rows.length} row${rows.length === 1 ? "" : "s"}${filtered}`);

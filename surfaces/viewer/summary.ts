@@ -5,6 +5,7 @@ import type { SlaSummaryItem } from "../../core/slasummary.ts";
 import { buildSlaSummaryFor } from "./core.ts";
 import type { ViewerRow, ViewerData } from "./core.ts";
 import { dataStore } from "./store.ts";
+import { renderSummaryDetails } from "./summary-details.ts";
 
 const $ = (id: string): any => document.getElementById(id);
 
@@ -202,24 +203,43 @@ function renderSummary(): void {
   buildProblemTable(probTbl.tBodies[0], s.items.filter(i => i.ticketType === "Problem"));
 }
 
-function setTab(ticketsOn: boolean): void {
-  $("tabTickets").classList.toggle("on", ticketsOn);
-  $("tabSummary").classList.toggle("on", !ticketsOn);
-  $("tabTickets").setAttribute("aria-selected", ticketsOn ? "true" : "false");
-  $("tabSummary").setAttribute("aria-selected", ticketsOn ? "false" : "true");
+function setTab(active: "tickets" | "summary" | "details"): void {
+  $("tabTickets").classList.toggle("on", active === "tickets");
+  $("tabSummary").classList.toggle("on", active === "summary");
+  const det = $("tabSummaryDetails");
+  if (det) det.classList.toggle("on", active === "details");
+  $("tabTickets").setAttribute("aria-selected", active === "tickets" ? "true" : "false");
+  $("tabSummary").setAttribute("aria-selected", active === "summary" ? "true" : "false");
+  if (det) det.setAttribute("aria-selected", active === "details" ? "true" : "false");
+}
+
+function hideDetails(): void {
+  const w = $("summaryDetailsWrap");
+  if (w) w.classList.add("hidden");
 }
 
 function showTickets(): void {
-  setTab(true);
+  setTab("tickets");
   $("wrap").classList.remove("hidden");
   $("summaryWrap").classList.add("hidden");
+  hideDetails();
 }
 
 function showSummary(): void {
-  setTab(false);
+  setTab("summary");
   $("wrap").classList.add("hidden");
   $("summaryWrap").classList.remove("hidden");
+  hideDetails();
   renderSummary();
+}
+
+function showSummaryDetails(): void {
+  setTab("details");
+  $("wrap").classList.add("hidden");
+  $("summaryWrap").classList.add("hidden");
+  const w = $("summaryDetailsWrap");
+  if (w) w.classList.remove("hidden");
+  renderSummaryDetails();
 }
 
 export function initSummary(): void {
@@ -231,6 +251,8 @@ export function initSummary(): void {
 
   $("tabTickets").addEventListener("click", () => showTickets());
   $("tabSummary").addEventListener("click", () => showSummary());
+  const detTab = $("tabSummaryDetails");
+  if (detTab) detTab.addEventListener("click", () => showSummaryDetails());
 
   document.addEventListener("keydown", e => {
     const t = e.target;
@@ -242,6 +264,7 @@ export function initSummary(): void {
     if (!mod) return;
     if (e.key === "1") { e.preventDefault(); showTickets(); }
     else if (e.key === "2") { e.preventDefault(); showSummary(); }
+    else if (e.key === "3") { e.preventDefault(); showSummaryDetails(); }
     else if (e.key === "Tab") {
       e.preventDefault();
       if (e.shiftKey) showTickets();

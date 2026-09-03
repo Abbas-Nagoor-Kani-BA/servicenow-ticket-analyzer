@@ -35,6 +35,8 @@ export type MsgRun = {
   filters?: Record<string, unknown>;
   fields?: string[];
   maxTickets?: number;
+  /** When true, additionally pull change_request rows for the weekly Summary. */
+  includeChangeSummary?: boolean;
 };
 export type MsgCount = {
   type: "COUNT";

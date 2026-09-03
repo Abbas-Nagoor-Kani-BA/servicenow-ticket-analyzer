@@ -26,6 +26,8 @@ export type Dataset = {
   debug?: Record<string, unknown>;
   runs: RunEntry[];
   rows: TicketRow[];
+  /** Raw change_request rows pulled for the Weekly Summary (optional). */
+  changeSummaryRows?: TicketRow[];
 };
 
 /** Sends a runtime message to the other extension surfaces. */

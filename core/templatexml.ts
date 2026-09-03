@@ -353,12 +353,161 @@ function patchSummarySlaSheet(files: FileMap, sharedStrings: string[], summaryRo
   return patched;
 }
 
+// --- Weekly Summary cover sheet (the "Summary" sheet) ----------------------
+//
+// Unlike the tabular All_Ticket_Details fill, this sheet has fixed section
+// tables (Key Incidents, Changes Implemented / Planned / Failed) plus large
+// merged narrative cells. We locate each section by its header text and write
+// derived rows into the rows following that section's column header, capping at
+// the slots available before the next section so nothing below is clobbered.
+// Narrative-only columns are left untouched for the user's editable section.
+
+export type SummaryChangeRow = { date: number | null; systemArea: string; crNumber: string; details: string };
+export type SummaryIncidentRow = {
+  resolutionDate: number | null;
+  systemArea: string;
+  incidentNumber: string;
+  details: string;
+  status: string;
+  rootCauseResolution: string;
+};
+
+export type SummaryDetailsData = {
+  keyIncidents?: SummaryIncidentRow[];
+  changesImplemented?: SummaryChangeRow[];
+  changesPlanned?: SummaryChangeRow[];
+  changesFailed?: SummaryChangeRow[];
+  /** Free-text narrative the user typed, keyed by target cell ref (e.g. A2, A35). */
+  narrative?: Record<string, string>;
+};
+
+/** Column-A display text of each row, in row order. */
+function rowTextsByColumnA(sheetXml: string, sharedStrings: string[]): Array<{ rowNum: number; text: string }> {
+  const out: Array<{ rowNum: number; text: string }> = [];
+  const rowRe = /<row\s[^>]*r="(\d+)"[\s\S]*?<\/row>/g;
+  let m: RegExpExecArray | null;
+  while ((m = rowRe.exec(sheetXml)) !== null) {
+    const rowNum = parseInt(m[1], 10);
+    const aCell = m[0].match(new RegExp(`<c\\s[^>]*r="A${rowNum}"[\\s\\S]*?(?:<\\/c>|\\/>)`));
+    out.push({ rowNum, text: aCell ? cellDisplayValue(aCell[0], sharedStrings) : "" });
+  }
+  return out;
+}
+
+function setNumOrText(sheetXml: string, ref: string, value: string | number | null): string {
+  if (value === null || value === undefined || value === "") return sheetXml;
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return setCell(sheetXml, ref, "", `<v>${value}</v>`);
+  }
+  const str = String(value);
+  if (isNumericCellValue(str)) return setCell(sheetXml, ref, "", `<v>${str.trim()}</v>`);
+  return setCell(sheetXml, ref, `t="inlineStr"`, `<is><t xml:space="preserve">${xmlEscape(str)}</t></is>`);
+}
+
+/**
+ * Write derived cells for `rows` into consecutive sheet rows starting at
+ * `firstDataRow`, stopping before `limitRow`. `cols` maps a column letter to a
+ * value getter. Returns the number of rows written.
+ */
+function writeSectionRows(
+  sheetXml: string,
+  rows: Array<Record<string, string | number | null>>,
+  cols: Array<{ letter: string; key: string }>,
+  firstDataRow: number,
+  limitRow: number
+): { xml: string; written: number } {
+  let xml = sheetXml;
+  let written = 0;
+  for (let i = 0; i < rows.length && firstDataRow + i < limitRow; i++) {
+    const r = firstDataRow + i;
+    for (const { letter, key } of cols) {
+      xml = setNumOrText(xml, `${letter}${r}`, rows[i][key]);
+    }
+    written++;
+  }
+  return { xml, written };
+}
+
+/**
+ * Fill the Weekly Summary cover sheet. Locates sections by header text; returns
+ * the number of table rows written across all sections (0 if the sheet or the
+ * data is absent — never falls back to another sheet).
+ */
+function patchSummaryDetailsSheet(files: FileMap, sharedStrings: string[], data: SummaryDetailsData | null | undefined): number {
+  if (!data) return 0;
+  const path = findTargetSheetPath(files, "summary");
+  if (!path) return 0;
+  let sheetXml = decodeText(files[path]);
+  const rowsA = rowTextsByColumnA(sheetXml, sharedStrings);
+
+  // Find the row index of a section by a normalized substring of its A-column text.
+  const findRow = (needle: string, after = 0): number => {
+    const n = normLabel(needle);
+    for (const { rowNum, text } of rowsA) {
+      if (rowNum > after && normLabel(text).includes(n)) return rowNum;
+    }
+    return 0;
+  };
+
+  const changeCols = [
+    { letter: "A", key: "date" },
+    { letter: "B", key: "systemArea" },
+    { letter: "C", key: "crNumber" },
+    { letter: "D", key: "details" }
+  ];
+  const incidentCols = [
+    { letter: "A", key: "resolutionDate" },
+    { letter: "B", key: "systemArea" },
+    { letter: "C", key: "incidentNumber" },
+    { letter: "D", key: "details" },
+    { letter: "F", key: "status" },
+    { letter: "G", key: "rootCauseResolution" }
+  ];
+
+  // Section anchors (header rows). Data starts two rows below the section
+  // header (section title row, then the column-header row).
+  const keyIncHdr = findRow("Key Incidents");
+  const implHdr = findRow("Changes implemented");
+  const plannedHdr = findRow("Changes Planned");
+  const failedHdr = findRow("Changes Failed");
+  const opHealthHdr = findRow("Operational Health");
+
+  let written = 0;
+  const run = (
+    rows: Array<Record<string, string | number | null>> | undefined,
+    cols: Array<{ letter: string; key: string }>,
+    hdr: number,
+    limit: number
+  ): void => {
+    if (!rows || !rows.length || !hdr) return;
+    const res = writeSectionRows(sheetXml, rows, cols, hdr + 2, limit || hdr + 2 + rows.length);
+    sheetXml = res.xml;
+    written += res.written;
+  };
+
+  run(data.keyIncidents, incidentCols, keyIncHdr, implHdr);
+  run(data.changesImplemented, changeCols, implHdr, plannedHdr);
+  run(data.changesPlanned, changeCols, plannedHdr, failedHdr);
+  run(data.changesFailed, changeCols, failedHdr, opHealthHdr);
+
+  // Narrative free-text cells (Highlights block, Operational Health, etc.).
+  if (data.narrative) {
+    for (const [ref, text] of Object.entries(data.narrative)) {
+      if (text) sheetXml = setNumOrText(sheetXml, ref, text);
+    }
+  }
+
+  files[path] = encodeText(sheetXml);
+  return written;
+}
+
 function fillTemplateBuffer(
   templateBuf: Uint8Array | ArrayBuffer,
   rows: unknown[],
   tplCols: TemplateCol[],
   sheetName?: string,
-  summary?: SlaSummaryItem[]
+  summary?: SlaSummaryItem[],
+  summaryDetails?: SummaryDetailsData
 ): Uint8Array {
   if (!fflate) throw new Error("fflate not available — call setFflate() first");
   const files = fflate.unzipSync(new Uint8Array(templateBuf));
@@ -376,6 +525,7 @@ function fillTemplateBuffer(
     colLetter(tplCols[tplCols.length - 1].col));
   files[sheetPath] = encodeText(sheetXml);
   if (summary) patchSummarySlaSheet(files, sharedStrings, summary);
+  if (summaryDetails) patchSummaryDetailsSheet(files, sharedStrings, summaryDetails);
   stripCalcChain(files);
   return fflate.zipSync(files, { level: 6 });
 }
@@ -383,5 +533,5 @@ function fillTemplateBuffer(
 export {
   normSheetName, findTargetSheetPath, parseSharedStrings, cellDisplayValue,
   harvestDataCellStyles, isNumericCellValue, buildDataRowsXml, patchSheetXml,
-  findHeaderRowInXml, stripCalcChain, patchSummarySlaSheet, fillTemplateBuffer
+  findHeaderRowInXml, stripCalcChain, patchSummarySlaSheet, patchSummaryDetailsSheet, fillTemplateBuffer
 };

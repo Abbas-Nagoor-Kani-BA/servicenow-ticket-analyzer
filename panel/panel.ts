@@ -23,7 +23,8 @@ const els = {
   preview: $("previewBtn"),
   runBtn: $("runBtn"),
   viewBtn: $("viewBtn"),
-  lastRun: $("lastRun")
+  lastRun: $("lastRun"),
+  includeSummary: $("includeSummary")
 };
 function choiceList(key: string): { value: string | number; label: string }[] {
   if (key === "states") return snStateChoices(els.ticketType.value);
@@ -114,8 +115,9 @@ async function applyPluginSettings(): Promise<void> {
 $("settingsBtn").addEventListener("click", () => chrome.runtime.openOptionsPage());
 initTooltips();
 panel.ready.then(() => refreshGenerated()).catch(() => {});
-chrome.storage.local.get(["snInstance", "lastRun"], async (cfg: { snInstance?: unknown; lastRun?: unknown }) => {
+chrome.storage.local.get(["snInstance", "lastRun", STORAGE.includeSummary], async (cfg: { snInstance?: unknown; lastRun?: unknown; includeSummary?: unknown }) => {
   await applyPluginSettings();
+  els.includeSummary.checked = cfg.includeSummary === true;
   if (cfg.snInstance && !els.instance.value) els.instance.value = String(cfg.snInstance);
   const effective = els.instance.value || cfg.snInstance;
   if (effective) {
@@ -270,6 +272,9 @@ els.ticketType.addEventListener("change", () => {
   refreshGenerated();
 });
 els.connect.addEventListener("click", () => connect(true));
+els.includeSummary.addEventListener("change", () => {
+  chrome.storage.local.set({ [STORAGE.includeSummary]: els.includeSummary.checked });
+});
 els.instance.addEventListener("change", () => {
   els.connState.textContent = "Not ready";
   els.connState.classList.remove("on");
@@ -332,9 +337,10 @@ els.runBtn.addEventListener("click", async () => {
       instanceUrl: requireInstance(),
       groups: configuredGroups(),
       filters: sets[0],
-      filterSets: sets
+      filterSets: sets,
+      includeChangeSummary: els.includeSummary.checked
     });
-    logger.log(`Run started with ${sets.length} filter set${sets.length > 1 ? "s" : ""}\u2026`);
+    logger.log(`Run started with ${sets.length} filter set${sets.length > 1 ? "s" : ""}${els.includeSummary.checked ? " \xB7 + Weekly Summary change requests" : ""}\u2026`);
   } catch (err) {
     setBusy(false);
     progressCard.setLabel((err as Error).message);

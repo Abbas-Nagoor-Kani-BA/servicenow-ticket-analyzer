@@ -61,6 +61,7 @@
   <div id="tabs" role="tablist">
     <button id="tabTickets" class="tab on" role="tab" aria-selected="true"><span class="g">☰</span> Tickets</button>
     <button id="tabSummary" class="tab" role="tab" aria-selected="false"><span class="g">Σ</span> Summary SLA</button>
+    <button id="tabSummaryDetails" class="tab" role="tab" aria-selected="false"><span class="g">◫</span> Weekly Summary</button>
   </div>
   <div id="wrap">
     <table id="tbl">
@@ -88,6 +89,18 @@
         <tbody></tbody>
       </table>
     </div>
+  </div>
+  <div id="summaryDetailsWrap" class="hidden">
+    <div id="sdMeta" class="text-[12px] text-dim my-2"></div>
+    <div id="sdNarrative" class="my-3"></div>
+    <h3 class="text-[13px] text-accent mt-4 mb-1">Key Incidents (P1/P2, last week)</h3>
+    <div class="table-wrapper"><table id="sdKeyIncTbl" class="sum-table"><thead></thead><tbody></tbody></table></div>
+    <h3 class="text-[13px] text-accent mt-4 mb-1">Changes Implemented (last week)</h3>
+    <div class="table-wrapper"><table id="sdImplTbl" class="sum-table"><thead></thead><tbody></tbody></table></div>
+    <h3 class="text-[13px] text-accent mt-4 mb-1">Changes Planned (next week)</h3>
+    <div class="table-wrapper"><table id="sdPlannedTbl" class="sum-table"><thead></thead><tbody></tbody></table></div>
+    <h3 class="text-[13px] text-accent mt-4 mb-1">Changes Failed (last week)</h3>
+    <div class="table-wrapper"><table id="sdFailedTbl" class="sum-table"><thead></thead><tbody></tbody></table></div>
   </div>
   <div id="empty" class="hidden">No pulled data yet — run a pull from the side panel first.</div>
   <div id="calclensPanel"></div>

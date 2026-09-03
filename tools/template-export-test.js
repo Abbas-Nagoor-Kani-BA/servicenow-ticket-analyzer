@@ -198,5 +198,108 @@ export function patchSummarySlaSheetMissingSheet() {
 }
 patchSummarySlaSheetMissingSheet();
 
+console.log("\n== patchSummaryDetailsSheet ==");
+// Summary cover sheet fixture mirroring the real WSR layout (section headers +
+// column-header row + data rows). Column A carries the section titles.
+const sdWb = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+<sheets><sheet name="All_Ticket_Details" sheetId="1" r:id="rId1"/><sheet name="Summary" sheetId="2" r:id="rId2"/></sheets>
+<calcPr calcId="191028"/>
+</workbook>`;
+const sdSheet = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><dimension ref="A1:H40"/>
+<sheetData>
+<row r="2"><c r="A2" s="3" t="inlineStr"><is><t>Highlights: NA</t></is></c></row>
+<row r="14"><c r="A14" t="inlineStr"><is><t>Key Incidents (Sev1, Sev2 or Business sensitive) this week</t></is></c></row>
+<row r="15"><c r="A15" t="inlineStr"><is><t>Resolution Date</t></is></c><c r="C15" t="inlineStr"><is><t>Incident Number</t></is></c></row>
+<row r="16"><c r="A16" s="5"/><c r="C16" s="5"/></row>
+<row r="17"><c r="A17" t="inlineStr"><is><t>Changes implemented this week</t></is></c></row>
+<row r="18"><c r="A18" t="inlineStr"><is><t>Implementation Date</t></is></c><c r="C18" t="inlineStr"><is><t>CR Number</t></is></c></row>
+<row r="19"><c r="A19" s="5"/><c r="C19" s="5"/></row>
+<row r="20"><c r="A20" s="5"/><c r="C20" s="5"/></row>
+<row r="25"><c r="A25" t="inlineStr"><is><t>Changes Planned</t></is></c></row>
+<row r="26"><c r="A26" t="inlineStr"><is><t>Implementation Date</t></is></c><c r="C26" t="inlineStr"><is><t>CR Number</t></is></c></row>
+<row r="27"><c r="A27" s="5"/><c r="C27" s="5"/></row>
+<row r="31"><c r="A31" t="inlineStr"><is><t>Changes Failed this week</t></is></c></row>
+<row r="32"><c r="A32" t="inlineStr"><is><t>Implementation Date</t></is></c><c r="C32" t="inlineStr"><is><t>CR Number</t></is></c></row>
+<row r="33"><c r="A33" t="inlineStr"><is><t>None</t></is></c></row>
+<row r="34"><c r="A34" t="inlineStr"><is><t>Operational Health</t></is></c></row>
+<row r="35"><c r="A35" t="inlineStr"><is><t>No impact.</t></is></c></row>
+</sheetData></worksheet>`;
+const sdFixture = fflate.zipSync({
+  "[Content_Types].xml": enc(sumCt),
+  "_rels/.rels": enc(rootRels),
+  "xl/workbook.xml": enc(sdWb),
+  "xl/_rels/workbook.xml.rels": enc(sumWbRels),
+  "xl/sharedStrings.xml": enc(sst),
+  "xl/worksheets/sheet1.xml": enc(sheet),
+  "xl/worksheets/sheet2.xml": enc(sdSheet)
+}, { level: 0 });
+
+const summaryDetails = {
+  keyIncidents: [
+    { resolutionDate: 46253.5, systemArea: "RMS (prd)", incidentNumber: "INC2558027", details: "Arrival tasks", status: "Closed", rootCauseResolution: "RC narrative" }
+  ],
+  changesImplemented: [
+    { date: 46253.25, systemArea: "RMS (prd)", crNumber: "CHG0260966", details: "BaseData updates" },
+    { date: 46251.98, systemArea: "OPS (prd)", crNumber: "CHG0260607", details: "Dashboard reqs" }
+  ],
+  changesPlanned: [
+    { date: 46259.54, systemArea: "RMS BAGGAGE (prd)", crNumber: "CHG0262212", details: "New ETL job" }
+  ],
+  changesFailed: [
+    { date: 46252.2, systemArea: "BROCK (prd)", crNumber: "CHG0261128", details: "Azure patching" }
+  ],
+  narrative: { A2: "Highlights: all good", A35: "No operational impact this week." }
+};
+
+let sdOut;
+try {
+  sdOut = T.fillTemplateBuffer(sdFixture, rows, tplCols, undefined, undefined, summaryDetails);
+  check("summary-details export completes", true);
+} catch (err) {
+  check("summary-details export completes", false, err.message);
+  process.exit(1);
+}
+const sdFiles = fflate.unzipSync(new Uint8Array(sdOut));
+const dxml = decode(sdFiles, "xl/worksheets/sheet2.xml");
+
+check("key incident number written to C16", /<c r="C16"[^>]*t="inlineStr"><is><t xml:space="preserve">INC2558027<\/t><\/is><\/c>/.test(dxml));
+check("key incident resolution date as serial A16", /<c r="A16"[^>]*><v>46253.5<\/v><\/c>/.test(dxml));
+check("key incident status to F16", /<c r="F16"[^>]*>INC|<c r="F16"[^>]*t="inlineStr"><is><t xml:space="preserve">Closed<\/t>/.test(dxml));
+check("key incident root cause to G16", /<c r="G16"[^>]*t="inlineStr"><is><t xml:space="preserve">RC narrative<\/t>/.test(dxml));
+check("implemented CR1 to C19", /<c r="C19"[^>]*t="inlineStr"><is><t xml:space="preserve">CHG0260966<\/t>/.test(dxml));
+check("implemented CR2 to C20", /<c r="C20"[^>]*t="inlineStr"><is><t xml:space="preserve">CHG0260607<\/t>/.test(dxml));
+check("planned CR to C27", /<c r="C27"[^>]*t="inlineStr"><is><t xml:space="preserve">CHG0262212<\/t>/.test(dxml));
+check("failed CR to C33 (overwrites None)", /<c r="C33"[^>]*t="inlineStr"><is><t xml:space="preserve">CHG0261128<\/t>/.test(dxml));
+check("narrative A2 written", /<c r="A2"[^>]*t="inlineStr"><is><t xml:space="preserve">Highlights: all good<\/t>/.test(dxml));
+check("narrative A35 written", /<c r="A35"[^>]*t="inlineStr"><is><t xml:space="preserve">No operational impact this week.<\/t>/.test(dxml));
+check("section header row 17 untouched", /Changes implemented this week/.test(dxml));
+
+// Missing Summary sheet => silent no-op
+let sdOut2;
+try {
+  sdOut2 = T.fillTemplateBuffer(fixtureBuf, rows, tplCols, undefined, undefined, summaryDetails);
+  check("missing Summary sheet is a silent no-op", !!sdOut2 && !fflate.unzipSync(new Uint8Array(sdOut2))["xl/worksheets/sheet2.xml"]);
+} catch (err) {
+  check("missing Summary sheet is a silent no-op", false, err.message);
+}
+
+// Real wsr-sample.xlsx if present
+const wsrPath = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "wsr-sample.xlsx");
+if (fs.existsSync(wsrPath)) {
+  console.log("\n== real wsr-sample.xlsx (Summary) ==");
+  const rf = fflate.unzipSync(new Uint8Array(fs.readFileSync(wsrPath)));
+  const p = T.findTargetSheetPath(rf, "Summary");
+  check("[real] finds Summary sheet", !!p, String(p));
+  const sst2 = T.parseSharedStrings(rf);
+  const n = T.patchSummaryDetailsSheet(rf, sst2, summaryDetails);
+  check("[real] patchSummaryDetailsSheet wrote rows", n >= 4, "wrote " + n);
+  const realXml = Buffer.from(rf[p]).toString();
+  check("[real] CR number appears on Summary sheet", realXml.includes("CHG0260966"));
+} else {
+  console.log("\n(skip) wsr-sample.xlsx not found at repo root");
+}
+
 console.log(`\ntemplate-export: ${failed ? failed + " FAILED" : "all passed"}`);
 process.exit(failed ? 1 : 0);

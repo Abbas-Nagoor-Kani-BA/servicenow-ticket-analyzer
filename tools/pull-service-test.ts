@@ -197,6 +197,61 @@ test("progress is reported through the documented stages", async () => {
   }
 });
 
+test("change summary pull issues two scoped change_request requests (last + next week)", async () => {
+  const remote = new FakeSnRemote();
+  remote.counts[`${TABLE}|${QUERY}`] = 1;
+  remote.records[`${TABLE}|${QUERY}`] = [ticket("abc", "INC001")];
+  remote.timelines.abc = [
+    { field: "assignment_group", oldValue: "", newValue: "Queue A", at: "2026-01-01 09:30:00" }
+  ];
+
+  const { run, remote: r } = harness(remote);
+  await run({ includeChangeSummary: true });
+
+  const crCounts = r.calls.filter((c) => c.method === "count" && c.args[0] === "change_request");
+  assert.equal(crCounts.length, 2, "one count per week window (last, next)");
+
+  for (const c of crCounts) {
+    const q = String(c.args[1]);
+    // Scope applied exactly once per request — no repetition, no top-level OR.
+    assert.equal((q.match(/assignment_group\.nameINQueue A/g) || []).length, 1, `scope once in ${q}`);
+    assert.equal((q.match(/\^OR/g) || []).length, 0, "no top-level OR in a single-window query");
+    assert.ok(q.includes("start_dateBETWEEN"), "filters on start_date BETWEEN a window");
+    assert.ok(q.includes("gs.dateGenerate"), "uses instance-side date generation");
+  }
+  // The two windows must differ (last vs next week).
+  assert.notEqual(String(crCounts[0].args[1]), String(crCounts[1].args[1]), "last and next week windows differ");
+});
+
+test("change summary pull persists change rows onto the dataset", async () => {
+  const remote = new FakeSnRemote();
+  remote.counts[`${TABLE}|${QUERY}`] = 1;
+  remote.records[`${TABLE}|${QUERY}`] = [ticket("abc", "INC001")];
+  remote.timelines.abc = [
+    { field: "assignment_group", oldValue: "", newValue: "Queue A", at: "2026-01-01 09:30:00" }
+  ];
+
+  const { run, c, remote: r } = harness(remote);
+  const crQueries = [];
+  const origCount = r.count.bind(r);
+  r.count = async (table, qq) => {
+    if (table === "change_request") crQueries.push(qq);
+    return origCount(table, qq);
+  };
+  await run({ includeChangeSummary: true });
+  assert.ok(crQueries.length >= 1, "learned the change_request queries");
+  // Seed a response on the first (last-week) window.
+  r.counts[`change_request|${crQueries[0]}`] = 1;
+  r.records[`change_request|${crQueries[0]}`] = [
+    { sys_id: "chg1", number: "CHG100", state: "Closed", cmdb_ci: { display_value: "RMS (prd)" }, short_description: "x" }
+  ];
+  await run({ includeChangeSummary: true });
+
+  const dataset = await c.resolve(DATASET_REPO).load();
+  assert.ok(Array.isArray(dataset?.changeSummaryRows), "changeSummaryRows persisted");
+  assert.equal(dataset?.changeSummaryRows?.[0]?.number, "CHG100");
+});
+
 test("a cached second run makes no ticket or timeline requests", async () => {
   const remote = new FakeSnRemote();
   remote.counts[`${TABLE}|${QUERY}`] = 1;

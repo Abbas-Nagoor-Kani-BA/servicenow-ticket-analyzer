@@ -11,7 +11,9 @@ export const STORAGE = Object.freeze({
   exportColMap: "exportColMap",
   ciSplit: "ciSplit",
   snXlsxTemplate: "snXlsxTemplate",
-  snFilterList: "snFilterList"
+  snFilterList: "snFilterList",
+  includeSummary: "includeSummary",
+  viewerSummaryNarrative: "viewerSummaryNarrative"
 } as const);
 
 export const MSG = Object.freeze({

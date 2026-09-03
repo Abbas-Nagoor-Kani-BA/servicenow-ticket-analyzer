@@ -4,6 +4,8 @@ import { STORAGE } from "../../lib/keys.ts";
 import { saveValue } from "../../lib/storage.ts";
 import { uiStore, setHiddenCols, setMsrLists, getMsrLists } from "./store.ts";
 import { ReportService } from "../../services/report-service.ts";
+import { buildSummaryDetails } from "../../core/summarydetails.ts";
+import type { SummaryDetailsData } from "../../core/templatexml.ts";
 
 const report = new ReportService();
 
@@ -133,6 +135,27 @@ function buildSlaSummaryRowsFor(rows: ViewerRow[] | null | undefined, fmt: Insta
   return report.slaSummaryRows(rows, fmt);
 }
 
+/**
+ * Derive the Weekly Summary cover-sheet data from the pulled dataset: P1/P2
+ * incidents from `rows` and change_request rows from `changeSummaryRows`,
+ * merged with the user's typed narrative (keyed by target cell ref).
+ */
+function buildSummaryDetailsFor(
+  data: ViewerData | null | undefined,
+  narrative?: Record<string, string>
+): SummaryDetailsData {
+  const rows = (data && Array.isArray(data.rows)) ? data.rows : [];
+  const changeRows = (data && Array.isArray(data.changeSummaryRows)) ? data.changeSummaryRows : [];
+  const d = buildSummaryDetails(rows, changeRows);
+  return {
+    keyIncidents: d.keyIncidents,
+    changesImplemented: d.changesImplemented,
+    changesPlanned: d.changesPlanned,
+    changesFailed: d.changesFailed,
+    narrative: narrative && Object.keys(narrative).length ? narrative : undefined
+  };
+}
+
 export {
   visibleCols,
   hideStore,
@@ -149,5 +172,6 @@ export {
   CELL_MAX,
   buildRep,
   buildSlaSummaryFor,
-  buildSlaSummaryRowsFor
+  buildSlaSummaryRowsFor,
+  buildSummaryDetailsFor
 };
