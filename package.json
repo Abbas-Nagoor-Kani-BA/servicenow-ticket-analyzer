@@ -25,6 +25,7 @@
     "esbuild": "^0.23.1",
     "eslint": "^9.10.0",
     "fake-indexeddb": "^6.2.5",
+    "fast-xml-parser": "5.11.1",
     "happy-dom": "^15.7.4",
     "lucide-static": "^1.38.0",
     "tailwindcss": "^4.3.3",

@@ -1,4 +1,5 @@
 import { xmlEscape, decodeText, encodeText, colLetter } from "../lib/markup.ts";
+import { XMLParser } from "fast-xml-parser";
 
 // ---------------------------------------------------------------------------
 // OpenXML template surgery (ZIP / SpreadsheetML byte manipulation).
@@ -394,6 +395,67 @@ function rowTextsByColumnA(sheetXml: string, sharedStrings: string[]): Array<{ r
   return out;
 }
 
+/**
+ * Column-A display text of each row, in row order — parsed with fast-xml-parser
+ * instead of regex. Read-only locate helper: it is used only to find which row
+ * number carries a given header text; nothing is re-serialized. Resolves the
+ * three column-A cell encodings (inline <is><t>, literal <v>, and t="s"
+ * shared-string index), matching rowTextsByColumnA's output shape exactly.
+ */
+function rowNumbersByColumnAText(sheetXml: string, sharedStrings: string[]): Array<{ rowNum: number; text: string }> {
+  const parser = new XMLParser({
+    ignoreAttributes: false,
+    attributeNamePrefix: "@_",
+    parseAttributeValue: false,
+    parseTagValue: false,
+    trimValues: false,
+    isArray: (name) => name === "row" || name === "c"
+  });
+  const asArray = <T,>(v: T | T[] | undefined): T[] => (v === undefined ? [] : Array.isArray(v) ? v : [v]);
+  const textOf = (node: unknown): string => {
+    if (node === null || node === undefined) return "";
+    if (typeof node === "string") return node;
+    if (typeof node === "number") return String(node);
+    const inner = node as Record<string, unknown>;
+    const tNodes = asArray(inner["t"] as unknown);
+    if (inner["is"]) {
+      // inline string: <is><t>...</t></is>
+      const is = inner["is"] as Record<string, unknown>;
+      return asArray(is["t"] as unknown).map((t) => (typeof t === "object" && t ? String((t as Record<string, unknown>)["#text"] ?? "") : String(t ?? ""))).join("");
+    }
+    const v = inner["v"];
+    if (v === undefined || v === null || v === "") {
+      // sometimes text sits directly as #text on <t>
+      return tNodes.length ? tNodes.map((t) => String(t ?? "")).join("") : "";
+    }
+    if (inner["@_t"] === "s") {
+      const idx = parseInt(String(v), 10);
+      return Number.isFinite(idx) ? (sharedStrings[idx] ?? "") : "";
+    }
+    return String(v);
+  };
+
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = parser.parse(sheetXml) as Record<string, unknown>;
+  } catch {
+    return [];
+  }
+  const worksheet = (parsed["worksheet"] ?? parsed) as Record<string, unknown>;
+  const sheetData = (worksheet["sheetData"] ?? {}) as Record<string, unknown>;
+  const rows = asArray(sheetData["row"] as unknown) as Array<Record<string, unknown>>;
+
+  const out: Array<{ rowNum: number; text: string }> = [];
+  for (const row of rows) {
+    const rowNum = parseInt(String(row["@_r"] ?? ""), 10);
+    if (!Number.isFinite(rowNum)) continue;
+    const cells = asArray(row["c"] as unknown) as Array<Record<string, unknown>>;
+    const aCell = cells.find((c) => String(c["@_r"] ?? "") === `A${rowNum}`);
+    out.push({ rowNum, text: aCell ? textOf(aCell) : "" });
+  }
+  return out;
+}
+
 function setNumOrText(sheetXml: string, ref: string, value: string | number | null): string {
   if (value === null || value === undefined || value === "") return sheetXml;
   if (typeof value === "number" && Number.isFinite(value)) {
@@ -556,7 +618,7 @@ function patchSummaryDetailsSheet(files: FileMap, sharedStrings: string[], data:
   // rows and renumbers everything below it, so a cached snapshot would go stale.
   const findRowIn = (xml: string, needle: string): number => {
     const n = normLabel(needle);
-    for (const { rowNum, text } of rowTextsByColumnA(xml, sharedStrings)) {
+    for (const { rowNum, text } of rowNumbersByColumnAText(xml, sharedStrings)) {
       if (normLabel(text).includes(n)) return rowNum;
     }
     return 0;
@@ -683,5 +745,6 @@ function fillTemplateBuffer(
 export {
   normSheetName, findTargetSheetPath, parseSharedStrings, cellDisplayValue,
   harvestDataCellStyles, isNumericCellValue, buildDataRowsXml, patchSheetXml,
-  findHeaderRowInXml, stripCalcChain, patchSummarySlaSheet, patchSummaryDetailsSheet, fillTemplateBuffer
+  findHeaderRowInXml, stripCalcChain, patchSummarySlaSheet, patchSummaryDetailsSheet, fillTemplateBuffer,
+  rowTextsByColumnA, rowNumbersByColumnAText
 };
