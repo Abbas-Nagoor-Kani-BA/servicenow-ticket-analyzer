@@ -589,7 +589,8 @@
   #calclensHlList label { @apply flex items-center gap-2 px-1 py-0.75 cursor-pointer whitespace-nowrap rounded hover:bg-line; }
   #calclensHlList input { @apply accent-accent; }
 
-  #mapModal, #ciModal, #configModal { @apply fixed inset-0 z-[18] bg-card2/60 flex items-center justify-center; }
+  #configModal { @apply fixed inset-0 z-[18] bg-card2/60 flex items-center justify-center; }
+  #mapModal, #ciModal { @apply fixed inset-0 z-[19] bg-card2/60 flex items-center justify-center; }
   #ticketStatsModal { @apply fixed inset-0 z-[18] bg-card2/60 flex items-center justify-center; }
   #ticketStatsCard { @apply flex flex-col gap-2 bg-card border border-line rounded-lg p-3.5 w-[min(480px,92vw)] max-h-[84vh] overflow-auto; }
   .stats-section { @apply flex flex-col gap-1; }

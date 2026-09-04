@@ -65,7 +65,8 @@ export const DEFAULT_FIELDS = [
   "close_code",
   "close_notes",
   "work_notes",
-  "comments"
+  "comments",
+  "request_item.number"
 ];
 
 const noProgress: ProgressFn = () => {};

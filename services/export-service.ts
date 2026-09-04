@@ -3,6 +3,7 @@ import { letterToColNum } from "../lib/markup.ts";
 import { pad2 } from "../lib/format.ts";
 import { computeDurations, type Durations } from "../core/durations.ts";
 import { ReportService, type ReportFmt } from "./report-service.ts";
+import { displayNumber, priorityCell, isScTask } from "../core/rowfields.ts";
 
 /*
  * Export-BUILDING work for the viewer: the template column map, the field
@@ -94,9 +95,9 @@ export class ExportService {
       { col: 2, get: r => this.rep.rep(r, this.fmt).opCo },
       { col: 3, get: r => this.rep.rep(r, this.fmt).domain },
       { col: 4, get: r => this.rep.rep(r, this.fmt).type },
-      { col: 5, get: r => r.number },
+      { col: 5, get: r => displayNumber(r) },
       { col: 6, get: r => r.assignmentGroup },
-      { col: 7, get: r => r.priority },
+      { col: 7, get: r => priorityCell(r) },
       { col: 8, get: r => r.shortDescription },
       { col: 9, get: r => r.state },
       { col: 10, get: r => r.assignedTo },
@@ -205,9 +206,9 @@ export class ExportService {
       { letter: "B", get: r => this.rep.rep(r, this.fmt).opCo },
       { letter: "C", get: r => this.rep.rep(r, this.fmt).domain },
       { letter: "D", get: r => MsrChoices.msrType(r.number) },
-      { letter: "E", get: r => expStr(r.number) },
+      { letter: "E", get: r => displayNumber(r) },
       { letter: "F", get: r => expStr(r.assignmentGroup) },
-      { letter: "G", get: r => { const m = String(r.priority ?? "").match(/\d+/); return m ? m[0] : expStr(r.priority); } },
+      { letter: "G", get: r => isScTask(r) ? "RFS" : (String(r.priority ?? "").match(/\d+/)?.[0] ?? expStr(r.priority)) },
       { letter: "H", get: r => expStr(r.shortDescription) },
       { letter: "I", get: r => MsrChoices.msrStatus(expStr(r.state)) },
       { letter: "J", get: r => expStr(r.assignedTo) },

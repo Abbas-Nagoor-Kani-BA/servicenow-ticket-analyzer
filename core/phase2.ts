@@ -211,6 +211,7 @@ function rawValue(v: SnValue | unknown): string {
 export type AnalyzedRow = {
   sysId: string | null;
   number: string;
+  requestItem: string;
   shortDescription: string;
   state: string;
   stateValue: string;
@@ -308,6 +309,7 @@ function analyzeAll(
     out.push({
       sysId: sysIdStr,
       number: fieldValue(rec.number),
+      requestItem: fieldValue((rec as Record<string, unknown>)["request_item.number"]),
       shortDescription: fieldValue(rec.short_description),
       state: fieldValue(rec.state),
       stateValue: rawValue(rec.state),

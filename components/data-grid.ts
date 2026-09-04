@@ -3,6 +3,7 @@ import type { ComponentProps } from "./component.ts";
 import { cellShort, placePopupNear } from "../lib/markup.ts";
 import { setTip } from "../lib/tooltip.ts";
 import { buildReport } from "../core/report.ts";
+import { displayNumber, priorityCell } from "../core/rowfields.ts";
 import { computeDurations } from "../core/durations.ts";
 import type { AttentionFlag, AttentionRuleId } from "../core/attention.ts";
 import { flagsForColumn } from "../core/attention.ts";
@@ -401,6 +402,8 @@ export class DataGrid extends Component<DataGridState, ComponentProps, DataGridD
       v = durations[key.slice(4)] ?? "";
     } else {
       v = row[key];
+      if (key === "number") v = displayNumber(row);
+      if (key === "priority") v = priorityCell(row);
       if (cls === "inst") v = this.deps.fmtInstant(v as string, row);
       if ((cls === "time" || cls === "inst" || cls === "dur") && !v) td.classList.add("empty-time");
     }

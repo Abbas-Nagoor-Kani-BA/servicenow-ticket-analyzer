@@ -279,6 +279,28 @@ test("an open cell editor blocks the re-render", () => {
   assert.equal(win.document.querySelectorAll("#tbl tbody tr").length, 1, "rows untouched");
 });
 
+test("sc_task row shows the RITM number and RFS priority in the grid", () => {
+  const { grid, state } = setup({
+    cols: [["number", "Number", "num", 120], ["priority", "Priority", "", 90]],
+    rows: [{ sysId: "a", number: "SCTASK0001", requestItem: "RITM0009", priority: "", state: "In progress" }]
+  });
+  grid.render(state);
+  const tds = [...win.document.querySelectorAll("#tbl tbody tr td")] as HTMLElement[];
+  assert.equal(tds[0].textContent, "RITM0009", "number cell shows the RITM number");
+  assert.equal(tds[1].textContent, "RFS", "priority cell shows RFS even though row.priority is empty");
+});
+
+test("non-sc_task row shows its own number and priority in the grid", () => {
+  const { grid, state } = setup({
+    cols: [["number", "Number", "num", 120], ["priority", "Priority", "", 90]],
+    rows: [{ sysId: "a", number: "INC0001", priority: "2 - High", state: "Closed" }]
+  });
+  grid.render(state);
+  const tds = [...win.document.querySelectorAll("#tbl tbody tr td")] as HTMLElement[];
+  assert.equal(tds[0].textContent, "INC0001");
+  assert.equal(tds[1].textContent, "2 - High");
+});
+
 test("afterRender runs exactly once per render", () => {
   const { grid, state, rendered } = setup({ rows: [{ sysId: "a", number: "INC1" }] });
   grid.render(state);

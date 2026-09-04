@@ -87,6 +87,25 @@ check("column D for a SCTASK row is RFS", svc.buildMsrTsv([mkRow({ number: "SCTA
 check("column D for a REQ row is RFS", svc.buildMsrTsv([mkRow({ number: "REQ0001234" })]).split("\t")[3], "RFS");
 check("column D for an INC row is Incident", svc.buildMsrTsv([mkRow({ number: "INC0001234" })]).split("\t")[3], "Incident");
 
+console.log("== ExportService — sc_task shows RITM number and RFS priority ==");
+// MSR: E (index 4) = number, G (index 6) = priority.
+const scTsv = svc.buildMsrTsv([mkRow({ number: "SCTASK0001234", requestItem: "RITM0009999", priority: "3 - Moderate" })]).split("\t");
+check("MSR col E is the RITM number for sc_task", scTsv[4], "RITM0009999");
+check("MSR col G is RFS for sc_task", scTsv[6], "RFS");
+const scNoRitm = svc.buildMsrTsv([mkRow({ number: "SCTASK0005678", priority: "2 - High" })]).split("\t");
+check("MSR col E falls back to SCTASK number when no RITM", scNoRitm[4], "SCTASK0005678");
+check("MSR col G still RFS when no RITM", scNoRitm[6], "RFS");
+// Non-sc_task unchanged: E = number, G = priority digit.
+const incTsv = svc.buildMsrTsv([mkRow({ number: "INC0001234", priority: "2 - High" })]).split("\t");
+check("MSR col E unchanged for incident", incTsv[4], "INC0001234");
+check("MSR col G is the priority digit for incident", incTsv[6], "2");
+// Export template: col 5 (index 4) = number, col 7 (index 6) = priority.
+const scRow = mkRow({ number: "SCTASK0001234", requestItem: "RITM0009999", priority: "3 - Moderate" });
+check("export col 5 is the RITM number for sc_task", svc.tplColumns[4].get(scRow, 0), "RITM0009999");
+check("export col 7 is RFS for sc_task", svc.tplColumns[6].get(scRow, 0), "RFS");
+check("export col 5 unchanged for incident", svc.tplColumns[4].get(mkRow({ number: "INC001" }), 0), "INC001");
+check("export col 7 is the raw priority for incident", svc.tplColumns[6].get(mkRow({ priority: "2 - High" }), 0), "2 - High");
+
 // Column N serializes resolvedAt (a display string) directly. It must NOT be
 // routed through the instant formatter, which would misparse a dd-MM-yyyy
 // display string as MM-DD and produce a serial ~205 days off. Column K

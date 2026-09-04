@@ -187,5 +187,21 @@ console.log("== analyzeAll: suspend/resume only for closed/resolved incidents ==
   check("closed problem has no resumeTime", problem.resumeTimeUtcIso, "");
 })();
 
+console.log("== analyzeAll: request_item.number maps to row.requestItem ==");
+(() => {
+  const stateMap = { 1: "Open", 2: "In progress", 3: "Closed Complete" };
+  const queueCtx = { membersByQueue: {}, fallbackMembers: [], tableName: "sc_task" };
+  const recs = [
+    { sys_id: "t1", number: "SCTASK0001", state: "In progress", opened_at: "2026-08-23 06:00:00",
+      "request_item.number": { display_value: "RITM0012345", value: "RITM0012345" } },
+    { sys_id: "t2", number: "SCTASK0002", state: "In progress", opened_at: "2026-08-23 06:00:00" }
+  ];
+  const res = analyzeAll(recs, {}, stateMap, queueCtx);
+  const withRitm = res.rows.find(r => r.number === "SCTASK0001");
+  const noRitm = res.rows.find(r => r.number === "SCTASK0002");
+  check("sc_task maps request_item.number to requestItem", withRitm.requestItem, "RITM0012345");
+  check("sc_task with no request_item has empty requestItem", noRitm.requestItem, "");
+})();
+
 console.log(`\nphase2: ${failed ? failed + " FAILED" : "all passed"}`);
 process.exit(failed ? 1 : 0);
