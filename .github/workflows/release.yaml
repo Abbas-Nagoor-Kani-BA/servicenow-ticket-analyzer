@@ -5,6 +5,9 @@ on:
     tags:
       - 'v*'
 
+permissions:
+  contents: write
+
 jobs:
   release:
     runs-on: ubuntu-latest
@@ -14,18 +17,15 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
 
       - run: npm ci
 
       - run: npm run release
 
-      - name: Zip Package
-        run: |
-          cd dist
-          zip -r ../extension.zip .
+      - run: npm run zip
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          files: extension.zip
+          files: '*.zip'
