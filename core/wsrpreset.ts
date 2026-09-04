@@ -9,11 +9,11 @@ type PresetSpec = {
 };
 
 const WSR_PRESETS: PresetSpec[] = [
-  { table: "incident", stateField: "state", stateValue: "2", closed: false },
-  { table: "incident", stateField: "state", stateValue: "3", closed: false },
   { table: "incident", stateField: "state", stateValue: "7", closed: true },
-  { table: "sc_task", stateField: "state", stateValue: "2", closed: false },
+  { table: "incident", stateField: "state", stateValue: "3", closed: false },
+  { table: "incident", stateField: "state", stateValue: "2", closed: false },
   { table: "sc_task", stateField: "state", stateValue: "3", closed: true },
+  { table: "sc_task", stateField: "state", stateValue: "2", closed: false },
   { table: "problem", stateField: "problem_state", stateValue: "103", closed: false },
   { table: "problem", stateField: "problem_state", stateValue: "104", closed: false }
 ];
@@ -35,6 +35,8 @@ export function buildWsrFilterSets(now: Date = new Date()): FilterSet[] {
     if (p.closed) {
       conditions.push({ join: "AND", field: "closed_at", oper: "between", value: last.from, value2: last.to });
     }
+    // Only pull tickets with no parent incident (empty by default).
+    conditions.push({ join: "AND", field: "parent_incident", oper: "isEmpty", value: "", value2: "" });
     return { table: p.table, conditions };
   });
 }
