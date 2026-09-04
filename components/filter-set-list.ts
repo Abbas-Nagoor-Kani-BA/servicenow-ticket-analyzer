@@ -65,6 +65,11 @@ export class FilterSetList extends Component<FilterSetListState, ComponentProps,
     await this.replace([]);
   }
 
+  /** Replaces the entire list with `sets` (persists + emits change). */
+  async replaceAll(sets: FilterSet[]): Promise<void> {
+    await this.replace(sets.slice());
+  }
+
   /** Draws attention to the card. Used after adding a set. */
   flash(): void {
     const card = this.deps.card;

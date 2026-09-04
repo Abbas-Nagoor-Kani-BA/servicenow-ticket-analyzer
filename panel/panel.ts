@@ -1,5 +1,6 @@
 import { buildEncodedQuery } from "../core/querybuilder.ts";
 import { snStateChoices, SN_PRIORITY_CHOICES, snTableLabel } from "../core/statechoices.ts";
+import { buildWsrFilterSets } from "../core/wsrpreset.ts";
 import { STORAGE } from "../lib/keys.ts";
 import { createPanel, describeFilterSet, filterSetToRows } from "../surfaces/panel/index.ts";
 import { showToast } from "../lib/toast.ts";
@@ -187,6 +188,20 @@ $("addFilterBtn").addEventListener("click", async () => {
 $("clearFilterListBtn").addEventListener("click", async () => {
   await filterSets.clear();
   refreshGenerated();
+});
+$("wsrFilterBtn").addEventListener("click", async () => {
+  try {
+    const sets = buildWsrFilterSets();
+    await filterSets.replaceAll(sets);
+    conditions.setRows([]);
+    refreshGenerated();
+    filterSets.flash();
+    logger.log(`WSR preset loaded: ${sets.length} filter sets (last week's closed incidents/tasks + current open tickets)`, "success");
+    showToast(`WSR preset loaded — ${sets.length} filter sets`);
+  } catch (err) {
+    logger.log((err as Error).message, "error");
+    showToast((err as Error).message, "error");
+  }
 });
 async function editFilterSet(set: FilterSet, index: number): Promise<void> {
   try {

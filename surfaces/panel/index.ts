@@ -115,7 +115,7 @@ export function describeFilterSet(
   choiceList: (key: string) => { value: string | number; label: string }[]
 ): string {
   const bits = [snTableLabel(set.table)];
-  const summary = conditionsSummary(set.conditions, condFields, choiceList);
+  const summary = conditionsSummary(set.conditions, condFields, choiceList, set.table);
   if (summary) bits.push(summary);
   return bits.join(" \xB7 ");
 }
@@ -151,13 +151,14 @@ export function filterSetToRows(set: FilterSet, condFields: CondFieldDef[]): Con
 function conditionsSummary(
   conds: unknown,
   condFields: CondFieldDef[],
-  choiceList: (key: string) => { value: string | number; label: string }[]
+  choiceList: (key: string) => { value: string | number; label: string }[],
+  table: string
 ): string {
   let out = "";
   (Array.isArray(conds) ? conds : []).forEach((raw, i) => {
     const c = raw as { join?: string; field?: string; oper?: string; value?: unknown; value2?: unknown };
     if (i > 0) out += c.join === "OR" ? " OR " : " AND ";
-    out += conditionText(c, condFields, choiceList);
+    out += conditionText(c, condFields, choiceList, table);
   });
   return out;
 }
@@ -165,9 +166,10 @@ function conditionsSummary(
 function conditionText(
   c: { field?: string; oper?: string; value?: unknown; value2?: unknown },
   condFields: CondFieldDef[],
-  choiceList: (key: string) => { value: string | number; label: string }[]
+  choiceList: (key: string) => { value: string | number; label: string }[],
+  table: string
 ): string {
-  const def = condFields.find((x) => x.field === c.field);
+  const def = condFields.find((x) => x.field === c.field || x.fieldByTable?.[table] === c.field);
   const label = def ? def.label : String(c.field ?? "");
   const op = COND_OP_LABELS[c.oper || ""] || String(c.oper ?? "");
   if (c.oper === "isEmpty" || c.oper === "isNotEmpty") return `${label} ${op}`;
