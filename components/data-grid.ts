@@ -53,6 +53,9 @@ export type DataGridDeps = {
   afterRender: () => void;
   /** Calclens: called when a cell is clicked, reporting the focused cell. */
   onCellFocus: (info: { sysId: string; key: string } | null) => void;
+  /** When present and returns false, the SLA/type legend is suppressed (the
+   *  classification legend in .cls is left intact). Defaults to shown. */
+  legendEnabled?: () => boolean;
 };
 
 export type DataGridRefs = {
@@ -124,8 +127,8 @@ export class DataGrid extends Component<DataGridState, ComponentProps, DataGridD
     if (document.querySelector("td.edit-input")) return;
 
     this.buildHead(next);
-    const { breachCounts, typeCounts } = this.buildRows(next);
-    this.updateFooter(next, typeCounts, breachCounts);
+    const { breachCounts } = this.buildRows(next);
+    this.updateFooter(next, breachCounts);
     this.deps.afterRender();
   }
 
@@ -153,14 +156,11 @@ export class DataGrid extends Component<DataGridState, ComponentProps, DataGridD
 
     const wanted = new Set(changed.map((s) => String(s)));
 
-    // Legend counts must reflect ALL rows, not just the changed chunk, or the
-    // SLA/type footer flickers or disappears as the classifier walks the grid.
+    // Legend breach counts must reflect ALL rows, not just the changed chunk,
+    // or the SLA footer flickers as the classifier walks the grid.
     const breachCounts: BreachCounts = { r: 0, m: 0, rm: 0 };
-    const typeCounts: Record<string, number> = {};
     for (const row of state.rows) {
       const rowRep = buildReport(row as Parameters<typeof buildReport>[0], this.deps.fmtInstant as unknown as Parameters<typeof buildReport>[1]) as Record<string, any>;
-      const num = String(row.number ?? "");
-      if (num) typeCounts[rowRep.type || "Other"] = (typeCounts[rowRep.type || "Other"] || 0) + 1;
       this.countBreach(rowRep, row, breachCounts);
     }
 
@@ -190,7 +190,7 @@ export class DataGrid extends Component<DataGridState, ComponentProps, DataGridD
       if (old && old.parentNode) old.parentNode.replaceChild(rowEl, old);
     }
 
-    this.updateFooter(state, typeCounts, breachCounts);
+    this.updateFooter(state, breachCounts);
     this.deps.afterRender();
   }
 
@@ -350,18 +350,15 @@ export class DataGrid extends Component<DataGridState, ComponentProps, DataGridD
     thead.appendChild(tr);
   }
 
-  protected buildRows(state: DataGridState): { breachCounts: BreachCounts; typeCounts: Record<string, number> } {
+  protected buildRows(state: DataGridState): { breachCounts: BreachCounts } {
     const frag = document.createDocumentFragment();
     const breachCounts: BreachCounts = { r: 0, m: 0, rm: 0 };
-    const typeCounts: Record<string, number> = {};
 
     for (const row of state.rows) {
       const tr = document.createElement("tr");
       tr.dataset.sysId = String(row.sysId ?? "");
       const rep = buildReport(row as Parameters<typeof buildReport>[0], this.deps.fmtInstant as unknown as Parameters<typeof buildReport>[1]) as Record<string, any>;
       const durations = computeDurations(row);
-      const num = String(row.number ?? "");
-      if (num) typeCounts[rep.type || "Other"] = (typeCounts[rep.type || "Other"] || 0) + 1;
 
       const flags = state.attention ? state.attention(row) : [];
 
@@ -377,7 +374,7 @@ export class DataGrid extends Component<DataGridState, ComponentProps, DataGridD
       tbody.appendChild(frag);
     }
 
-    return { breachCounts, typeCounts };
+    return { breachCounts };
   }
 
   protected buildCell(
@@ -460,25 +457,33 @@ export class DataGrid extends Component<DataGridState, ComponentProps, DataGridD
 
   protected updateFooter(
     state: DataGridState,
-    typeCounts: Record<string, number>,
     breachCounts: BreachCounts
   ): void {
     this.refs.count.textContent = `${state.rows.length} / ${state.total} tickets`;
 
+    const legendOn = this.deps.legendEnabled?.() ?? true;
+
     const parts: string[] = [];
-    for (const t of Object.keys(typeCounts).sort()) parts.push(`<b>${typeCounts[t]}</b> ${t}`);
+    if (legendOn) {
+      const breachParts: string[] = [];
+      if (breachCounts.rm) breachParts.push(`<span class="slaDot rm"></span>${breachCounts.rm} both SLAs`);
+      if (breachCounts.r) breachParts.push(`<span class="slaDot r"></span>${breachCounts.r} response SLA`);
+      if (breachCounts.m) breachParts.push(`<span class="slaDot m"></span>${breachCounts.m} resolution SLA`);
+      if (breachParts.length) parts.push("SLA breached: " + breachParts.join(" · "));
+    }
 
-    const breachParts: string[] = [];
-    if (breachCounts.rm) breachParts.push(`<span class="slaDot rm"></span>${breachCounts.rm} both SLAs`);
-    if (breachCounts.r) breachParts.push(`<span class="slaDot r"></span>${breachCounts.r} response SLA`);
-    if (breachCounts.m) breachParts.push(`<span class="slaDot m"></span>${breachCounts.m} resolution SLA`);
-    if (breachParts.length) parts.push("SLA breached: " + breachParts.join(" · "));
+    // The classification legend lives in .cls and is owned elsewhere; preserve
+    // it so gating the SLA/type legend (e.g. Calclens off) never hides model or
+    // classification info.
+    const existingCls = this.refs.slaBar.querySelector(".cls");
+    const clsHTML = existingCls ? existingCls.outerHTML : `<span class="cls"></span>`;
+    const clsHasContent = !!existingCls && existingCls.textContent!.trim().length > 0;
 
-    if (parts.length) {
-      this.refs.slaBar.innerHTML = `<span class="legend">${parts.join(" · ")}</span>` +
-        `<span class="cls"></span>`;
+    if (parts.length || clsHasContent) {
+      this.refs.slaBar.innerHTML = `<span class="legend">${parts.join(" · ")}</span>` + clsHTML;
       this.refs.slaBar.classList.remove("hidden");
     } else {
+      this.refs.slaBar.innerHTML = `<span class="legend"></span>` + clsHTML;
       this.refs.slaBar.classList.add("hidden");
     }
   }

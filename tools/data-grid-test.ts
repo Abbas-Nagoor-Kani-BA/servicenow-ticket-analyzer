@@ -176,19 +176,50 @@ test("a value inside the option list is not flagged", () => {
   assert.equal(td.classList.contains("offlist"), false);
 });
 
-test("footer shows the filtered and total counts and the type breakdown", () => {
-  const { grid, state, $ } = setup({
-    rows: [
-      { sysId: "a", number: "INC0001", state: "Closed" },
-      { sysId: "b", number: "REQ0001", state: "Closed" }
-    ],
-    total: 7
-  });
+test("footer shows the filtered and total counts, and the SLA breach legend (no type counts)", () => {
+  const breached = {
+    sysId: "a", number: "INC0001", priority: "2 - High", state: "Resolved",
+    assignmentGroup: "Q", configItem: "App A", createdOn: "2026-08-10 09:00:00",
+    assignTimeUtcIso: "2026-08-10T01:00:00.000Z", acknTimeUtcIso: "2026-08-10T02:00:00.000Z",
+    resolvedAt: "2026-08-10 15:00:00"
+  };
+  const { grid, state, $ } = setup({ rows: [breached], total: 7 });
   grid.render(state);
 
-  assert.equal($("count").textContent, "2 / 7 tickets");
-  assert.equal($("slaBar").classList.contains("hidden"), false, "legend is shown when there is a breakdown");
-  assert.match($("slaBar").textContent, /Incident/);
+  assert.equal($("count").textContent, "1 / 7 tickets");
+  assert.equal($("slaBar").classList.contains("hidden"), false, "legend shown for SLA breaches");
+  assert.match($("slaBar").textContent, /SLA breached/);
+  // Type counts moved to the ticket-stats popup; the legend no longer lists them.
+  assert.doesNotMatch($("slaBar").textContent, /Incident/, "type counts no longer in legend");
+});
+
+test("legend is suppressed when legendEnabled returns false", () => {
+  const breached = {
+    sysId: "a", number: "INC0001", priority: "2 - High", state: "Resolved",
+    assignmentGroup: "Q", configItem: "App A", createdOn: "2026-08-10 09:00:00",
+    assignTimeUtcIso: "2026-08-10T01:00:00.000Z", acknTimeUtcIso: "2026-08-10T02:00:00.000Z",
+    resolvedAt: "2026-08-10 15:00:00"
+  };
+  const { grid, state, $ } = setup({ rows: [breached], total: 7 }, { legendEnabled: () => false });
+  grid.render(state);
+
+  assert.equal($("count").textContent, "1 / 7 tickets");
+  assert.ok($("slaBar").classList.contains("hidden"), "bar hidden when legend gated off and no classification legend");
+  assert.doesNotMatch($("slaBar").textContent, /SLA breached/, "no breach legend while gated off");
+});
+
+test("legend appears when legendEnabled returns true", () => {
+  const breached = {
+    sysId: "a", number: "INC0001", priority: "2 - High", state: "Resolved",
+    assignmentGroup: "Q", configItem: "App A", createdOn: "2026-08-10 09:00:00",
+    assignTimeUtcIso: "2026-08-10T01:00:00.000Z", acknTimeUtcIso: "2026-08-10T02:00:00.000Z",
+    resolvedAt: "2026-08-10 15:00:00"
+  };
+  const { grid, state, $ } = setup({ rows: [breached], total: 7 }, { legendEnabled: () => true });
+  grid.render(state);
+
+  assert.equal($("slaBar").classList.contains("hidden"), false);
+  assert.match($("slaBar").textContent, /SLA breached/);
 });
 
 test("footer legend hides when there are no rows", () => {

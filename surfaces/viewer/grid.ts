@@ -129,6 +129,7 @@ export function initGrid() {
     count: $("count"),
     slaBar: $("slaBar"),
     fmtInstant: fmtInstant as InstantFn,
+    legendEnabled: () => getCalclensMode(),
     columnOptions: (key: string, row: ViewerRow) => columnOptionList(key, row),
     onSort: (key) => {
       const { sortKey, sortDir } = st();

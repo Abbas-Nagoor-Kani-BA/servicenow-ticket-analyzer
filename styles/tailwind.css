@@ -584,6 +584,20 @@
   #calclensHlList input { @apply accent-accent; }
 
   #mapModal, #ciModal, #configModal { @apply fixed inset-0 z-[18] bg-card2/60 flex items-center justify-center; }
+  #ticketStatsModal { @apply fixed inset-0 z-[18] bg-card2/60 flex items-center justify-center; }
+  #ticketStatsCard { @apply flex flex-col gap-2 bg-card border border-line rounded-lg p-3.5 w-[min(480px,92vw)] max-h-[84vh] overflow-auto; }
+  .stats-section { @apply flex flex-col gap-1; }
+  .stats-h { @apply text-[12px] text-accent m-0 uppercase tracking-wider; }
+  .stats-type-head { @apply text-[13px] font-semibold text-text mt-2 mb-1; }
+  .stats-chips { @apply flex flex-wrap gap-1.5; }
+  .stats-chip { @apply flex flex-col items-center justify-center bg-card2 border border-line rounded-md px-2.5 py-1 min-w-[64px]; }
+  .stats-chip-count { @apply text-[16px] font-semibold text-accent tabular-nums leading-tight; }
+  .stats-chip-label { @apply text-[10.5px] text-dim text-center leading-tight mt-0.5; }
+  .stats-table { @apply border-collapse text-[13px]; }
+  .stats-table td { @apply border-b border-line/60 px-2 py-1 text-left leading-snug; }
+  .stats-table td.num { @apply tabular-nums font-semibold text-accent text-left pl-3; }
+  .stats-table td.num .sla-met { @apply text-good font-semibold; }
+  .stats-table td.num .sla-br { @apply text-bad font-semibold; }
   #mapCard, #ciCard { @apply flex flex-col gap-2 bg-card border border-line rounded-xl p-3.5; }
   #configCard { @apply flex flex-col gap-2.5 bg-card border border-line rounded-xl p-3.5 max-h-[84vh]; }
   #mapCard { @apply w-[min(560px,92vw)] max-h-[84vh]; }

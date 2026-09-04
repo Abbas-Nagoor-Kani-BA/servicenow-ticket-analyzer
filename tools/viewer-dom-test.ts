@@ -523,6 +523,27 @@ test("summary SLA tab renders counts and persists summarySla", { timeout: 8000 }
   assert.ok(document.getElementById("summaryWrap").classList.contains("hidden"), "summary panel hidden again");
 });
 
+test("ticket stats icon opens a popup with state and SLA sections", { timeout: 8000 }, async () => {
+  const modalEl = document.getElementById("ticketStatsModal");
+  assert.ok(modalEl.classList.contains("hidden"), "stats popup starts closed");
+
+  document.getElementById("ticketStatsBtn").dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+  await flush();
+
+  assert.ok(!modalEl.classList.contains("hidden"), "stats popup opens on icon click");
+  const body = document.getElementById("ticketStatsBody");
+  assert.ok(body.textContent.includes("Tickets"), "tickets section header present");
+  assert.ok(body.textContent.includes("SLA"), "SLA section header present");
+  assert.ok(body.textContent.includes("closed tickets"), "SLA closed-tickets section present");
+  // At least one type heading and one state row rendered from the current view.
+  assert.ok(body.querySelector(".stats-type-head"), "a ticket-type heading rendered");
+  assert.ok(body.querySelectorAll(".stats-table td").length > 0, "state rows rendered");
+
+  document.getElementById("ticketStatsClose").dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+  await flush();
+  assert.ok(modalEl.classList.contains("hidden"), "stats popup closes");
+});
+
 test("summary SLA tab reflects the active search filter", { timeout: 8000 }, async () => {
   const tabSummary = document.getElementById("tabSummary");
   const tabTickets = document.getElementById("tabTickets");
