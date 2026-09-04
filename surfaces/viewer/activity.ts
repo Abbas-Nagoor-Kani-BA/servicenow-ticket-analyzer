@@ -56,14 +56,15 @@ function activityPaneEl(row: ViewerRow): HTMLElement {
   const pinned: FieldEntry[] = [];
   const summary = String(row.shortDescription || "").trim();
   if (summary) pinned.push({ label: "Summary", cls: "sum", time: "", author: "", text: summary });
-  const stream: FieldEntry[] = [
-    ...journal as FieldEntry[],
-    ...fieldChangeEntries(row)
-  ].sort((a, b) => Journal.sortKey(b as Journal.Entry).localeCompare(Journal.sortKey(a as Journal.Entry)));
-  head.textContent = `${row.number || ""} · Activity · ${pinned.length + stream.length} ${pinned.length + stream.length === 1 ? "entry" : "entries"}`;
+  // Only Work notes (wn) and Resolution notes (rn) — drop customer comments and
+  // field-change entries to keep the pane focused and compact.
+  const stream: FieldEntry[] = (journal as FieldEntry[])
+    .filter((e) => (e as { cls?: string }).cls === "wn" || (e as { cls?: string }).cls === "rn")
+    .sort((a, b) => Journal.sortKey(b as Journal.Entry).localeCompare(Journal.sortKey(a as Journal.Entry)));
+  head.textContent = `${row.number || ""} · Notes · ${pinned.length + stream.length} ${pinned.length + stream.length === 1 ? "entry" : "entries"}`;
   if (!stream.length && !pinned.length) {
     const d = el("div", "noteEmpty");
-    d.textContent = "No work notes, customer comments or field changes on this ticket.";
+    d.textContent = "No work notes or resolution notes on this ticket.";
     body.appendChild(d);
   }
   const renderPinnedCard = (n: FieldEntry): void => {

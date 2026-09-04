@@ -477,6 +477,12 @@
   .msrPick {
     @apply fixed z-30 bg-card border border-line rounded-lg p-1.5 flex flex-col gap-1.5 shadow-[0_8px_24px_rgba(17,17,27,.6)];
   }
+  .msrPickBackdrop {
+    @apply fixed inset-0 z-50 flex items-center justify-center bg-card2/60 p-3;
+  }
+  .msrPickBackdrop .msrPick {
+    @apply static max-w-[calc(100vw-24px)] max-h-[calc(100vh-24px)] overflow-auto;
+  }
   .msrPick.wide { @apply flex-row items-stretch gap-2.5; }
   .msrPickMain { @apply flex flex-col gap-1.5 flex-none w-[270px]; }
   .msrPick.wide .msrPickList { max-height: 400px; }
@@ -491,23 +497,23 @@
   .msrPickItem:hover, .msrPickItem.active { @apply bg-accent text-card2 font-semibold; }
   .msrPickItem.none { @apply text-faint cursor-default; }
   .pickNested { z-index: 45; }
-  .msrPickNotes { @apply flex-1 min-w-[280px] max-h-[440px] overflow-auto border-l border-line pl-3; }
-  .msrPickNotesHead { @apply text-[11px] font-bold text-accent tracking-wide uppercase px-0.5 pb-2 sticky top-[-6px] bg-card; }
+  .msrPickNotes { @apply flex-1 min-w-[220px] max-w-[300px] max-h-[340px] overflow-auto border-l border-line pl-2.5; }
+  .msrPickNotesHead { @apply text-[10.5px] font-bold text-accent tracking-wide uppercase px-0.5 pb-1.5 sticky top-[-6px] bg-card; }
 
-  .noteItem { @apply relative bg-card2 rounded p-2 mb-2.5 overflow-hidden; }
+  .noteItem { @apply relative bg-card2 rounded p-1.5 mb-1.5 overflow-hidden; }
   .noteItem::after { content: ""; @apply absolute left-0 right-0 bottom-0 h-0.5 bg-line; }
-  .noteGroup { @apply bg-card2 rounded p-2 mb-2.5; }
-  .noteSub, .noteMeta { @apply flex items-center gap-2 mb-1 min-w-0; }
+  .noteGroup { @apply bg-card2 rounded p-1.5 mb-1.5; }
+  .noteSub, .noteMeta { @apply flex items-center gap-1.5 mb-0.5 min-w-0; }
   .noteAvatar {
-    @apply flex-none w-[22px] h-[22px] rounded-full bg-line2 text-text text-[9.5px] font-bold inline-flex items-center justify-center tracking-wide;
+    @apply flex-none w-[18px] h-[18px] rounded-full bg-line2 text-text text-[9px] font-bold inline-flex items-center justify-center tracking-wide;
   }
-  .noteAuthor { @apply text-xs font-semibold text-text whitespace-nowrap overflow-hidden text-ellipsis; }
-  .noteLabel { @apply text-[10.5px] font-bold uppercase tracking-wide text-muted whitespace-nowrap; }
+  .noteAuthor { @apply text-[11px] font-semibold text-text whitespace-nowrap overflow-hidden text-ellipsis; }
+  .noteLabel { @apply text-[10px] font-bold uppercase tracking-wide text-muted whitespace-nowrap; }
   .noteDot { @apply text-faint text-[10px]; }
-  .noteTime { @apply text-[10.5px] text-faint whitespace-nowrap; }
-  .noteBody { @apply whitespace-pre-wrap break-words text-[12.5px] leading-relaxed text-text; }
-  .noteEmpty { @apply text-faint text-xs px-0.5 py-1.5; }
-  .noteEntry { @apply relative py-1.5; }
+  .noteTime { @apply text-[10px] text-faint whitespace-nowrap; }
+  .noteBody { @apply whitespace-pre-wrap break-words text-[11.5px] leading-snug text-text; }
+  .noteEmpty { @apply text-faint text-[11px] px-0.5 py-1.5; }
+  .noteEntry { @apply relative py-1; }
   .noteEntry + .noteEntry { border-top: 1px dashed var(--color-line); }
   .noteEntry::after { content: ""; @apply absolute left-0 right-0 bottom-0 h-0.5 bg-line; }
   .noteEntry.wn::after { background: #f5c518; }

@@ -137,6 +137,12 @@ export class CalclensPanel extends Component<CalclensPanelState, ComponentProps,
       body.appendChild(this.renderInstInput(edit.row, edit.key, edit.cls));
     }
 
+    // Choice edits (root cause / solution type) also sit right under the
+    // summary so the controls are visible without scrolling the drawer.
+    if (edit && EDITABLE_CHOICE.has(edit.key)) {
+      body.appendChild(this.renderEdit(edit));
+    }
+
     if (ex.digest) {
       body.appendChild(this.renderDigest(ex.digest));
     }
@@ -200,10 +206,6 @@ export class CalclensPanel extends Component<CalclensPanelState, ComponentProps,
       }
       body.appendChild(wrap);
     }
-
-    if (edit && EDITABLE_CHOICE.has(edit.key)) {
-      body.appendChild(this.renderEdit(edit));
-    }
   }
 
   private renderEdit(edit: CalclensEdit): HTMLElement {
@@ -232,9 +234,10 @@ export class CalclensPanel extends Component<CalclensPanelState, ComponentProps,
         anchor: input,
         options,
         current: cur,
-        minWidth: aside ? 640 : 280,
+        minWidth: aside ? 560 : 280,
         aside,
         repositionOn: this.root,
+        centered: true,
         onPick: (value) => {
           if (value !== String(row[key] ?? "")) {
             row[key] = value;

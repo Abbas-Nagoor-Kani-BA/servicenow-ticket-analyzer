@@ -175,5 +175,40 @@ console.log("== SLA eligibility gate (INC + closed/resolved only) ==");
   check("resolved PRB keeps type Problem Record", prbRep.type, "Problem Record");
 })();
 
+console.log("== report cache invalidation on edited derivation columns ==");
+(() => {
+  const id = v => v || "";
+  const mk = () => ({
+    number: "INC0010001", priority: "2 - High", state: "Resolved",
+    createdOn: "2026-08-10 09:00:00", resolvedAt: "2026-08-10 15:00:00",
+    assignTimeUtcIso: "2026-08-10T01:00:00.000Z", acknTimeUtcIso: "2026-08-10T02:00:00.000Z",
+    suspendTimeUtcIso: "", resumeTimeUtcIso: "",
+    rootCause: "Bad config", solutionType: "Permanent fix"
+  });
+
+  // Choice columns (the bug: these were absent from the cache key).
+  const rc = mk(); R.buildReport(rc, id); rc.rootCause = "EDITED RC";
+  check("edited root cause invalidates cache", R.buildReport(rc, id).rootCauseCategory, "EDITED RC");
+  const st = mk(); R.buildReport(st, id); st.solutionType = "EDITED ST";
+  check("edited resolution type invalidates cache", R.buildReport(st, id).resolutionType, "EDITED ST");
+
+  // Every editable derived-time column must also invalidate the cache. These
+  // were already keyed; the assertions guard against a future regression that
+  // adds an editable column without extending the cache key.
+  const timeCols = [
+    ["assignTimeUtcIso", "assigned"],
+    ["acknTimeUtcIso", "ackn"],
+    ["suspendTimeUtcIso", "susp"],
+    ["resumeTimeUtcIso", "resumed"]
+  ];
+  for (const [field, out] of timeCols) {
+    const row = mk();
+    const before = R.buildReport(row, id)[out];
+    row[field] = "2026-08-10T04:30:00.000Z";
+    const after = R.buildReport(row, id)[out];
+    check(`edited ${field} invalidates cache`, after !== before, true);
+  }
+})();
+
 console.log(`\nreport: ${failed ? failed + " FAILED" : "all passed"}`);
 process.exit(failed ? 1 : 0);

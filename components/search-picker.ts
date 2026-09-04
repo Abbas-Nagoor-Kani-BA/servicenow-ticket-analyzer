@@ -28,6 +28,8 @@ export type SearchPickerDeps = {
   aside?: HTMLElement | null;
   /** Scrolling this element repositions the popup. */
   repositionOn?: HTMLElement | null;
+  /** Center the popup in the viewport (over a backdrop) instead of anchoring. */
+  centered?: boolean;
   onPick: (value: string, intent: PickIntent) => void;
   onDismiss: () => void;
 };
@@ -57,6 +59,7 @@ export class SearchPicker extends Component<SearchPickerState, ComponentProps, S
   #closed = false;
   #onDocDown: (e: MouseEvent) => void;
   #onScroll: () => void;
+  #backdrop: HTMLElement | null = null;
 
   constructor(root: HTMLElement, props: ComponentProps, deps: SearchPickerDeps) {
     super(root, props, deps);
@@ -68,6 +71,16 @@ export class SearchPicker extends Component<SearchPickerState, ComponentProps, S
       if (!this.refs.pop.contains(target) && target !== this.deps.anchor) this.dismiss();
     };
     this.#onScroll = () => this.place();
+
+    // Centered mode: wrap the popup in a full-viewport backdrop that sits above
+    // the Calclens drawer, so it is never rendered behind it and reads as a
+    // modal. The popup is moved out of `root` into the backdrop.
+    if (this.deps.centered) {
+      const bd = el("div", "msrPickBackdrop");
+      bd.appendChild(this.refs.pop);
+      document.body.appendChild(bd);
+      this.#backdrop = bd;
+    }
 
     document.addEventListener("mousedown", this.#onDocDown, true);
     this.deps.repositionOn?.addEventListener("scroll", this.#onScroll);
@@ -243,6 +256,21 @@ export class SearchPicker extends Component<SearchPickerState, ComponentProps, S
 
   protected place(): void {
     if (this.#closed || !this.refs.pop.isConnected) return;
+    if (this.deps.centered) {
+      // The backdrop flex-centers the popup via CSS. If the wide (aside)
+      // layout is wider than the viewport, drop to the compact single-column
+      // layout so it never overflows.
+      if (this.refs.pop.classList.contains("wide") &&
+          this.refs.pop.offsetWidth > window.innerWidth - 24) {
+        this.refs.pop.classList.remove("wide");
+        const aside = this.refs.pop.querySelector(".msrPickNotes");
+        if (aside) aside.remove();
+      }
+      this.refs.pop.style.left = "";
+      this.refs.pop.style.top = "";
+      this.refs.pop.style.width = "";
+      return;
+    }
     placePopupNear(this.refs.pop, this.deps.anchor.getBoundingClientRect(), this.deps.minWidth ?? 300);
   }
 
@@ -252,6 +280,7 @@ export class SearchPicker extends Component<SearchPickerState, ComponentProps, S
     document.removeEventListener("mousedown", this.#onDocDown, true);
     this.deps.repositionOn?.removeEventListener("scroll", this.#onScroll);
     this.refs.pop.remove();
+    if (this.#backdrop) { this.#backdrop.remove(); this.#backdrop = null; }
     this.destroy();
   }
 }

@@ -159,3 +159,18 @@ test("commitNow commits from outside, as the grid does when moving cells", () =>
   assert.equal(picker.commitNow(), true);
   assert.deepEqual(picked, [{ value: "", intent: "enter" }], "clear entry is first");
 });
+
+test("centered mode wraps the popup in a backdrop above the drawer", () => {
+  const { picker, pop } = openPicker({ centered: true });
+  const backdrop = win.document.querySelector(".msrPickBackdrop");
+  assert.ok(backdrop, "backdrop created");
+  assert.ok(backdrop.contains(pop.refs.pop), "popup lives inside the backdrop");
+  picker.close();
+  assert.equal(win.document.querySelector(".msrPickBackdrop"), null, "backdrop removed on close");
+});
+
+test("non-centered mode uses no backdrop", () => {
+  const { picker } = openPicker();
+  assert.equal(win.document.querySelector(".msrPickBackdrop"), null);
+  picker.close();
+});

@@ -316,7 +316,8 @@ export function buildReport(row: WalkedRow, fmt?: MessageFormatter | null, now: 
   const keyInputs = [
     row.number, row.priority, row.state, row.assignmentGroup,
     row.createdOn, row.assignTimeUtcIso, row.acknTimeUtcIso, row.resolvedAt,
-    row.suspendTimeUtcIso, row.resumeTimeUtcIso
+    row.suspendTimeUtcIso, row.resumeTimeUtcIso,
+    row.solutionType, row.rootCause
   ].join("|");
   // The gated result is what every surface reads and is what we cache. The
   // ungated variant (skipSlaGate) is an internal-only path (SLA summary problem
