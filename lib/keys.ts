@@ -12,6 +12,7 @@ export const STORAGE = Object.freeze({
   ciSplit: "ciSplit",
   snXlsxTemplate: "snXlsxTemplate",
   snFilterList: "snFilterList",
+  snFilterPresets: "snFilterPresets",
   includeSummary: "includeSummary",
   viewerSummaryNarrative: "viewerSummaryNarrative"
 } as const);

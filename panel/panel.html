@@ -23,7 +23,16 @@
     <h2 class="text-xs m-0 mb-1.5 text-muted uppercase tracking-wider">Filters</h2>
 
     <div id="filterListCard" class="hidden bg-card2 border border-line rounded-lg px-2.5 pt-2.5 pb-1.5 mb-3">
-      <label class="block text-[11px] text-dim my-2.5 uppercase tracking-wider">Saved filter sets (Run pulls all of them)</label>
+      <div class="flex items-center justify-between my-2.5">
+        <label class="block text-[11px] text-dim uppercase tracking-wider">Saved filter sets (Run pulls all of them)</label>
+        <div class="relative">
+          <button id="filterMenuBtn" type="button" class="linklike px-1" aria-haspopup="true" aria-expanded="false" data-tip="Preset options">&#8942;</button>
+          <div id="filterMenu" class="hidden absolute right-0 z-10 mt-1 min-w-[180px] bg-card border border-line rounded-lg p-1.5 shadow-[0_8px_24px_rgba(17,17,27,.55)]">
+            <button id="savePresetBtn" type="button" class="linklike block w-full text-left px-1 py-1">Save preset&hellip;</button>
+            <div id="presetMenuList" class="mt-1 border-t border-line pt-1"></div>
+          </div>
+        </div>
+      </div>
       <div id="filterListBox"></div>
       <button id="clearFilterListBtn" type="button" class="linklike">Clear all — run uses the live filters only</button>
     </div>
@@ -43,7 +52,10 @@
 
     <button id="addFilterBtn" type="button" class="w-full mt-2.5 bg-line font-medium py-2.5 rounded cursor-pointer text-text hover:brightness-110">+ Add to filter list</button>
 
-    <button id="wsrFilterBtn" type="button" class="w-full mt-2 bg-line font-medium py-2 rounded cursor-pointer text-text hover:brightness-110" data-tip="Replace the filter list with the Weekly Status Report preset: current In Progress / On Hold / analysis tickets plus last week's closed incidents and catalog tasks">WSR preset</button>
+    <label class="block text-[11px] text-dim mt-2.5 mb-1 uppercase tracking-wider">Load preset</label>
+    <select id="presetSelect" class="select" data-tip="Load a filter preset — replaces the filter list. WSR is the built-in Weekly Status Report preset.">
+      <option value="">Load preset&hellip;</option>
+    </select>
 
     <label class="flex items-center gap-2 mt-3 text-[11.5px] text-muted cursor-pointer select-none" data-tip="Also pull this week's change requests to fill the Weekly Summary sheet (last week implemented/failed, next week planned) plus P1/P2 incidents from last week">
       <input id="includeSummary" type="checkbox" class="accent-accent">
@@ -85,6 +97,18 @@
         <button id="logClose" type="button" class="ml-1 bg-transparent border-0 text-dim cursor-pointer text-sm px-1.5 py-0.5 hover:text-bad" data-tip="Close">&#10005;</button>
       </div>
       <div id="logMirror" class="overflow-y-auto font-mono text-[11.5px] leading-relaxed text-muted px-3.5 py-2.5 break-words whitespace-pre-wrap"></div>
+    </div>
+  </div>
+
+  <div id="presetNameModal" class="hidden fixed inset-0 z-[9999] flex items-center justify-center bg-card2/70">
+    <div class="w-[min(360px,92vw)] bg-card border border-line rounded-xl shadow-[0_18px_60px_rgba(0,0,0,.55)] p-4">
+      <div class="font-semibold text-muted text-[12.5px] mb-2">Save filter preset</div>
+      <input id="presetNameInput" type="text" placeholder="Preset name" class="input w-full" maxlength="60">
+      <div id="presetNameError" class="hidden text-[11px] text-bad mt-1.5"></div>
+      <div class="flex gap-2 justify-end mt-3">
+        <button id="presetNameCancel" type="button" class="linklike">Cancel</button>
+        <button id="presetNameSave" type="button" class="btn-primary">Save</button>
+      </div>
     </div>
   </div>
 

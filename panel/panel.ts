@@ -1,6 +1,7 @@
 import { buildEncodedQuery } from "../core/querybuilder.ts";
 import { snStateChoices, SN_PRIORITY_CHOICES, snTableLabel } from "../core/statechoices.ts";
-import { buildWsrFilterSets } from "../core/wsrpreset.ts";
+import { presetOptions, resolvePresetSets } from "../core/preset-controller.ts";
+import { FILTER_PRESET_REPO } from "../di/tokens.ts";
 import { STORAGE } from "../lib/keys.ts";
 import { createPanel, describeFilterSet, filterSetToRows } from "../surfaces/panel/index.ts";
 import { showToast } from "../lib/toast.ts";
@@ -8,6 +9,7 @@ import { initTooltips } from "../lib/tooltip.ts";
 
 import type { CondFieldDef } from "../components/condition-builder.ts";
 import type { FilterSet } from "../data/repositories/filter-list-repository.ts";
+import type { UserPreset } from "../data/repositories/preset-repository.ts";
 import type { LogLevel } from "../components/log-card.ts";
 import type { MsgProgress } from "../types/global.d.ts";
 
@@ -60,6 +62,8 @@ const panel = createPanel({
   }
 });
 const { logCard, progressCard, conditions, filterSets, bridge } = panel;
+const presetRepo = panel.container.resolve(FILTER_PRESET_REPO);
+let userPresets: UserPreset[] = [];
 const logger = { log: (text: string, level?: LogLevel) => logCard.log(text, level || "") };
 let busy = false;
 type Entry = { name: string; sysId: string };
@@ -115,7 +119,11 @@ async function applyPluginSettings(): Promise<void> {
 }
 $("settingsBtn").addEventListener("click", () => chrome.runtime.openOptionsPage());
 initTooltips();
-panel.ready.then(() => refreshGenerated()).catch(() => {});
+panel.ready.then(async () => {
+  refreshGenerated();
+  userPresets = await presetRepo.load();
+  refreshPresetDropdown();
+}).catch(() => {});
 chrome.storage.local.get(["snInstance", "lastRun", STORAGE.includeSummary], async (cfg: { snInstance?: unknown; lastRun?: unknown; includeSummary?: unknown }) => {
   await applyPluginSettings();
   els.includeSummary.checked = cfg.includeSummary === true;
@@ -189,19 +197,155 @@ $("clearFilterListBtn").addEventListener("click", async () => {
   await filterSets.clear();
   refreshGenerated();
 });
-$("wsrFilterBtn").addEventListener("click", async () => {
+
+function refreshPresetDropdown(): void {
+  const sel = $("presetSelect") as HTMLSelectElement;
+  const current = sel.value;
+  sel.innerHTML = "";
+  const placeholder = document.createElement("option");
+  placeholder.value = "";
+  placeholder.textContent = "Load preset\u2026";
+  sel.appendChild(placeholder);
+  for (const opt of presetOptions(userPresets)) {
+    const o = document.createElement("option");
+    o.value = opt.value;
+    o.textContent = opt.label;
+    sel.appendChild(o);
+  }
+  sel.value = "";
+  void current;
+}
+
+function refreshPresetMenuList(): void {
+  const list = $("presetMenuList") as HTMLElement;
+  list.innerHTML = "";
+  if (!userPresets.length) {
+    const empty = document.createElement("div");
+    empty.className = "text-[11px] text-dim px-1 py-1";
+    empty.textContent = "No saved presets";
+    list.appendChild(empty);
+    return;
+  }
+  for (const p of userPresets) {
+    const row = document.createElement("div");
+    row.className = "flex items-center gap-2 px-1 py-1 text-[11.5px]";
+    const name = document.createElement("span");
+    name.className = "flex-1 min-w-0 truncate";
+    name.textContent = p.name;
+    const del = document.createElement("button");
+    del.type = "button";
+    del.className = "text-bad bg-transparent border-0 cursor-pointer px-1";
+    del.textContent = "\u2715";
+    del.title = `Delete preset "${p.name}"`;
+    del.addEventListener("click", async () => {
+      await presetRepo.remove(p.name);
+      userPresets = await presetRepo.load();
+      refreshPresetDropdown();
+      refreshPresetMenuList();
+      showToast(`Preset "${p.name}" deleted`);
+    });
+    row.append(name, del);
+    list.appendChild(row);
+  }
+}
+
+$("presetSelect").addEventListener("change", async (e: Event) => {
+  const sel = e.target as HTMLSelectElement;
+  const value = sel.value;
+  if (!value) return;
+  const label = sel.options[sel.selectedIndex]?.textContent || value;
   try {
-    const sets = buildWsrFilterSets();
+    const sets = resolvePresetSets(value, userPresets);
+    if (!sets.length) {
+      showToast("That preset has no filters");
+      sel.value = "";
+      return;
+    }
     await filterSets.replaceAll(sets);
     conditions.setRows([]);
     refreshGenerated();
     filterSets.flash();
-    logger.log(`WSR preset loaded: ${sets.length} filter sets (last week's closed incidents/tasks + current open tickets)`, "success");
-    showToast(`WSR preset loaded — ${sets.length} filter sets`);
+    logger.log(`Loaded preset "${label}": ${sets.length} filter sets`, "success");
+    showToast(`Loaded preset "${label}" — ${sets.length} filter sets`);
   } catch (err) {
     logger.log((err as Error).message, "error");
     showToast((err as Error).message, "error");
+  } finally {
+    sel.value = "";
   }
+});
+
+function closeFilterMenu(): void {
+  $("filterMenu").classList.add("hidden");
+  $("filterMenuBtn").setAttribute("aria-expanded", "false");
+}
+
+$("filterMenuBtn").addEventListener("click", (e: Event) => {
+  e.stopPropagation();
+  const menu = $("filterMenu");
+  const willOpen = menu.classList.contains("hidden");
+  menu.classList.toggle("hidden", !willOpen);
+  $("filterMenuBtn").setAttribute("aria-expanded", willOpen ? "true" : "false");
+  if (willOpen) refreshPresetMenuList();
+});
+document.addEventListener("click", (e) => {
+  const menu = $("filterMenu");
+  if (menu.classList.contains("hidden")) return;
+  const t = e.target as Node;
+  if (!menu.contains(t) && t !== $("filterMenuBtn")) closeFilterMenu();
+});
+
+function openPresetNameModal(): void {
+  const input = $("presetNameInput") as HTMLInputElement;
+  input.value = "";
+  $("presetNameError").classList.add("hidden");
+  $("presetNameModal").classList.remove("hidden");
+  input.focus();
+}
+function closePresetNameModal(): void {
+  $("presetNameModal").classList.add("hidden");
+}
+function showPresetNameError(msg: string): void {
+  const err = $("presetNameError");
+  err.textContent = msg;
+  err.classList.remove("hidden");
+}
+
+$("savePresetBtn").addEventListener("click", () => {
+  closeFilterMenu();
+  if (!filterSets.getSets().length) {
+    showToast("Nothing to save — add filters to the list first");
+    return;
+  }
+  openPresetNameModal();
+});
+$("presetNameCancel").addEventListener("click", () => closePresetNameModal());
+$("presetNameModal").addEventListener("click", (e: Event) => {
+  if (e.target === $("presetNameModal")) closePresetNameModal();
+});
+async function savePreset(): Promise<void> {
+  const name = ($("presetNameInput") as HTMLInputElement).value;
+  const sets = filterSets.getSets();
+  if (!sets.length) {
+    closePresetNameModal();
+    showToast("Nothing to save — add filters to the list first");
+    return;
+  }
+  const outcome = await presetRepo.add(name, sets);
+  if (outcome === "empty-name") { showPresetNameError("Enter a preset name"); return; }
+  if (outcome === "reserved") { showPresetNameError("That name is reserved for the built-in WSR preset"); return; }
+  if (outcome === "duplicate") { showPresetNameError(`A preset named "${name.trim()}" already exists`); return; }
+  userPresets = await presetRepo.load();
+  refreshPresetDropdown();
+  refreshPresetMenuList();
+  closePresetNameModal();
+  logger.log(`Saved preset "${name.trim()}" (${sets.length} filter sets)`, "success");
+  showToast(`Preset "${name.trim()}" saved`);
+}
+$("presetNameSave").addEventListener("click", () => { void savePreset(); });
+$("presetNameInput").addEventListener("keydown", (e: KeyboardEvent) => {
+  if (e.key === "Enter") { e.preventDefault(); void savePreset(); }
+  if (e.key === "Escape") { e.preventDefault(); closePresetNameModal(); }
 });
 async function editFilterSet(set: FilterSet, index: number): Promise<void> {
   try {
